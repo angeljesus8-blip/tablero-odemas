@@ -1,0 +1,3724 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#D12026">
+<title>Admin · HES 1217</title>
+<link rel="apple-touch-icon" href="logo_odemas.png">
+<style>
+  /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
+     de la tienda fallando, el CDN caído dibujaba la app con la letra del
+     sistema y todo se descuadraba sin avisar. Ver tablero.html. */
+  @font-face{
+    font-family:'Montserrat';
+    src:url('./fuentes/Montserrat.woff2') format('woff2');
+    font-weight:400 800; font-display:swap;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js"></script>
+<script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';</script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+:root { --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e; --bg:#f6f6f7; }
+body { font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; min-height:100vh; }
+
+/* PIN */
+#pinWrap { position:fixed;inset:0;background:#fff;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px; }
+#pinWrap .pin-back { position:absolute;top:calc(10px + env(safe-area-inset-top));left:12px;
+  text-decoration:none;color:var(--rojo);font-size:30px;font-weight:700;line-height:1;padding:4px 12px 8px; }
+#pinWrap img { height:44px; }
+#pinWrap h1 { font-size:18px;font-weight:800; }
+#pinWrap p { font-size:13px;color:#888; }
+.pin-row { display:flex;gap:14px; }
+.pin-dot { width:14px;height:14px;border-radius:50%;border:2px solid #ddd;transition:.15s; }
+.pin-dot.on { background:var(--rojo);border-color:var(--rojo); }
+.pin-err { font-size:12px;color:var(--rojo);font-weight:700;min-height:16px;text-align:center; }
+.numpad { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:240px; }
+.numpad button { height:56px;border-radius:14px;border:1.5px solid #e5e5e5;background:#fff;font-family:'Montserrat',sans-serif;font-size:20px;font-weight:700;cursor:pointer;color:#1a1a1a; }
+.numpad button:active { background:#f5f5f5; }
+.num-del { font-size:16px;color:#888; }
+
+/* HEADER */
+header { background:#fff;border-bottom:3px solid var(--rojo);padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10; }
+.back { text-decoration:none;color:var(--rojo);font-size:30px;font-weight:700;line-height:1;padding:0 4px 4px 0; }
+header img { height:30px; }
+header h1 { font-size:15px;font-weight:800;margin-left:2px; }
+
+/* TABS */
+.tab-bar { display:flex;background:#fff;border-bottom:2px solid #eee;padding:0 8px;overflow-x:auto; }
+.tab-bar::-webkit-scrollbar { display:none; }
+.tab-bar button { flex-shrink:0;padding:12px 10px;border:none;background:none;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:#bbb;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap; }
+.tab-bar button.on { color:var(--rojo);border-bottom-color:var(--rojo); }
+
+/* PANES */
+.pane { padding:16px;max-width:540px;margin:0 auto;display:none; }
+.pane.on { display:block; }
+
+/* CARDS */
+.card { background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;border:1px solid #ececec; }
+.card h2 { font-size:14px;font-weight:800;margin-bottom:10px; }
+/* Reporte de accesorios: tres bloques que se copian por separado porque la
+   hoja del Excel tiene columnas de formula en medio. */
+.acc-blq { margin-bottom:16px; }
+.acc-blq label { display:block;font-size:12px;color:#666;margin-bottom:5px;line-height:1.4; }
+.acc-blq textarea { width:100%;font-family:ui-monospace,monospace;font-size:11px;
+  border:1.5px solid #ddd;border-radius:8px;padding:8px;background:#fafafa;
+  white-space:pre;overflow-x:auto;resize:vertical; }
+.card .note { font-size:12px;color:#aaa;margin-bottom:12px;line-height:1.45; }
+
+/* FORM */
+.field { margin-bottom:10px; }
+.field label { font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px; }
+.field input, .field textarea { width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:14px;font-weight:600;outline:none;background:#fafafa;color:#1a1a1a; }
+.field input:focus, .field textarea:focus { border-color:var(--rojo);background:#fff; }
+.field textarea { resize:vertical;min-height:80px; }
+.g2 { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
+.btn-pri { width:100%;padding:13px;background:var(--rojo);color:#fff;border:none;border-radius:12px;font-family:'Montserrat',sans-serif;font-size:14px;font-weight:800;cursor:pointer;margin-top:4px; }
+.btn-pri:disabled { background:#ccc; }
+.divider { display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:#ccc;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px; }
+.divider::before,.divider::after { content:'';flex:1;height:1px;background:#eee; }
+
+/* FILE UPLOAD */
+.filebox { border:2px dashed #e0e0e0;border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:.15s; }
+.filebox.ok { border-color:var(--verde);background:#f7fdfa; }
+.filebox:focus { outline:none;border-color:var(--rojo);background:#fffafa; }
+.filebox .ph { font-size:13px;color:#999;line-height:1.4; }
+
+/* RESULT */
+.result { font-size:13px;line-height:1.5;border-radius:10px;padding:12px 14px;margin-top:12px;display:none; }
+.result.show { display:block; }
+.result.ok { background:#eafaf1;color:#13703c;border:1.5px solid #bfe7cd; }
+.result.bad { background:#fdeaea;color:#b3261e;border:1.5px solid #f3c3c0; }
+
+/* PREVIEW */
+.prev-hdr { font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px; }
+.prev-item { background:#f7fdfa;border:1.5px solid #bfe7cd;border-radius:10px;padding:10px 12px;margin-bottom:8px; }
+.prev-item strong { display:block;font-size:13px;font-weight:700;color:#13703c;margin-bottom:3px; }
+.prev-item span { display:block;font-size:12px;color:#555;margin-top:1px; }
+
+/* LIST */
+.list-hdr { font-size:12px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.5px;margin:4px 4px 10px; }
+.item { background:#fff;border:1px solid #ececec;border-left:4px solid var(--naranja);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px; }
+.item-info { flex:1;min-width:0; }
+.item-info strong { font-size:13px;font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.item-info span { font-size:11.5px;color:#888;margin-top:2px;display:block;line-height:1.4; }
+.btn-del { background:#fff5f5;border:1.5px solid #ffd5d5;color:var(--rojo);border-radius:8px;padding:7px 10px;font-size:14px;cursor:pointer;flex-shrink:0; }
+/* Catálogo de accesorios: una fila por producto, y los avisos que no bloquean */
+.cat-f { display:flex;gap:9px;align-items:center;padding:9px 2px;border-bottom:1px solid #f2f2f2;font-size:13px;cursor:pointer; }
+.cat-f.off { opacity:.45; }
+.cat-f .cn { flex:1;font-weight:700;line-height:1.35; }
+.cat-f .ca { font-family:ui-monospace,monospace;font-size:11px;color:#aaa;font-weight:600; }
+.cat-f .cp { font-weight:800;color:#1a8c4e;white-space:nowrap; }
+.cat-f .cb { background:none;border:1.5px solid #e0e0e0;border-radius:7px;font-size:11px;padding:3px 8px;color:#888;cursor:pointer;flex-shrink:0;font-family:inherit;font-weight:700; }
+.cat-av { margin:6px 0 0;padding:9px 11px;border-radius:8px;border-left:4px solid var(--naranja);background:#fff4ec;font-size:12px;line-height:1.45;color:#8a4a1f; }
+.empty { text-align:center;color:#ccc;font-size:13px;padding:24px; }
+
+/* COMISIONES — vista previa editable */
+.comis-card { background:#fff;border:1px solid #ececec;border-left:4px solid var(--teal,#0e9594);border-radius:12px;padding:12px 14px;margin-bottom:10px; }
+.comis-card.warn { border-left-color:var(--naranja); }
+.comis-top { display:flex;align-items:center;gap:8px;margin-bottom:8px; }
+.comis-top input.nombre { flex:1;font-family:'Montserrat',sans-serif;font-size:13.5px;font-weight:700;border:1.5px solid #e0e0e0;border-radius:8px;padding:7px 9px;background:#fafafa;outline:none; }
+.comis-top input.nombre:focus { border-color:var(--rojo);background:#fff; }
+.comis-del { background:#fff5f5;border:1.5px solid #ffd5d5;color:var(--rojo);border-radius:8px;padding:5px 9px;font-size:13px;cursor:pointer;flex-shrink:0; }
+.comis-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:8px; }
+.comis-f { display:flex;flex-direction:column;gap:3px; }
+.comis-f label { font-size:9.5px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.3px; }
+.comis-f input, .comis-f select { font-family:'Montserrat',sans-serif;font-size:12.5px;font-weight:600;border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 8px;background:#fafafa;outline:none;width:100%; }
+.comis-f input:focus, .comis-f select:focus { border-color:var(--rojo);background:#fff; }
+.comis-sec { font-size:9.5px;font-weight:800;color:var(--teal,#0e9594);text-transform:uppercase;letter-spacing:.4px;margin:8px 0 4px; }
+.comis-f input.sospechoso { border-color:var(--rojo);background:#fdeaea;color:var(--rojo);font-weight:800; }
+.comis-warn-tag { font-size:9px;font-weight:800;color:var(--rojo);margin-left:6px;text-transform:none;letter-spacing:0; }
+
+/* SPIN */
+/* Equipo */
+.eq-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px; }
+.eq-check { display:flex;align-items:center;gap:8px;font-size:12.5px;color:#555;margin:10px 0 12px;cursor:pointer; }
+.eq-check input { width:17px;height:17px;accent-color:var(--rojo); }
+.eq-row { display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap; }
+.eq-row:last-child { border-bottom:none; }
+.eq-num { font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;color:var(--azul);min-width:62px; }
+.eq-info { flex:1;min-width:130px; }
+.eq-info b { display:block;font-size:13.5px; }
+.eq-info span { font-size:11px;color:#999; }
+.eq-tags { display:flex;gap:6px;align-items:center;flex-wrap:wrap; }
+.eq-tag { font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.3px; }
+.eq-tag.admin { background:#fdeaea;color:var(--rojo); }
+.eq-tag.baja { background:#eee;color:#999; }
+.eq-btn { border:1px solid #ddd;background:#fff;border-radius:9px;padding:6px 10px;font-family:inherit;font-size:11.5px;font-weight:700;color:#666;cursor:pointer; }
+.eq-btn:hover { border-color:#bbb;color:#333; }
+.eq-btn.on { background:var(--rojo);border-color:var(--rojo);color:#fff; }
+.eq-row.inactivo .eq-info b, .eq-row.inactivo .eq-num { opacity:.45;text-decoration:line-through; }
+.spin { display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:6px; }
+@keyframes sp{ to{ transform:rotate(360deg); } }
+
+/* TOAST */
+#toast { position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:20px;font-size:13px;font-weight:700;color:#fff;opacity:0;transition:opacity .25s;pointer-events:none;z-index:999;white-space:nowrap; }
+
+/* Recortar la captura antes del OCR. Darle la pantalla completa a Tesseract
+   (menús de Sonar, gráficas, dos tablas) le hace confundir dígitos y perder
+   montos; con solo la tabla, lee bien. */
+#cropWrap { position:fixed;inset:0;background:#111;z-index:200;display:none;flex-direction:column; }
+#cropWrap.on { display:flex; }
+#cropTop { padding:12px 14px;color:#fff;background:#1c1c1c;border-bottom:2px solid var(--rojo); }
+#cropTop h3 { font-size:14px;font-weight:800;margin-bottom:3px; }
+#cropTop p { font-size:11.5px;color:#bbb;line-height:1.35; }
+#cropStage { flex:1;position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:none; }
+#cropBox { position:relative;line-height:0; }
+/* La captura se ve COMPLETA de un vistazo: si desbordara habría que hacer
+   scroll para marcar la tabla, y el scroll táctil pelea con el arrastre. */
+#cropImg { max-width:100%;max-height:100%;user-select:none;-webkit-user-drag:none;display:block; }
+#cropShade { position:absolute;inset:0;background:rgba(0,0,0,.55);pointer-events:none; }
+#cropSel { position:absolute;border:2px solid var(--naranja);box-shadow:0 0 0 9999px rgba(0,0,0,.55);display:none;pointer-events:none; }
+#cropBot { padding:10px 14px;background:#1c1c1c;display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+#cropInfo { color:#bbb;font-size:11.5px;flex:1;min-width:110px; }
+.crop-btn { border:none;border-radius:10px;padding:10px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer; }
+.crop-ok { background:var(--verde);color:#fff; }
+.crop-ok:disabled { background:#3a3a3a;color:#777;cursor:default; }
+.crop-alt { background:#333;color:#ddd; }
+#toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<script src="./continuidad.js"></script>
+<script src="./acc_codigos.js"></script>
+
+
+<!-- PIN -->
+<div id="pinWrap">
+  <!-- Salida disponible desde el primer instante: esta capa tapa la cabecera,
+       y si la verificación se queda colgada (sin red) no habría forma de irse. -->
+  <a href="index.html" class="pin-back" title="Menú">‹</a>
+  <img src="logo_odemas.png" alt="Odemás">
+  <h1>Admin</h1>
+  <p>Verificando tu acceso…</p>
+  <div class="pin-err" id="pinErr"></div>
+</div>
+
+<!-- ADMIN -->
+<div id="app" style="display:none">
+  <header>
+    <a href="index.html" class="back">‹</a>
+    <img src="logo_odemas.png" alt="Odemás">
+    <h1>Admin · HES 1217</h1>
+  </header>
+
+  <!-- El aviso de cuadre se fue con la hoja (fase 6, 17-ago-2026): ya no hay
+       dos lados que comparar. Ver el comentario de `revisarCuadre` abajo. -->
+
+  <div class="tab-bar">
+    <button class="on" onclick="tab('cat',this);cargarCatAcc()">📦 Catálogo</button>
+    <button onclick="tab('promos',this)">🔥 Promos</button>
+    <!-- Bundles retirado el 4-ago-2026: la tienda dejó de manejar paquetes.
+         Sin este botón no hay forma de llegar a #pane-bundles, así que ya no se
+         pueden crear ni borrar. El panel y su código se quedan abajo, sin uso,
+         y en el servidor no se ha tocado nada: la hoja `Bundles`, la tabla de
+         Supabase y los 20 combos históricos siguen intactos. Para reactivarlo,
+         devolver este botón. -->
+    <button onclick="tab('eol',this)">🏷️ EOL</button>
+    <button onclick="tab('avisos',this);cargarListaAvisos()">📢 Avisos</button>
+    <button onclick="tab('comis',this);cargarComisionesCloud()">💰 Comisiones</button>
+    <button onclick="tab('equipo',this);cargarEquipo();cargarTecnicos();repaMeses()">👥 Equipo</button>
+    <button onclick="tab('config',this);loadConfig()">⚙️ Config</button>
+  </div>
+
+  <!-- CATÁLOGO -->
+  <div class="pane on" id="pane-cat">
+    <div class="card">
+      <h2>📦 Catálogo e inventario</h2>
+      <p class="note">Sube el <b>"Informe de Artículos Totales en Tienda"</b> (.xlsx). Actualiza el catálogo (UPC → SKU + descripción) y el stock (ON HAND) para todos los teléfonos.</p>
+      <input type="file" id="fileCat" accept=".xlsx,.xls" hidden>
+      <div class="filebox" id="fboxCat" onclick="document.getElementById('fileCat').click()">
+        <div class="ph" id="fphCat">📄 Toca para elegir el archivo (.xlsx)</div>
+      </div>
+      <button class="btn-pri" id="btnCat" onclick="subirCatalogo()" disabled style="margin-top:14px">Subir y actualizar</button>
+      <div class="result" id="resCat"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>🖥️ Piezas de exhibición</h2>
+      <p class="note">Excel con columnas <b>SKU</b> y <b>EXHIBICION</b> (también acepta DISPLAY o MUESTRA). Reemplaza el conteo de piezas en piso para todos los SKUs.</p>
+      <input type="file" id="fileExhib" accept=".xlsx,.xls" hidden>
+      <div class="filebox" id="fboxExhib" onclick="document.getElementById('fileExhib').click()">
+        <div class="ph" id="fphExhib">📄 Toca para elegir el Excel de exhibición</div>
+      </div>
+      <button class="btn-pri" id="btnExhib" onclick="subirExhibicion()" disabled style="margin-top:14px">Actualizar exhibición</button>
+      <div class="result" id="resExhib"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>📋 Catálogo de referencia</h2>
+      <p class="note">Excel con <b>todos los productos que maneja la tienda</b> (SKU · descripción · EAN/UPC). Sin existencias ni precios — complementa el informe de artículos.</p>
+      <input type="file" id="fileCatRef" accept=".xlsx,.xls" hidden>
+      <div class="filebox" id="fboxCatRef" onclick="document.getElementById('fileCatRef').click()">
+        <div class="ph" id="fphCatRef">📄 Toca para elegir el Excel de catálogo</div>
+      </div>
+      <button class="btn-pri" id="btnCatRef" onclick="subirCatalogoRef()" disabled style="margin-top:14px">Subir catálogo de referencia</button>
+      <div class="result" id="resCatRef"></div>
+    </div>
+
+    <!-- Accesorios del SKU genérico (20-ago-2026, v198).
+         Estuvo unas horas en Captura de Series, junto al Excel del mes, porque
+         el momento en que se descubre que falta un producto es capturando un
+         ticket. Se movió aquí por una razón que pesa más: quien no se acuerda
+         de dónde estaba busca los catálogos donde están todos los catálogos.
+         En Captura queda una línea que dice dónde se agregan. -->
+    <div class="card" style="margin-top:14px">
+      <h2>🔌 Accesorios · SKU genérico</h2>
+      <p class="note">Micas, cargadores, kits y los productos de Mr&nbsp;Fix. Este
+        <b>no se sube, se escribe</b>: son dos docenas y cambian de uno en uno.
+        Es la lista que sale al capturar un ticket de accesorio.</p>
+      <div id="catAccLista"><p class="note">Abre esta pestaña para cargar…</p></div>
+      <button class="btn-pri" onclick="catAccNuevo()"
+              style="width:auto;padding:10px 14px;margin-top:10px">＋ Producto nuevo</button>
+
+      <!-- La ficha. Se llena al tocar un producto, o vacía para dar de alta. -->
+      <div id="catAccFicha" style="display:none;margin-top:14px;padding-top:14px;
+           border-top:2px solid #eee">
+        <div id="catAccUsos" class="note" style="display:none;background:#f7f7f8;
+             border-radius:8px;padding:9px 11px;margin-bottom:10px"></div>
+
+        <div class="field">
+          <label>Nombre del producto</label>
+          <input id="catAccNombre" autocapitalize="characters" autocomplete="off"
+                 placeholder="MICA HR">
+        </div>
+        <div class="field">
+          <label>Código de artículo</label>
+          <input id="catAccArt" autocapitalize="characters" autocomplete="off"
+                 placeholder="43739-MICAHR" oninput="catAccMirarArt()">
+          <p class="note" style="margin:5px 0 0">El que teclea el cajero en «N. de
+            serie». De aquí sale la propuesta automática al leer el ticket: sin él,
+            este producto <b>nunca se propondrá solo</b>.</p>
+          <div id="catAccAvisoArt" class="cat-av" style="display:none"></div>
+        </div>
+        <div class="field">
+          <label>Precio de referencia</label>
+          <input id="catAccPrecio" inputmode="decimal" autocomplete="off"
+                 oninput="catAccMirarPrecio()">
+          <p class="note" style="margin:5px 0 0">Ayuda a ordenar la lista, no es el
+            precio de venta: el real sale del ticket.</p>
+          <div id="catAccAvisoPrecio" class="cat-av" style="display:none"></div>
+        </div>
+        <div class="field">
+          <label>SKU con el que se cobra</label>
+          <input id="catAccSku" inputmode="numeric" autocomplete="off" placeholder="43739">
+          <p class="note" style="margin:5px 0 0">Casi todo va con el genérico
+            <b>43739</b>. Los Office no: Personal es 63602 y Familia 57518. Es la
+            columna E del Excel de comisiones.</p>
+        </div>
+        <div class="field">
+          <label>Orden en la lista</label>
+          <input id="catAccOrden" inputmode="numeric" autocomplete="off" placeholder="100">
+        </div>
+        <button class="btn-pri" onclick="catAccGuardar()">Guardar producto</button>
+        <div class="result" id="resCatAcc"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROMOS CEA -->
+  <div class="pane" id="pane-promos">
+    <div class="card">
+      <h2>🔥 Promociones CEA</h2>
+      <p class="note">Sube el PDF del CEA de promociones. La app extrae promos y productos EOL — ambos se guardan automáticamente.</p>
+      <input type="file" id="filePromos" accept="application/pdf,.pdf,.xlsx,.xls" hidden>
+      <div class="filebox" id="fboxPromos" onclick="document.getElementById('filePromos').click()">
+        <div class="ph" id="fphPromos">📄 Toca para elegir el PDF o Excel del CEA</div>
+      </div>
+      <details id="detPromos" style="display:none;margin-top:12px">
+        <summary style="font-size:11px;color:#888;cursor:pointer;font-weight:700">🔍 Ver lo que leyó del archivo (antes de subir)</summary>
+        <div id="prevListPromos"></div>
+      </details>
+      <button class="btn-pri" id="btnPromos" onclick="subirPromos()" disabled style="margin-top:14px">Subir promociones</button>
+      <div class="result" id="resPromos"></div>
+    </div>
+  </div>
+
+  <!-- BUNDLES -->
+  <div class="pane" id="pane-bundles">
+    <div class="card">
+      <h2>📎 Desde CEA Bundle (PDF)</h2>
+      <p class="note">Sube el PDF del comunicado y la app extrae los bundles automáticamente — nombre, SKUs, precio y vigencia.</p>
+      <input type="file" id="filePdfBundle" accept="application/pdf,.pdf" hidden>
+      <div class="filebox" id="fboxBundle" onclick="document.getElementById('filePdfBundle').click()">
+        <div class="ph" id="fphBundle">📄 Toca para elegir el PDF del CEA Bundle</div>
+      </div>
+      <div id="previewBundles" style="display:none">
+        <div class="prev-hdr" id="prevHdr"></div>
+        <div id="prevList"></div>
+        <button class="btn-pri" id="btnSaveAll" onclick="saveBundlesFromPdf()">💾 Guardar todos en la nube</button>
+      </div>
+    </div>
+    <div class="divider">o agregar manualmente</div>
+    <div class="card">
+      <h2>Nuevo bundle</h2>
+      <div class="field"><label>Nombre del bundle</label><input id="bNom" placeholder="Ej: Bundle FreeBuds Pro 5"></div>
+      <div class="field">
+        <label>SKUs participantes (uno por línea o separados por coma)</label>
+        <textarea id="bSkus" placeholder="100285218&#10;100285200&#10;100285197"></textarea>
+      </div>
+      <div class="field"><label>Precio total del bundle</label><input id="bPx" type="number" placeholder="5999" inputmode="numeric"></div>
+      <div class="g2">
+        <div class="field"><label>Desde</label><input id="bD1" type="date"></div>
+        <div class="field"><label>Hasta</label><input id="bD2" type="date"></div>
+      </div>
+      <button class="btn-pri" id="btnB" onclick="addBundle()">Agregar bundle</button>
+    </div>
+    <div class="list-hdr" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Bundles activos</span>
+      <button onclick="clearBundles()" style="font-size:11px;padding:4px 10px;border:1.5px solid #ffd5d5;background:#fff5f5;color:var(--rojo);border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">🗑️ Limpiar todos</button>
+    </div>
+    <div id="listB"></div>
+  </div>
+
+  <!-- EOL -->
+  <div class="pane" id="pane-eol">
+    <div class="card">
+      <h2>📊 Subir lista desde Excel</h2>
+      <p class="note">Excel con columna <b>SKU</b> (obligatoria) y opcionalmente <b>Descripcion</b>/<b>Precio</b>. Útil para agregar muchos SKUs de golpe — por ejemplo la lista de "Discontinued" del inventario corporativo.</p>
+      <input type="file" id="fileEolXlsx" accept=".xlsx,.xls" hidden>
+      <div class="filebox" id="fboxEolXlsx" onclick="document.getElementById('fileEolXlsx').click()">
+        <div class="ph" id="fphEolXlsx">📄 Toca para elegir el Excel de EOL</div>
+      </div>
+    </div>
+    <div class="divider">o desde CEA de Promos (PDF)</div>
+    <div class="card">
+      <h2>📎 Desde CEA de Promos (PDF)</h2>
+      <p class="note">Sube el PDF del CEA o del ADENDUM. La app saca los productos EOL: los que traen ESTATUS EOL en su renglón, y también los de un comunicado que ya es de EOL completo (como «PROMOCIONES EOL»), aunque su tabla no traiga esa columna.</p>
+      <input type="file" id="filePdfEol" accept="application/pdf,.pdf" hidden>
+      <div class="filebox" id="fboxEol" onclick="document.getElementById('filePdfEol').click()">
+        <div class="ph" id="fphEol">📄 Toca para elegir el PDF del CEA</div>
+      </div>
+    </div>
+    <div id="previewEol" style="display:none">
+      <div class="prev-hdr" id="prevHdrEol"></div>
+      <div id="prevListEol"></div>
+      <button class="btn-pri" id="btnSaveEol" onclick="saveEolFromPdf()">💾 Guardar todos en la nube</button>
+    </div>
+    <div class="divider">o agregar manualmente</div>
+    <div class="card">
+      <h2>Nuevo EOL</h2>
+      <p class="note">Agrega los SKUs del comunicado de Huawei. Los que ya están en el sistema siguen vigentes.</p>
+      <div class="g2">
+        <div class="field"><label>SKU</label><input id="eSku" placeholder="100261822" inputmode="numeric"></div>
+        <div class="field"><label>Precio regular</label><input id="ePx" type="number" placeholder="2998" inputmode="numeric"></div>
+      </div>
+      <button class="btn-pri" id="btnE" onclick="addEol()">Agregar EOL</button>
+    </div>
+    <div class="list-hdr">EOL en la nube</div>
+    <div id="listE"></div>
+  </div>
+
+  <!-- AVISOS CEA / LEA -->
+  <div class="pane" id="pane-avisos">
+    <div class="card">
+      <h2>📄 Subir CEA / LEA</h2>
+      <p class="note">Sube el PDF del comunicado. La app extrae el resumen y la vigencia automáticamente. Si no encuentra fecha, el aviso dura 7 días.</p>
+      <div class="filebox" id="ceaBox" onclick="document.getElementById('ceaFile').click()">
+        <p class="ph">📎 Toca para seleccionar el PDF del CEA o LEA</p>
+      </div>
+      <input type="file" id="ceaFile" accept=".pdf,application/pdf" style="display:none" onchange="parseCeaPDF(this.files[0])">
+      <div id="ceaLoading" style="display:none;text-align:center;padding:14px;font-size:12px;color:#888;font-weight:700">Leyendo PDF…</div>
+    </div>
+    <div class="card" id="ceaForm" style="display:none">
+      <h2>✏️ Confirmar y guardar</h2>
+      <div class="field"><label>Título</label><input id="aT" type="text" placeholder="Título del aviso"></div>
+      <div class="field"><label>Resumen / detalle</label><textarea id="aD" rows="5" placeholder="Detalle del aviso"></textarea></div>
+      <div class="g2">
+        <div class="field"><label>Vigencia hasta</label><input id="aD2" type="date"></div>
+        <div class="field"><label>Prioridad</label>
+          <select id="aP" style="width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;background:#fafafa;outline:none">
+            <option value="normal">Normal</option>
+            <option value="alta">🔴 Alta</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-pri" id="btnSaveAviso" onclick="guardarAviso()">💾 Guardar aviso</button>
+      <div id="ceaResult" class="result"></div>
+    </div>
+    <div class="divider">o agregar manualmente</div>
+    <div class="card">
+      <h2>Aviso manual</h2>
+      <div class="field"><label>Título</label><input id="mT" type="text" placeholder="Título del aviso"></div>
+      <div class="field"><label>Detalle</label><textarea id="mD" rows="3" placeholder="Descripción breve"></textarea></div>
+      <div class="g2">
+        <div class="field"><label>Vigencia hasta</label><input id="mD2" type="date"></div>
+        <div class="field"><label>Prioridad</label>
+          <select id="mP" style="width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;background:#fafafa;outline:none">
+            <option value="normal">Normal</option>
+            <option value="alta">🔴 Alta</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-pri" onclick="guardarAvisoManual()">💾 Guardar</button>
+    </div>
+    <div class="divider">Avisos activos en nube</div>
+    <div id="ceaLista"><p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Abre esta pestaña para cargar…</p></div>
+  </div>
+
+  <!-- COMISIONES Y EXTRACOBERTURA -->
+  <div class="pane" id="pane-comis">
+    <div class="card">
+      <h2>📊 Captura de "Comisiones HES" (Sonar)</h2>
+      <p class="note"><b>Lo más confiable:</b> en Sonar selecciona la tabla con el mouse, <b>Ctrl+C</b>, da clic en el cuadro de abajo y <b>Ctrl+V</b>. Los datos entran exactos y con el nombre completo — sin OCR y sin revisar dígitos. Si prefieres la captura de pantalla, también sirve: te pedirá marcar la zona de la tabla, y ahí sí conviene revisar los números.</p>
+      <input type="file" id="fileComis" accept="image/*" hidden>
+      <div class="filebox" id="fboxComis" tabindex="0" onclick="document.getElementById('fileComis').click()">
+        <div class="ph" id="fphComis">📋 Da clic aquí y pega con Ctrl+V la tabla copiada de Sonar (o una captura)</div>
+      </div>
+      <div id="comisOcrStatus" style="display:none;text-align:center;padding:10px;font-size:12px;color:#888;font-weight:700">Leyendo imagen…</div>
+      <details id="comisDebugWrap" style="margin-top:8px;display:none">
+        <summary style="font-size:11px;color:#aaa;cursor:pointer">🔍 Ver texto leído por el OCR (para depurar)</summary>
+        <pre id="comisDebugTxt" style="white-space:pre-wrap;font-size:11px;color:#888;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;margin-top:6px;max-height:220px;overflow:auto"></pre>
+      </details>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>🛡️ Captura de "Garantías por fechas" (Sonar Attach)</h2>
+      <p class="note">Igual que arriba: <b>Ctrl+C</b> en Sonar y <b>Ctrl+V</b> aquí es lo más seguro (esta tabla es la que peor se lee por OCR, por sus celdas de color). Se cruza automáticamente con la lista de arriba por número de empleado.</p>
+      <input type="file" id="fileGar" accept="image/*" hidden>
+      <div class="filebox" id="fboxGar" tabindex="0" onclick="document.getElementById('fileGar').click()">
+        <div class="ph" id="fphGar">📋 Da clic aquí y pega con Ctrl+V la tabla copiada de Sonar (o una captura)</div>
+      </div>
+      <div id="garOcrStatus" style="display:none;text-align:center;padding:10px;font-size:12px;color:#888;font-weight:700">Leyendo imagen…</div>
+      <details id="garDebugWrap" style="margin-top:8px;display:none">
+        <summary style="font-size:11px;color:#aaa;cursor:pointer">🔍 Ver texto leído por el OCR (para depurar)</summary>
+        <pre id="garDebugTxt" style="white-space:pre-wrap;font-size:11px;color:#888;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;margin-top:6px;max-height:220px;overflow:auto"></pre>
+      </details>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>🗓️ Periodos</h2>
+      <div class="field"><label>Periodo de comisiones</label><input id="comisPeriodo" placeholder="Ej: jul 2026 (mes a la fecha)"></div>
+      <div class="field"><label>Periodo de garantías</label><input id="comisPeriodoGar" placeholder="Ej: 1–5 jul 2026 (semana a la fecha)"></div>
+    </div>
+
+    <div class="list-hdr" style="display:flex;align-items:center;justify-content:space-between;margin-top:18px">
+      <span>Vista previa — revisa antes de guardar</span>
+      <button onclick="agregarEmpleadoManual()" style="font-size:11px;padding:4px 10px;border:1.5px solid var(--linea);background:#fff;color:#555;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">＋ Agregar</button>
+    </div>
+    <div id="comisPreview"><p class="empty" style="text-align:center;color:#ccc;font-size:13px;padding:20px">Sube una captura para empezar.</p></div>
+
+    <button class="btn-pri" id="btnComis" onclick="guardarComisiones()" style="margin-top:14px" disabled>💾 Guardar comisiones en la nube</button>
+    <div class="result" id="resComis"></div>
+
+    <div class="divider">Guardado actualmente en la nube</div>
+    <div id="comisCloudInfo"><p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Abre esta pestaña para cargar…</p></div>
+  </div>
+
+  <!-- CONFIG TIENDA -->
+  <!-- EQUIPO -->
+  <!-- Reporte de accesorios (SKU genérico 43739) para el Excel regional -->
+
+  <div class="pane" id="pane-equipo">
+    <div class="card">
+      <h2>👥 Quién entra a la app</h2>
+      <p class="note">Cada persona entra con <b>su número de empleado</b>. Aquí das de alta a los nuevos, das de baja a quien se va y decides quién puede abrir esta pantalla de Admin.</p>
+      <div id="equipoAviso" class="note" style="display:none;background:#fff6e5;border-color:#ffd28a;color:#8a6100"></div>
+      <div id="equipoLista"></div>
+      <div id="divergEquipo" class="note" style="display:none;margin-top:12px;background:#fff1f1;border-color:#ffc9c9;color:#8a1f1f"></div>
+    </div>
+
+    <div class="card" id="equipoAltaCard">
+      <h2>➕ Dar de alta</h2>
+      <div class="eq-grid">
+        <div class="field">
+          <label>Número de empleado</label>
+          <input id="nuevoEmpNo" inputmode="numeric" placeholder="Número de empleado" maxlength="10">
+        </div>
+        <div class="field">
+          <label>Nombre completo</label>
+          <input id="nuevoEmpNombre" placeholder="Nombre completo">
+        </div>
+        <div class="field">
+          <label>Puesto</label>
+          <select id="nuevoEmpPuesto"></select>
+        </div>
+        <div class="field">
+          <label>Correo (opcional)</label>
+          <input id="nuevoEmpEmail" type="email" placeholder="solo si va a administrar">
+        </div>
+      </div>
+      <p class="note" style="margin:-4px 0 8px;font-size:11.5px">El correo solo hace falta para quien vaya a <b>administrar</b>: con él crea su cuenta desde “Ya trabajo en una tienda registrada” y al entrar se vincula solo. Para vender basta el número.</p>
+      <label class="eq-check"><input type="checkbox" id="nuevoEmpAdmin"> Puede abrir <b>Admin</b> (subir catálogo, promos, EOL y comisiones)</label>
+      <button class="btn-pri" onclick="altaEmpleado()">➕ Agregar al equipo</button>
+      <div class="result" id="resEquipo"></div>
+    </div>
+
+    <div class="card">
+      <h2>🔧 Técnicos externos</h2>
+      <p class="note">No son del equipo ni entran con número de empleado: son de
+        Mr&nbsp;Fix y solo consultan <b>las ventas de accesorios</b> y sus tickets.
+        Ni tablero, ni inventario, ni comisiones, ni nombres del equipo.<br>
+        Entran por su cuenta en <code>accesorios_tecnico.html</code>, con la clave
+        que sale aquí.</p>
+      <div id="tecLista"><p class="note">Cargando…</p></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="tecNombre" placeholder="Nombre del técnico" style="flex:1">
+        <button class="btn-pri" onclick="tecAlta()" style="width:auto;padding:10px 14px;margin:0">＋ Alta</button>
+      </div>
+      <p class="note" style="margin-top:8px">Dar de baja corta el acceso al momento.
+        No se borra: así queda constancia de si esa clave llegó a usarse y hasta cuándo.<br>
+        <b>clave</b> le pone la que tú elijas, y la anterior deja de servir en el acto.
+        Mínimo 8 caracteres con letras y números: esa consulta está abierta en
+        internet y una corta se adivina probando.</p>
+    </div>
+
+    <!-- Reparaciones del mes (24-ago-2026).
+
+         AQUÍ y no en Captura de Series a propósito. Captura es la pantalla que
+         baja el Excel regional de comisiones, y las reparaciones no van a ese
+         Excel: que esa pantalla no pueda ni leerlas es lo que lo garantiza, y
+         lo vigila `r_reparaciones_fuera` en verificar.py. Revisar el mes es
+         además trabajo de gestión, no de piso con un cliente delante. -->
+    <div class="card">
+      <h2>🔧 Reparaciones del mes</h2>
+      <p class="note">Los tickets que el equipo captura en
+        <b>Captura&nbsp;→&nbsp;🔧&nbsp;Mr&nbsp;Fix&nbsp;→&nbsp;Reparación</b>. <b>No entran en el Excel de
+        comisiones</b> ni cuentan como venta de la tienda: son de Mr&nbsp;Fix.
+        Es lo mismo que ve el técnico en su pantalla, más quién lo registró.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <select id="repaMes" onchange="repaCargar()" style="flex:1"></select>
+        <button class="btn-pri" onclick="repaCargar()"
+                style="width:auto;padding:10px 14px;margin:0">Ver</button>
+      </div>
+      <div id="repaResumen" class="note" style="margin-bottom:8px"></div>
+      <div id="repaLista"><p class="note">Elige un mes para verlas.</p></div>
+    </div>
+  </div>
+
+  <div class="pane" id="pane-config">
+    <div class="card">
+      <h2>⚙️ Configuración de tienda</h2>
+      <p class="note">Datos necesarios para que la app de <b>Captura de Series</b> funcione en todos los dispositivos del equipo.</p>
+      <div class="field">
+        <label>URL del GAS (Apps Script)</label>
+        <input id="cfgGas" type="url" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+      <!-- Con esto la app sabe SOLA, al leer el ticket, si la linea es una
+           reparacion o un accesorio. Los accesorios ya se reconocen por su
+           codigo (43739 y los dos de Office); este es el del servicio tecnico.
+           Vacio = el asesor lo elige a mano, que es como estaba. -->
+      <div class="field">
+        <label>Códigos de reparación (Mr Fix)</label>
+        <input id="cfgSkuRep" placeholder="100175537, 100175545">
+        <p class="note" style="margin-top:6px">Sale en el ticket después de
+          <code>SERVICIO:</code>, igual que el <code>43739</code> de los accesorios.
+          <b>Si son varios, sepáralos con coma.</b>
+          Con él puesto, Captura de Series distingue sola las reparaciones de los
+          accesorios. <b>Si lo dejas vacío</b>, el asesor lo elige a mano.</p>
+      </div>
+      <div class="field">
+        <label>URL de la hoja de ventas (Google Sheets)</label>
+        <input id="cfgSheet" type="url" placeholder="https://docs.google.com/spreadsheets/d/…/edit">
+        <p style="font-size:11px;color:#aaa;margin-top:4px">Link de la hoja donde se concentran las ventas del equipo.</p>
+      </div>
+      <div class="field">
+        <label>Responsable de descargas</label>
+        <input id="cfgHoja" placeholder="Nombre de la hoja">
+        <p style="font-size:11px;color:#aaa;margin-top:4px">Nombre exacto del asesor que puede abrir la hoja desde Captura de Series.</p>
+      </div>
+      <div class="field">
+        <label>Vendedores del equipo (uno por línea)</label>
+        <textarea id="cfgVend" rows="6" placeholder="Ana García&#10;Luis Pérez&#10;María López"></textarea>
+        <p style="font-size:11px;color:#aaa;margin-top:4px">Escritos <b>igual</b> que en 👥 Equipo. Con una letra de diferencia la comisión de ese asesor no se suma a nadie en el Excel regional.</p>
+        <div id="divergCfg" class="note" style="display:none;margin-top:8px;background:#fff1f1;border-color:#ffc9c9;color:#8a1f1f"></div>
+      </div>
+      <button class="btn-pri" id="btnConfig" onclick="guardarConfig()">💾 Guardar configuración</button>
+      <div class="result" id="resConfig"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Recorte de la captura antes del OCR -->
+<div id="cropWrap">
+  <div id="cropTop">
+    <h3 id="cropTitulo">Marca la tabla</h3>
+    <p>Arrastra un recuadro sobre <b>las filas de la tabla</b> (incluye los encabezados). Deja fuera los menús, las gráficas y las otras tablas — así el lector no confunde los números.</p>
+  </div>
+  <div id="cropStage">
+    <div id="cropBox">
+      <img id="cropImg" alt="Captura a recortar">
+      <div id="cropShade"></div>
+      <div id="cropSel"></div>
+    </div>
+  </div>
+  <div id="cropBot">
+    <span id="cropInfo">Sin zona marcada</span>
+    <button class="crop-btn crop-alt" onclick="cropCancelar()">Cancelar</button>
+    <button class="crop-btn crop-alt" onclick="cropCompleta()">Usar completa</button>
+    <button class="crop-btn crop-ok" id="cropOk" disabled onclick="cropAceptar()">Leer esta zona</button>
+  </div>
+</div>
+
+<script>
+const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+
+/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
+   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
+   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
+   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
+(function(){
+  var _c = _cfg;
+  if(!_c || !_c.store_id || _c.gas_token) return;
+  function _pintar(){
+    var b = document.createElement('div');
+    b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
+      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
+      + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
+    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
+      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
+      + ' — no se pierde nada de lo que tengas capturado.';
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
+  else _pintar();
+})();
+
+const _role = localStorage.getItem('hes_role');
+const API   = (_cfg && _cfg.gas_url) ? _cfg.gas_url : 'https://script.google.com/macros/s/AKfycbwbZFsiDqZrNitPKNLqr4r6xOFu3VKprtXJacScftIJmcQdAl_yytjxK8BymWvy8I1gjA/exec';
+// Token del Apps Script: viene del login, nunca escrito aquí (archivo público).
+const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
+const gasQS   = qs => API + '?' + qs + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
+const gasPost = () => API + (GAS_TOKEN ? '?t=' + encodeURIComponent(GAS_TOKEN) : '');
+
+/* Sube al Apps Script y DICE si funcionó. Antes iba con mode:'no-cors', que deja
+   la respuesta opaca: el navegador no permite leerla, así que la app daba por
+   bueno cualquier envío — incluso uno rechazado. Así se perdieron ventas el
+   1-ago-2026 sin que nadie lo notara hasta el día siguiente.
+   El Apps Script responde con Access-Control-Allow-Origin:*, o sea que no-cors
+   nunca hizo falta: solo nos dejaba ciegos. Lanza si algo salió mal; quien llama
+   ya tiene su try/catch y lo muestra en pantalla. */
+async function gasEnviar(payload){
+  const res = await fetch(gasPost(), { method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(payload) });
+  let r = null;
+  try{ r = JSON.parse(await res.text()); }catch(e){}   // no-JSON: cae en los if de abajo
+  if(!res.ok) throw new Error('la nube respondió ' + res.status);
+  if(r && r.error === 'no_autorizado')
+    throw new Error('la nube rechazó la sesión — sal y vuelve a entrar desde el menú');
+  if(!r || r.ok === false)
+    throw new Error((r && r.error) ? String(r.error) : 'la nube no confirmó el guardado');
+  return r;
+}
+
+const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
+const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+let sb = null;
+function initSB(){ try{ if(!window.supabase) return false; sb=window.supabase.createClient(SB_URL,SB_KEY); return true; }catch(e){ return false; } }
+
+/* ===== ACCESO =====
+   Antes bastaba con que localStorage dijera hes_role=gerente, y eso lo puede
+   escribir cualquiera desde el navegador. Ahora la puerta es la SESIÓN de
+   Supabase (el correo y contraseña con los que entras); si no hay sesión, queda
+   el PIN, que se verifica en el servidor (función verificar_pin_admin) para que
+   no tenga que viajar al dispositivo. Ver supabase_acceso.sql. */
+function abrirAdmin(){
+  document.getElementById('pinWrap').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  // loadBundles() se quitó con la pestaña (4-ago-2026): era un viaje al Apps
+  // Script en cada apertura de Admin para pintar un panel al que ya no se llega.
+  loadEol();
+  /* El catálogo de accesorios se carga aquí y no solo al pulsar la pestaña,
+     porque 📦 Catálogo es la que está abierta al entrar: quien no la vuelva a
+     pulsar nunca vería más que «Abre esta pestaña para cargar…». */
+  cargarCatAcc();
+}
+
+/* `revisarCuadre` se retiró en la fase 6 (17-ago-2026, v170).
+
+   Comparaba las ventas del día contra la hoja, cada vez que se abría Admin, y
+   era la vigilancia correcta MIENTRAS existía la doble escritura. Desde que la
+   hoja no recibe ventas, la comparación daría "no cuadra" todos los días con
+   TODAS las ventas como `sobran`: un aviso permanentemente en rojo por un
+   motivo que es correcto. Y un indicador que siempre está en rojo no es un
+   indicador — es ruido que se acaba ignorando, justo antes de que un día se
+   ponga rojo de verdad.
+
+   La tabla `ventas_comparacion` se queda con su histórico: es la evidencia de
+   los 12 días que autorizaron apagar la hoja. Lo que se desagenda es el
+   trabajo nocturno, en `supabase_apagar_hoja.sql`. */
+
+// El admin_pin ya no se usa ni se guarda: si quedó de antes en el dispositivo,
+// se borra al abrir.
+(function(){
+  try{
+    if(_cfg && _cfg.admin_pin){
+      delete _cfg.admin_pin;
+      localStorage.setItem('hes_store', JSON.stringify(_cfg));
+    }
+  }catch(e){}   // limpiar el admin_pin viejo es higiene, no requisito
+})();
+
+/* Dos formas de entrar, ninguna con PIN compartido:
+     · la sesión de gerente (correo y contraseña), o
+     · haber entrado con un número de empleado que tenga permiso.
+   El permiso se pregunta AL SERVIDOR cada vez (puede_admin): lo que diga el
+   navegador no basta, porque el localStorage se puede editar a mano. */
+async function verificarAcceso(){
+  try{
+    if(!initSB()) return { ok:false, motivo:'sin_conexion' };
+    const { data } = await sb.auth.getSession();
+    if(data && data.session) return { ok:true, via:'sesión de gerente' };
+  }catch(e){ console.warn('No pude verificar la sesión:', e); }
+
+  let emp = null;
+  // Ficha ilegible: se cae al camino de sesion de gerente.
+  try{ emp = JSON.parse(localStorage.getItem('hes_empleado')||'null'); }catch(e){}
+  const tienda = (_cfg && _cfg.store_id) || '';
+  if(!emp || !emp.empno || !tienda) return { ok:false, motivo:'sin_identificar' };
+
+  try{
+    const { data, error } = await sb.rpc('puede_admin', { p_store_id: tienda, p_empno: String(emp.empno) });
+    if(error){ console.warn('puede_admin no disponible:', error.message); return { ok:false, motivo:'sin_conexion' }; }
+    if(data === true) return { ok:true, via:'número de empleado', quien: emp.nombre };
+  }catch(e){ console.warn('Error verificando el permiso:', e); }
+  return { ok:false, motivo:'sin_permiso', quien: emp.nombre };
+}
+
+function mostrarCerrado(motivo, quien){
+  const w = document.getElementById('pinWrap');
+  if(!w) return;
+  const msg = motivo === 'sin_permiso'
+    ? (quien ? quien.split(' ')[0] + ', tu usuario no tiene permiso para Admin.' : 'Tu usuario no tiene permiso para Admin.')
+    : motivo === 'sin_conexion'
+      ? 'No pude verificar tu acceso. Revisa tu conexión e intenta de nuevo.'
+      : 'Entra primero con tu número de empleado o con tu correo de gerente.';
+  w.innerHTML = '<img src="logo_odemas.png" alt="Odemás" style="height:44px">' +
+    '<h1 style="font-size:18px;font-weight:800">Admin</h1>' +
+    '<p style="font-size:13px;color:#888;text-align:center;max-width:280px">' + msg + '</p>' +
+    /* ENLACE, no botón con location.replace (8-ago-2026). continuidad.js borra
+       la marca de «dónde estabas» al hacer clic en un enlace al menú; una
+       navegación por JavaScript se la salta. Con el botón, un asesor sin
+       permiso quedaba en bucle: Admin → menú → Admin, sin salida. */
+    '<a href="index.html" style="text-decoration:none;border-radius:12px;padding:12px 20px;background:var(--rojo);color:#fff;font-family:inherit;font-size:13px;font-weight:700">← Ir al menú</a>';
+}
+
+window.addEventListener('load', async function(){
+  const err = document.getElementById('pinErr');
+  if(err) err.textContent = 'Verificando tu acceso…';
+  const r = await verificarAcceso();
+  if(r.ok){ abrirAdmin(); return; }
+  mostrarCerrado(r.motivo, r.quien);
+});
+/* ================= EQUIPO: quién entra a la app =================
+   Escribe directo en la tabla `empleados`, que solo el gerente dueño puede
+   tocar (política RLS). Por eso esta pantalla pide sesión: si entraste con tu
+   número de empleado —como Miguel— puedes usar el resto de Admin, pero dar
+   accesos es cosa del gerente. */
+let _equipo = [];
+
+// Supabase contesta en inglés y hablando de "row-level security"; para quien usa
+// la app eso solo significa una cosa: le falta entrar como gerente.
+function errorEquipo(error){
+  const m = (error && error.message) || '';
+  if(/row-level security|permission denied/i.test(m) || error.code === '42501')
+    return 'Para esto necesitas entrar como gerente, con tu correo y contraseña.';
+  if(error && error.code === '23505') return 'Ese número ya está registrado en la tienda.';
+  return m || 'No se pudo guardar.';
+}
+
+function equipoAviso(msg){
+  const el = document.getElementById('equipoAviso');
+  el.style.display = msg ? 'block' : 'none';
+  el.innerHTML = msg || '';
+}
+
+/* ── Los nombres que no cuadran entre las dos listas (28-ago-2026) ──────
+   La lista de vendedores (Configuración) y la tabla `empleados` (Equipo) son
+   DOS listas escritas a mano, y `accesorios_reporte` las casa POR NOMBRE. Una
+   letra de diferencia y la comisión de ese asesor no se suma a nadie en el
+   Excel regional — sin que el Excel avise.
+
+   Pasó de verdad con un apellido escrito con una letra de más en una de las
+   dos listas: 19 ventas de accesorio y 32 en `ventas` contadas como si fueran
+   de otra persona. El aviso del reporte lo enseñó, pero a fin de mes y con el
+   daño hecho. Esto lo dice donde se causa: al editar el equipo o la lista.
+
+   UN SOLO PORTERO para las dos pestañas, igual que `seccionVisible_` en el
+   tablero y por la misma razón: dos consultas separadas se responden distinto
+   el día que alguien toque una, y entonces una pantalla avisa y la otra no.
+
+   No bloquea nada. La lista puede tener un nombre viejo sin limpiar y eso no
+   impide trabajar; solo hay que verlo. */
+async function pintarDivergencias(){
+  const dest = ['divergEquipo','divergCfg']
+    .map(function(id){ return document.getElementById(id); })
+    .filter(Boolean);
+  if(!dest.length) return;
+  function ocultar(){ dest.forEach(function(el){ el.style.display = 'none'; }); }
+
+  let filas;
+  try{
+    if(!sb) initSB();
+    if(!sb) return ocultar();
+    const { data, error } = await sb.rpc('equipo_divergencias',
+                                         { p_store: (_cfg && _cfg.store_id) || '' });
+    if(error) throw error;
+    filas = data || [];
+  }catch(e){
+    /* Sin red o sin permiso NO se dice nada. Un «no se pudo comprobar» en rojo
+       cada vez que falla la señal del centro comercial enseña a ignorar el
+       recuadro, y entonces deja de leerse el día que sí trae algo. */
+    return ocultar();
+  }
+  if(!filas.length) return ocultar();
+
+  const html = '<b>⚠️ ' + filas.length + ' nombre(s) sin cuadrar</b>' +
+    '<ul style="margin:6px 0 0;padding-left:18px">' +
+    filas.map(function(f){
+      return '<li style="margin-bottom:4px"><b>' + escHtml(f.nombre) + '</b> ' +
+             '<span style="opacity:.65">(' + escHtml(f.origen) + ')</span><br>' +
+             escHtml(f.problema) + '</li>';
+    }).join('') +
+    '</ul><p style="margin:8px 0 0;font-size:11.5px">Se arregla escribiendo el ' +
+    'nombre <b>igual</b> en las dos listas: 👥 Equipo y ⚙️ Configuración.</p>';
+
+  dest.forEach(function(el){ el.innerHTML = html; el.style.display = 'block'; });
+}
+
+async function cargarEquipo(){
+  const cont = document.getElementById('equipoLista');
+  const alta = document.getElementById('equipoAltaCard');
+  cont.innerHTML = '<p class="note" style="text-align:center;color:#bbb">Cargando…</p>';
+  // El <select> de puestos usa la misma lista que el resto de Admin
+  const sel = document.getElementById('nuevoEmpPuesto');
+  if(sel && !sel.options.length)
+    sel.innerHTML = PUESTOS_CONOCIDOS.map(p=>'<option value="'+p+'">'+p+'</option>').join('');
+
+  if(!sb) initSB();
+  // Distinguir "no hay sesion" de "no se pudo consultar": antes los dos casos
+  // decian lo mismo y mandaban al gerente a volver a entrar aunque ya estuviera
+  // dentro y el problema fuera otro.
+  let sesion = false, fallo = '';
+  try{
+    const { data, error } = await sb.auth.getSession();
+    if(error) fallo = error.message || 'error al consultar la sesión';
+    sesion = !!(data && data.session);
+  }catch(e){ fallo = String(e && e.message ? e.message : e); }
+  if(!sesion){
+    alta.style.display = 'none';
+    cont.innerHTML = '';
+    equipoAviso(fallo
+      ? 'No se pudo comprobar tu sesión (' + fallo + '). Revisa tu conexión y recarga; si sigue, vuelve a entrar con tu correo.'
+      : 'Para dar de alta o quitar accesos necesitas entrar como gerente, con tu correo y contraseña. Sal del menú y usa <b>“Iniciar sesión con correo”</b>.');
+    return;
+  }
+  alta.style.display = '';
+  equipoAviso('');
+
+  const { data, error } = await sb.from('empleados')
+    .select('id,empno,nombre,puesto,activo,admin,email,user_id')
+    .eq('store_id', _cfg.store_id)
+    .order('activo', { ascending:false }).order('nombre');
+  if(error){
+    cont.innerHTML = '';
+    equipoAviso(escHtml(errorEquipo(error)));
+    return;
+  }
+  _equipo = data || [];
+  pintarEquipo();
+}
+
+function pintarEquipo(){
+  const cont = document.getElementById('equipoLista');
+  /* Va ANTES del return de la lista vacía y sin `await`: la comprobación de los
+     nombres no depende de que haya alguien pintado, y esperarla dejaría la
+     lista en blanco mientras contesta el servidor. */
+  pintarDivergencias();
+  if(!_equipo.length){
+    cont.innerHTML = '<p class="note" style="text-align:center;color:#bbb">Todavía no hay nadie dado de alta.</p>';
+    return;
+  }
+  const admins = _equipo.filter(e=>e.admin && e.activo).length;
+  cont.innerHTML = _equipo.map(function(e){
+    return '<div class="eq-row' + (e.activo?'':' inactivo') + '">' +
+      '<span class="eq-num">' + escHtml(e.empno) + '</span>' +
+      '<div class="eq-info"><b>' + escHtml(e.nombre) + '</b><span>' + escHtml(e.puesto||'—') +
+        (e.email ? ' · ' + escHtml(e.email) + (e.user_id ? ' <b style="color:var(--verde)">✓ cuenta activa</b>' : ' <i>(falta que cree su cuenta)</i>') : '') +
+      '</span></div>' +
+      '<div class="eq-tags">' +
+        (e.admin ? '<span class="eq-tag admin">Admin</span>' : '') +
+        (e.activo ? '' : '<span class="eq-tag baja">Sin acceso</span>') +
+        '<button class="eq-btn' + (e.admin?' on':'') + '" onclick="cambiarEquipo(' + e.id + ',\'admin\',' + (!e.admin) + ')">' +
+          (e.admin ? 'Quitar Admin' : 'Dar Admin') + '</button>' +
+        '<button class="eq-btn" onclick="cambiarEquipo(' + e.id + ',\'activo\',' + (!e.activo) + ')">' +
+          (e.activo ? 'Dar de baja' : 'Reactivar') + '</button>' +
+      '</div></div>';
+  }).join('') +
+  '<p class="note" style="margin-top:12px;font-size:11.5px">Hay <b>' + admins + '</b> persona(s) con acceso a Admin. Quien esté dado de baja no puede entrar a la app con su número.</p>';
+}
+
+async function cambiarEquipo(id, campo, valor){
+  const e = _equipo.filter(function(x){ return x.id === id; })[0];
+  if(!e) return;
+  // Nadie se queda sin llave: siempre debe haber al menos un Admin activo
+  const activosAdmin = _equipo.filter(function(x){ return x.admin && x.activo && x.id !== id; }).length;
+  const seQuedaSinAdmin = (campo==='admin' && valor===false) || (campo==='activo' && valor===false && e.admin);
+  if(seQuedaSinAdmin && activosAdmin === 0){
+    toast('No puedes quitar el último acceso a Admin — quedarías sin quién administre la tienda', false);
+    return;
+  }
+  if(campo==='activo' && valor===false && !confirm('¿Dar de baja a ' + e.nombre + '?\n\nYa no podrá entrar a la app con su número. Puedes reactivarlo cuando quieras.')) return;
+
+  const cambio = {}; cambio[campo] = valor;
+  const { error } = await sb.from('empleados').update(cambio).eq('id', id);
+  if(error){ toast(errorEquipo(error), false); return; }
+  e[campo] = valor;
+  pintarEquipo();
+  const quien = e.nombre.split(' ')[0];
+  toast(campo === 'admin'
+    ? (valor ? quien + ' ya puede abrir Admin ✓' : 'A ' + quien + ' se le quitó el acceso a Admin')
+    : (valor ? quien + ' puede entrar de nuevo ✓' : quien + ' quedó sin acceso a la app'), true);
+}
+
+/* El correo es lo que enlaza la ficha con la cuenta que esa persona crea.
+   Mientras no cree la cuenta, la ficha lo muestra como pendiente. */
+async function editarCorreo(id){
+  const e = _equipo.filter(function(x){ return x.id === id; })[0];
+  if(!e) return;
+  const valor = prompt('Correo con el que ' + e.nombre.split(' ')[0] + ' va a iniciar sesión.\n\nDéjalo vacío para quitarlo.', e.email || '');
+  if(valor === null) return;
+  const email = valor.trim().toLowerCase();
+  if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('Ese correo no se ve bien escrito', false); return; }
+  if(e.user_id && email !== (e.email||'') &&
+     !confirm('Esta persona ya vinculó su cuenta con el correo anterior.\n\nSi lo cambias, tendrá que volver a crear su cuenta con el correo nuevo. ¿Seguir?')) return;
+
+  const cambio = { email: email || null };
+  if(email !== (e.email||'')) cambio.user_id = null;   // se revincula con el correo nuevo
+  const { error } = await sb.from('empleados').update(cambio).eq('id', id);
+  if(error){ toast(errorEquipo(error), false); return; }
+  e.email = email || null;
+  if(cambio.user_id === null) e.user_id = null;
+  pintarEquipo();
+  toast(email ? 'Correo guardado — ahora ' + e.nombre.split(' ')[0] + ' puede crear su cuenta' : 'Correo quitado', true);
+}
+
+async function altaEmpleado(){
+  const empno  = document.getElementById('nuevoEmpNo').value.trim();
+  const nombre = document.getElementById('nuevoEmpNombre').value.trim();
+  const puesto = document.getElementById('nuevoEmpPuesto').value;
+  const admin  = document.getElementById('nuevoEmpAdmin').checked;
+  const email  = document.getElementById('nuevoEmpEmail').value.trim().toLowerCase();
+  const res = document.getElementById('resEquipo');
+  function fallo(m){ showResult('resEquipo', false, m); }
+
+  if(!/^\d{4,10}$/.test(empno)) return fallo('El número de empleado debe traer solo dígitos (mínimo 4).');
+  if(nombre.length < 4) return fallo('Escribe el nombre completo.');
+  if(_equipo.some(function(x){ return x.empno === empno; })) return fallo('Ya hay alguien con el número ' + empno + '.');
+  if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fallo('Ese correo no se ve bien escrito.');
+
+  const { data, error } = await sb.from('empleados')
+    .insert({ store_id:_cfg.store_id, empno:empno, nombre:nombre, puesto:puesto, admin:admin, activo:true, email:email||null })
+    .select('id,empno,nombre,puesto,activo,admin,email,user_id').single();
+  if(error) return fallo(errorEquipo(error));
+
+  _equipo.push(data);
+  _equipo.sort(function(a,b){ return (b.activo-a.activo) || a.nombre.localeCompare(b.nombre); });
+  pintarEquipo();
+  document.getElementById('nuevoEmpNo').value = '';
+  document.getElementById('nuevoEmpNombre').value = '';
+  document.getElementById('nuevoEmpAdmin').checked = false;
+  document.getElementById('nuevoEmpEmail').value = '';
+  showResult('resEquipo', true, '✅ ' + nombre.split(' ')[0] + ' ya puede entrar con el número ' + empno + (admin ? ' y abrir Admin.' : '.'));
+}
+
+/* ===== TABS ===== */
+function tab(id,btn){
+  document.querySelectorAll('.pane').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.tab-bar button').forEach(e=>e.classList.remove('on'));
+  document.getElementById('pane-'+id).classList.add('on');
+  btn.classList.add('on');
+}
+
+/* ===== HELPERS ===== */
+function jsonp(url){
+  return new Promise((res,rej)=>{
+    const cb='_a'+Date.now(); const s=document.createElement('script');
+    const t=setTimeout(()=>{ cleanup(); rej(); },15000);
+    function cleanup(){ clearTimeout(t); delete window[cb]; s.remove(); }
+    window[cb]=d=>{ cleanup(); res(d); };
+    s.onerror=()=>{ cleanup(); rej(); };
+    s.src=url+(url.includes('?')?'&':'?')+'callback='+cb;
+    document.head.appendChild(s);
+  });
+}
+function apiUrl(modo,extra){
+  // Antes mandaba pin:PIN_OK, una variable que no existe en este archivo: las
+  // llamadas que pasan por aquí (bundle_add, bundle_del, notificar) reventaban
+  // con ReferenceError. Ahora va el token, que es lo que el script espera.
+  const p = {modo, ...extra};
+  if (GAS_TOKEN) p.t = GAS_TOKEN;
+  return API+'?'+new URLSearchParams(p).toString();
+}
+
+/* Escrituras a Supabase (etapa 2 de apagar la hoja, 7-ago-2026).
+   Reutiliza el cliente `sb` que ya monta initSB para los empleados, en vez de
+   abrir otro camino: dos clientes contra la misma base terminan divergiendo en
+   cabeceras o en manejo de errores, y el fallo aparece en el que menos se usa.
+
+   `p_store` y `p_token` van siempre: la base rechaza con `no_autorizado` si el
+   token no cuadra, igual que hacía el Apps Script. Devuelve el objeto de la
+   función, o algo con `ok:false` si ni siquiera se pudo llamar — así quien la
+   usa solo tiene que mirar `ok`. */
+/* Igual que sbEscribir, pero LANZA en vez de devolver {ok:false}.
+   Las cargas del Excel ya venían envueltas en try/catch que enseñan
+   `err.message`; si devolviera el error en silencio, el botón diría
+   "actualizado ✓" sobre una carga que no entró — y el equipo trabajaría con los
+   precios de la semana pasada sin saberlo. */
+/* Lectura de Supabase para las listas de Admin.
+   Hizo falta el 7-ago-2026 al cerrar el bloque de notificaciones: las
+   escrituras de EOL, avisos, combos y comisiones se habían movido a Supabase en
+   v125, pero estas cuatro listas seguían leyendo del Apps Script, o sea de la
+   hoja que ya no recibe nada. El gerente agregaba un EOL y la lista seguía
+   enseñando la de antes; lo borraba y seguía ahí.
+
+   Migrar una escritura sin migrar la lectura que le corresponde es el mismo
+   error que costó las dos fugas de la fase 2, y aquí se repitió. Devuelve []
+   en vez de lanzar: cada lista ya tiene su propio "Error al cargar". */
+async function sbLeer(fn, params){
+  try{
+    if(!sb && !initSB()) return [];
+    const { data, error } = await sb.rpc(fn, Object.assign({
+      p_store: String((_cfg && _cfg.store_id) || '')
+    }, params || {}));
+    if(error || !Array.isArray(data)) return [];
+    return data;
+  }catch(e){ return []; }
+}
+
+/* ── Reporte de accesorios para el Excel regional (18-ago-2026) ──────────
+
+   El archivo es `Registro_Ventas_MrFix_Odemas_2026.xlsx`, 128 hojas
+   (tienda × mes). La hoja está PROTEGIDA y solo se puede escribir en:
+
+     B  día        D  ticket    E  SKU    F  producto
+     G  cantidad   H  precio    N  empleado
+
+   C y de I a M son fórmulas —tienda, precios sin IVA, comisión y el PUESTO—,
+   así que pegar un bloque contiguo B:N choca con la protección. Por eso son
+   TRES pegados: B, luego D:H, luego N. Los datos empiezan en la FILA 6.
+
+   Se copia al portapapeles en vez de generar el .xlsx a propósito: el archivo
+   es compartido por diez tiendas y sobreescribirlo pisaría el trabajo de las
+   demás. Pegar en la hoja propia no toca nada ajeno. */
+
+
+
+
+/* ── Bajar el mes como Excel ─────────────────────────────────────────────
+   20-ago-2026, pedido por Angel: «no puede generarme de una vez un excel y ya
+   solo seleccionar desde el excel las filas?».
+
+   La clave es que las columnas van EN LA MISMA POSICION que la hoja destino
+   —B, D, E, F, G, H, N— y los datos empiezan en la FILA 6, igual que alli. Asi
+   se selecciona un rango y se pega en el mismo sitio, sin contar columnas.
+
+   Siguen siendo TRES pegados, y no por comodidad: en el destino C y de I a M
+   son formulas con candado, y Excel rechaza pegar un rango que las toque
+   aunque el origen venga vacio. Lo que cambia es que seleccionar una columna
+   en Excel es un clic, y en un cuadro de texto no.
+
+
+/* ── Técnicos externos (20-ago-2026) ─────────────────────────────────────
+   La clave la genera la BASE, no esta pantalla: escrita a mano acabaría siendo
+   «mrfix1». Y se enseña entera en la lista a propósito — quien entra a Admin
+   puede leerla de la tabla igual, así que taparla sería teatro y solo estorbaría
+   para dársela al técnico. */
+async function cargarTecnicos(){
+  const filas = await sbLeer('tecnicos_lista', { p_token: String((_cfg&&_cfg.gas_token)||'') });
+  const cont = document.getElementById('tecLista');
+  if(!filas.length){ cont.innerHTML = '<p class="note">Todavía no hay ninguno.</p>'; return; }
+  cont.innerHTML = filas.map(t => `
+    <div style="display:flex;gap:8px;align-items:center;padding:8px 0;
+                border-bottom:1px solid #f2f2f2;font-size:12.5px;
+                opacity:${t.activo ? 1 : .45}">
+      <div style="flex:1">
+        <b>${t.nombre}</b>${t.activo ? '' : ' <span style="color:#999">(dado de baja)</span>'}
+        <div style="font-family:ui-monospace,monospace;font-size:11px;color:#888;
+                    word-break:break-all">${t.clave}</div>
+        <div style="font-size:11px;color:#aaa">${t.ultimo_acceso
+          ? 'último acceso: ' + String(t.ultimo_acceso).slice(0,10)
+          : 'nunca ha entrado'}</div>
+      </div>
+      <button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"
+        onclick="tecCopiar('${t.clave}',this)">copiar</button>
+      <button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"
+        onclick="tecClave(${t.id},'${String(t.nombre).replace(/'/g, "\\'")}')">clave</button>
+      <button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"
+        onclick="tecBaja(${t.id},${!t.activo})">${t.activo ? 'baja' : 'alta'}</button>
+    </div>`).join('');
+}
+
+/* Ponerle al técnico una clave que tú eliges (24-ago-2026).
+
+   Antes solo se podía copiar la que inventaba el alta. Una clave que nadie
+   elige acaba apuntada en un papel pegado al mostrador, y no había forma de
+   cambiarla cuando un técnico dejaba de venir.
+
+   ⚠️ Las reglas de qué clave vale las pone EL SERVIDOR, no esto. Aquí se
+   comprueba lo mismo solo para no hacer ir y volver por una clave corta; si
+   esta comprobación se borrara, `tecnico_clave_poner` seguiría rechazándola.
+   Al revés —fiarlo a la pantalla— cualquiera con la consola abierta se salta el
+   mínimo, y la pantalla del técnico está abierta en internet. */
+async function tecClave(id, nombre){
+  const c = prompt('Clave nueva para ' + nombre + ':\n\n' +
+                   'Mínimo 8 caracteres, con letras y números, sin espacios.\n' +
+                   'Esta consulta está abierta en internet: una clave corta se adivina probando.');
+  if(c === null) return;                       // canceló
+  const clave = String(c).trim();
+  if(clave.length < 8){ alert('Muy corta: hacen falta 8 caracteres o más.'); return; }
+
+  const r = await sbEscribir('tecnico_clave_poner', { p_id: id, p_clave: clave });
+  if(!r || r.ok !== true){ alert((r && r.error) || 'No se pudo cambiar la clave.'); return; }
+  await cargarTecnicos();
+  alert('Listo. La clave de ' + (r.nombre || nombre) + ' es ahora:\n\n' + clave +
+        '\n\nDásela junto con el enlace de la consulta. La anterior ya no sirve.');
+}
+
+async function tecAlta(){
+  const n = document.getElementById('tecNombre').value.trim();
+  if(!n){ alert('Escribe el nombre del técnico.'); return; }
+  const r = await sbEscribir('tecnico_guardar', { p_nombre: n });
+  if(!r || r.ok !== true){ alert((r && r.error) || 'No se pudo dar de alta.'); return; }
+  document.getElementById('tecNombre').value = '';
+  await cargarTecnicos();
+  alert("Listo. Su clave es:\n\n" + r.clave + "\n\nDasela junto con el enlace de la consulta.");
+}
+
+
+/* ── Reparaciones del mes (24-ago-2026) ──────────────────────────────────
+
+   Lo que el gerente no tenía: hasta hoy el asesor las capturaba y el técnico
+   externo las consultaba, y el único sin pantalla era el dueño de la tienda.
+
+   Vive en Admin y no en Captura porque Captura es la pantalla que baja el Excel
+   regional, y las reparaciones no van a ese Excel. Que no pueda ni leerlas es
+   lo que lo garantiza; `r_reparaciones_fuera` lo vigila. */
+const REPA_MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO',
+                    'AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+let _repaFilas = [];
+
+function repaMeses(){
+  const s = document.getElementById('repaMes');
+  if(!s || s.options.length) return;
+  const hoy = new Date();
+  let html = '';
+  for(let i = 0; i < 12; i++){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    html += '<option value="' + d.getFullYear() + '-' + (d.getMonth()+1) + '">'
+          + REPA_MESES[d.getMonth()] + ' ' + d.getFullYear() + '</option>';
+  }
+  s.innerHTML = html;
+}
+
+async function repaCargar(){
+  repaMeses();
+  const sel = document.getElementById('repaMes');
+  const [anio, mes] = (sel.value || '').split('-').map(Number);
+  const cont = document.getElementById('repaLista');
+  const res = document.getElementById('repaResumen');
+  cont.innerHTML = '<p class="note">Consultando…</p>';
+  res.textContent = '';
+
+  /* `p_token` explícito: `sbLeer` no lo manda solo —solo `sbEscribir` lo hace—
+     y esta función lo exige. Es el fallo de v199 con el catálogo, que devolvía
+     cero filas y la pantalla lo achacaba a falta de permiso. */
+  const filas = await sbLeer('reparaciones_lista',
+                             { p_token: GAS_TOKEN, p_anio: anio, p_mes: mes });
+  _repaFilas = filas;
+
+  if(!filas.length){
+    /* Aquí cero SÍ es un resultado normal —un mes sin reparaciones es posible—,
+       al revés que en el catálogo, que nunca está vacío de verdad. Por eso se
+       dice el mes: así se ve que la consulta respondió y no que se colgó. */
+    cont.innerHTML = '<p class="note">No hay reparaciones en ' + REPA_MESES[mes-1] + '.</p>';
+    return;
+  }
+
+  const total = filas.reduce((s, f) => s + Number(f.importe || 0), 0);
+  res.innerHTML = '<b>' + filas.length + '</b> reparación(es) · <b>$' +
+    total.toLocaleString('es-MX', {minimumFractionDigits:2}) + '</b> ' +
+    '<span style="color:var(--gris)">— no entra en el Excel de comisiones</span>';
+
+  cont.innerHTML = filas.map((f, i) =>
+    '<div style="display:flex;gap:8px;align-items:baseline;padding:7px 0;' +
+    'border-bottom:1px solid #f4f4f4;font-size:12.5px">' +
+      '<b style="width:22px;color:#bbb">' + String(f.dia).slice(8,10) + '</b>' +
+      '<span style="font-family:ui-monospace,monospace;color:var(--gris);font-size:11.5px">' +
+        esc(f.ticket) + '</span>' +
+      '<span style="flex:1;color:var(--gris)">' +
+        (f.capturado_por ? 'capturó ' + esc(f.capturado_por) : '') + '</span>' +
+      '<b style="color:#1c9c4f">$' + Number(f.importe).toLocaleString('es-MX') + '</b>' +
+      (f.tiene_foto
+        ? '<button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"' +
+          ' onclick="repaFoto(' + i + ')">ticket</button>'
+        : '<span style="width:56px"></span>') +
+    '</div>').join('');
+}
+
+/* Se pasa el ÍNDICE y no el captura_id: el id acabaría dentro de un onclick
+   como texto, y ahí una comilla en el dato rompe el atributo. Del índice no
+   sale nada que el navegador tenga que interpretar. */
+async function repaFoto(i){
+  const f = _repaFilas[i];
+  if(!f) return;
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;' +
+    'display:flex;align-items:center;justify-content:center;padding:16px';
+  box.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;' +
+    'max-height:88vh;overflow:auto;padding:14px"><b>Ticket ' + esc(f.ticket) +
+    '</b><div id="repaFotoCuerpo" style="margin-top:10px">Cargando…</div></div>';
+  box.onclick = () => box.remove();
+  document.body.appendChild(box);
+
+  // Es una LECTURA, pero va por `sbEscribir` porque necesita el token de tienda
+  // y devuelve un objeto, no filas. `sbLeer` no manda token y exige un array.
+  const d = await sbEscribir('venta_foto_leer', { p_captura_id: String(f.captura_id) });
+  const c = document.getElementById('repaFotoCuerpo');
+  if(!c) return;                       // lo cerró antes de que llegara
+  c.innerHTML = (d && d.ok === true)
+    ? '<img src="data:' + (d.mime || 'image/jpeg') + ';base64,' + d.b64 +
+      '" style="width:100%;border-radius:10px">'
+    : '<p class="note">No se pudo abrir. Las fotos se guardan 31 días; ' +
+      'si el ticket es de hace más, ya no está.</p>';
+}
+
+async function tecBaja(id, activar){
+  if(!activar && !confirm('¿Cortar el acceso de este técnico?')) return;
+  const r = await sbEscribir('tecnico_baja', { p_id: id, p_activo: !!activar });
+  if(!r || r.ok !== true){ alert((r && r.error) || 'No se pudo cambiar.'); return; }
+  cargarTecnicos();
+}
+
+async function tecCopiar(clave, btn){
+  try{ await navigator.clipboard.writeText(clave); }
+  catch(e){ alert(clave); return; }   // sin portapapeles: se enseña para copiarla a mano
+  const antes = btn.textContent;
+  btn.textContent = '✓';
+  setTimeout(() => { btn.textContent = antes; }, 1400);
+}
+
+
+async function sbCargaAdmin(fn, params){
+  const r = await sbEscribir(fn, params);
+  if(!r || r.ok !== true) throw new Error((r && r.error) ? String(r.error) : 'la nube no confirmó el guardado');
+  return r;
+}
+
+async function sbEscribir(fn, params){
+  try{
+    if(!sb && !initSB()) return { ok:false, error:'Supabase no cargó' };
+    const { data, error } = await sb.rpc(fn, Object.assign({
+      p_store: String((_cfg && _cfg.store_id) || ''),
+      p_token: GAS_TOKEN
+    }, params || {}));
+    if(error) return { ok:false, error: error.message || 'error de red' };
+    return data || { ok:false, error:'respuesta vacía' };
+  }catch(e){
+    return { ok:false, error: (e && e.message) || 'sin conexión' };
+  }
+}
+const money=n=>'$'+Number(n||0).toLocaleString('es-MX');
+function toast(msg,ok){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.style.background=ok===false?'#D12026':'#1a8c4e';
+  el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800);
+}
+function showResult(id,ok,html){
+  const r=document.getElementById(id);
+  r.innerHTML=html; r.className='result show '+(ok?'ok':'bad');
+}
+
+/* ================================================================
+   TAB CATÁLOGO — Piezas de exhibición
+   ================================================================ */
+let parsedExhib = null;
+
+async function parseExhibicion(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+  // Busca la fila de encabezados (busca hasta fila 25)
+  let h = -1;
+  for(let i=0; i<Math.min(aoa.length,25); i++){
+    const up = aoa[i].map(c=>String(c||'').trim().toUpperCase());
+    if(up.some(c=>c==='SKU'||c==='CÓDIGO'||c==='CODIGO')) { h=i; break; }
+  }
+  if(h<0) throw new Error('No encontré columna SKU');
+  const H = aoa[h].map(c=>String(c||'').trim().toUpperCase());
+  const fi = test => H.findIndex(c=>test(c));
+  const iSku = fi(c=>c==='SKU'||c==='CÓDIGO'||c==='CODIGO'||c.includes('SKU'));
+  // "Cantidad No Disponible" (Inventario No Disponible de RadioShack) o columnas genéricas
+  const iExh = fi(c=>c.includes('NO DISP')||c.includes('NO DISPONIBLE')||
+                     c.includes('EXHIB')||c.includes('DISPLAY')||
+                     c.includes('MUESTRA')||c.includes('DEMO')||c==='EXH');
+  if(iSku<0) throw new Error('No encontré columna SKU');
+  if(iExh<0) throw new Error('No encontré columna de exhibición.\nColumnas detectadas: '+H.filter(Boolean).join(', '));
+  const seen={}, rows=[];
+  for(let r=h+1; r<aoa.length; r++){
+    const row = aoa[r];
+    const sku = String(row[iSku]||'').trim().replace(/\.0+$/,'');
+    // Salta filas vacías, totales o pie de página
+    if(!sku || !/^\d{6,12}$/.test(sku)) continue;
+    if(seen[sku]) continue; seen[sku]=1;
+    const exh = parseInt(String(row[iExh]||'').trim()) || 0;
+    rows.push({sku, exhibe: exh});
+  }
+  return rows;
+}
+
+document.getElementById('fileExhib').onchange = async function(e){
+  const f = e.target.files&&e.target.files[0]; if(!f) return;
+  document.getElementById('resExhib').className='result';
+  document.getElementById('fphExhib').textContent='Leyendo archivo…';
+  document.getElementById('fboxExhib').classList.remove('ok');
+  try{
+    parsedExhib = await parseExhibicion(f);
+    if(!parsedExhib.length) throw new Error('No encontré SKUs en el archivo');
+    const conExhib = parsedExhib.filter(x=>x.exhibe>0).length;
+    document.getElementById('fboxExhib').classList.add('ok');
+    document.getElementById('fphExhib').innerHTML=`✓ ${f.name}<br>${parsedExhib.length} SKUs · ${conExhib} con exhibición > 0`;
+    document.getElementById('btnExhib').disabled=false;
+  }catch(err){
+    parsedExhib=null; document.getElementById('btnExhib').disabled=true;
+    document.getElementById('fphExhib').textContent='📄 Toca para elegir el Excel de exhibición';
+    showResult('resExhib',false,'No pude leer el archivo: '+err.message);
+  }
+};
+
+async function subirExhibicion(){
+  if(!parsedExhib||!parsedExhib.length) return;
+  const btn=document.getElementById('btnExhib');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
+  document.getElementById('resExhib').className='result';
+  try{
+    /* A Supabase (7-ago-2026). La carga toma ADEMAS el corte de exhibicion,
+       que es propio y no el del On Hand diario: si se compartieran, una pieza
+       de piso ya vendida reaparecería con el informe del día siguiente. */
+    await sbCargaAdmin('carga_exhibicion', { p_filas: parsedExhib });
+    const conExhib = parsedExhib.filter(x=>x.exhibe>0).length;
+    showResult('resExhib',true,`✅ ${parsedExhib.length} SKUs actualizados · ${conExhib} con piezas en exhibición.`);
+  }catch(err){ showResult('resExhib',false,'Error al subir: '+err.message); }
+  btn.textContent='Actualizar exhibición'; btn.disabled=false;
+}
+
+/* ================================================================
+   TAB CATÁLOGO — Accesorios del SKU genérico (20-ago-2026, v198)
+   ================================================================
+   Los 23 productos se sembraron a mano y hasta hoy solo se tocaban por SQL.
+
+   ⚠️ Había una versión rota de esto en el servidor, sin usar:
+   `accesorio_catalogo_guardar` se escribió el 18-ago, el día ANTES de que el
+   catálogo tuviera `articulo` y `sku`, y solo guardaba (nombre, precio, orden).
+   Un alta hecha con ella quedaba sin código de artículo —y entonces el producto
+   NO se propone nunca al leer un ticket— y con SKU 43739 por omisión, falso
+   para los Office. Ninguna de las dos cosas da error. Se rehízo entera en
+   `supabase_accesorios_catalogo.sql`.
+
+   El aviso de códigos parecidos usa `accChoca` de `acc_codigos.js`, la MISMA
+   regla que usa Captura para adivinar el producto. Si fueran dos copias, esto
+   podría dar por bueno un código que allá va a empatar. */
+let _catAcc = [];        // el catálogo completo, activos y de baja
+let _catAccId = null;    // qué producto se edita; null = alta
+
+// El número de empleado de quien está usando Admin. El servidor comprueba con
+// él que sea gerente o subgerente: `puede_admin` deja entrar a Admin, pero
+// tocar el catálogo de accesorios es un permiso aparte.
+function _miEmpno(){
+  try{ const e = JSON.parse(localStorage.getItem('hes_empleado')||'null');
+       return (e && e.empno) ? String(e.empno) : ''; }catch(e){ return ''; }
+}
+
+async function cargarCatAcc(){
+  const caja = document.getElementById('catAccLista');
+  caja.innerHTML = '<p class="note">Cargando…</p>';
+  catAccFicha(null);
+
+  /* `p_token` va explícito: `sbLeer` NO lo manda solo —solo `sbEscribir` lo
+     hace—, y esta función lo exige como cualquier escritura, porque enseña el
+     catálogo entero. Sin él llegaba sin credencial y el servidor devolvía cero
+     filas: la pantalla decía «revisa la conexión o pide permiso» con las dos
+     cosas en orden. */
+  const filas = await sbLeer('accesorios_catalogo_admin',
+                             { p_token: GAS_TOKEN, p_quien: _miEmpno() });
+  /* `sbLeer` devuelve [] tanto si no hay red como si no hay permiso. Aquí sí hay
+     que decir algo: el catálogo NUNCA está vacío de verdad —los 23 están
+     sembrados—, así que una lista en blanco es siempre un problema, y en
+     silencio parecería que se borró. */
+  if(!filas.length){
+    caja.innerHTML = '<p class="note" style="color:var(--rojo)">No se pudo cargar el ' +
+      'catálogo de accesorios: revisa la conexión, o pide que te den permiso de ' +
+      'gerente o subgerente.</p>';
+    return;
+  }
+  _catAcc = filas;
+  pintarCatAcc();
+}
+
+function pintarCatAcc(){
+  document.getElementById('catAccLista').innerHTML = _catAcc.map((c, i) =>
+    '<div class="cat-f' + (c.activo ? '' : ' off') + '" onclick="catAccElegir(' + i + ')">' +
+      '<span class="cn">' + escHtml(c.nombre) + (c.activo ? '' : ' · de baja') +
+        '<br><span class="ca">' + escHtml(c.articulo || 'sin código') +
+        (String(c.sku) !== '43739' ? ' · SKU ' + escHtml(c.sku) : '') + '</span></span>' +
+      '<span class="cp">' + (c.precio_ref ? money(c.precio_ref) : '—') + '</span>' +
+      '<button class="cb" onclick="event.stopPropagation();catAccBaja(' + i + ')">' +
+        (c.activo ? 'baja' : 'activar') + '</button>' +
+    '</div>').join('');
+}
+
+function catAccFicha(c){
+  _catAccId = c ? c.id : null;
+  document.getElementById('catAccFicha').style.display = c ? 'block' : 'none';
+  document.getElementById('catAccAvisoArt').style.display = 'none';
+  document.getElementById('catAccAvisoPrecio').style.display = 'none';
+  document.getElementById('resCatAcc').className = 'result';
+  if(!c) return;
+
+  document.getElementById('catAccNombre').value = c.nombre || '';
+  document.getElementById('catAccArt').value    = c.articulo || '';
+  document.getElementById('catAccPrecio').value = c.precio_ref != null ? c.precio_ref : '';
+  document.getElementById('catAccSku').value    = c.sku || '43739';
+  document.getElementById('catAccOrden').value  = c.orden != null ? c.orden : 100;
+
+  /* Renombrar NO arrastra el histórico: cada venta guardó el nombre como texto.
+     No se impide —a veces hay que corregir una falta— pero se dice cuántas
+     ventas van a quedar con el nombre viejo. */
+  const u = Number(c.usos || 0), av = document.getElementById('catAccUsos');
+  av.style.display = u ? 'block' : 'none';
+  if(u) av.innerHTML = '<b>' + u + ' venta' + (u === 1 ? '' : 's') + '</b> registrada' +
+    (u === 1 ? '' : 's') + ' con este nombre. Si lo cambias, esas ventas se quedan ' +
+    'con el nombre anterior: el reporte ya entregado no se mueve.';
+}
+
+function catAccNuevo(){
+  catAccFicha({ id:null, nombre:'', articulo:'', precio_ref:'', sku:'43739',
+                orden:100, usos:0 });
+  document.getElementById('catAccNombre').focus();
+}
+
+function catAccElegir(i){ if(_catAcc[i]) catAccFicha(_catAcc[i]); }
+
+/* Aviso, no candado: el servidor rechaza el código REPETIDO, pero el empate de
+   PREFIJO es legal y aun así rompe la propuesta automática. */
+function catAccMirarArt(){
+  const caja = document.getElementById('catAccAvisoArt');
+  const otro = accChoca(document.getElementById('catAccArt').value, _catAcc, _catAccId);
+  caja.style.display = otro ? 'block' : 'none';
+  if(otro) caja.innerHTML = 'Se parece demasiado a <b>' + escHtml(otro.nombre) + '</b> (' +
+    escHtml(otro.articulo) + '). Cuando dos códigos empiezan igual, la app <b>no ' +
+    'propone ninguno</b> de los dos al leer el ticket y hay que elegirlos a mano. ' +
+    'Se puede guardar así, pero cambiando alguna letra del principio se evita.';
+}
+
+/* Dos productos al mismo precio dejan de marcarse solos: es el caso de MICA HR
+   y MICA MATTE, los $149 que en julio hubo que abrir uno por uno. */
+function catAccMirarPrecio(){
+  const p = Number(String(document.getElementById('catAccPrecio').value)
+                     .replace(/[^0-9.]/g, '')) || 0;
+  const caja = document.getElementById('catAccAvisoPrecio');
+  const otro = p ? _catAcc.find(c => c.activo && c.id !== _catAccId &&
+                        Math.abs(Number(c.precio_ref || 0) - p) < 0.5) : null;
+  caja.style.display = otro ? 'block' : 'none';
+  if(otro) caja.innerHTML = '<b>' + escHtml(otro.nombre) + '</b> cuesta lo mismo. Al ' +
+    'leer un ticket de ' + money(p) + ' la app mostrará los dos arriba, pero no ' +
+    'marcará ninguno: habrá que elegir a mano cuál fue.';
+}
+
+async function catAccGuardar(){
+  const nombre = document.getElementById('catAccNombre').value.trim();
+  if(!nombre) return showResult('resCatAcc', false, 'Ponle nombre al producto.');
+
+  const precioTxt = document.getElementById('catAccPrecio').value;
+  const r = await sbEscribir('accesorio_catalogo_guardar', {
+    p_nombre:   nombre,
+    p_precio:   precioTxt === '' ? null : Number(String(precioTxt).replace(/[^0-9.]/g, '')),
+    p_orden:    Number(document.getElementById('catAccOrden').value) || 100,
+    p_id:       _catAccId,
+    p_articulo: document.getElementById('catAccArt').value.trim(),
+    p_sku:      document.getElementById('catAccSku').value.trim() || '43739',
+    p_quien:    _miEmpno()
+  });
+  if(!r || r.ok !== true){
+    return showResult('resCatAcc', false, (r && r.error) ? escHtml(String(r.error))
+      : 'No se pudo guardar. Revisa la conexión.');
+  }
+  showResult('resCatAcc', true, '✅ ' + escHtml(nombre) + (_catAccId ? ' actualizado.' : ' agregado.'));
+  await cargarCatAcc();          // se relee: así se ve tal como quedó guardado
+}
+
+async function catAccBaja(i){
+  const c = _catAcc[i];
+  if(!c) return;
+  const r = await sbEscribir('accesorio_catalogo_baja',
+    { p_id: c.id, p_activo: !c.activo, p_quien: _miEmpno() });
+  if(!r || r.ok !== true) return toast((r && r.error) || 'No se pudo cambiar', false);
+  toast(c.activo ? 'Producto dado de baja' : 'Producto activado', true);
+  await cargarCatAcc();
+}
+
+
+/* ================================================================
+   TAB CATÁLOGO — Catálogo de referencia (SKU + desc + EAN/UPC)
+   ================================================================ */
+let parsedCatRef=null;
+
+/* Los codigos de barras y los SKU se leen del valor CRUDO del Excel, no del
+   formateado. SheetJS con raw:false devuelve lo que se VE en la celda, y una
+   con formato cientifico da "6.94E+12" en vez del numero — aunque en el Excel
+   el dato este perfecto. Asi se rompieron 6 UPC: llegaron como texto "6.94E+12"
+   y Google Sheets los convirtio a 6942100000000, los seis iguales.
+   (2-ago-2026. El parser del catalogo principal ya lo habia notado y lo
+   "arreglaba" descartando esas filas con `if(/e\+/i.test(upc)) continue`, o sea
+   perdiendo el producto en vez de leerlo bien.) */
+function valorCrudo(filaVista, filaCruda, i){
+  if (i < 0) return '';
+  const vista = String((filaVista||[])[i] == null ? '' : (filaVista||[])[i]).trim();
+  const real  = (filaCruda||[])[i];
+  // solo se recurre al crudo cuando lo mostrado viene en notacion cientifica
+  if (/e\+/i.test(vista) && real !== undefined && real !== null && real !== '') {
+    return String(typeof real === 'number' ? BigInt(Math.round(real)).toString() : real).trim();
+  }
+  return vista.replace(/\.0+$/, '');
+}
+
+async function parseCatalogoRef(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+  const crudo=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+
+  // Encuentra fila de encabezados
+  let h=-1;
+  for(let i=0;i<Math.min(aoa.length,25);i++){
+    const up=aoa[i].map(c=>String(c||'').trim().toUpperCase());
+    if(up.some(c=>c==='SKU'||c==='CÓDIGO'||c==='CODIGO'||c==='EAN'||c==='UPC')){h=i;break;}
+  }
+  if(h<0) throw new Error('No encontré columnas SKU/EAN/UPC en el archivo');
+
+  const H=aoa[h].map(c=>String(c||'').trim().toUpperCase());
+  const fi=test=>H.findIndex(c=>test(c));
+
+  const iSku  = fi(c=>c==='SKU'||c==='CÓDIGO'||c==='CODIGO'||c.includes('SKU'));
+  const iDesc = fi(c=>c.includes('DESCRI')||c.includes('PRODUC')||c.includes('NOMBRE')||c.includes('ARTÍC')||c.includes('ARTIC'));
+  const iUpc  = fi(c=>c==='EAN'||c==='UPC'||c==='CÓDIGO DE BARRAS'||c==='COD_BARRAS'||c.includes('EAN')||c.includes('UPC')||c.includes('BARRAS'));
+
+  if(iSku<0) throw new Error('No encontré columna SKU');
+
+  const seen={},rows=[];
+  for(let r=h+1;r<aoa.length;r++){
+    const row=aoa[r];
+    const sku=valorCrudo(row, crudo[r], iSku);
+    if(!sku) continue;
+    if(seen[sku]) continue; seen[sku]=1;
+    const upc=valorCrudo(row, crudo[r], iUpc);
+    const desc=iDesc>=0?String(row[iDesc]||'').trim():'';
+    rows.push({sku, desc, upc});
+  }
+  return rows;
+}
+
+document.getElementById('fileCatRef').onchange=async function(e){
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  document.getElementById('resCatRef').className='result';
+  document.getElementById('fphCatRef').textContent='Leyendo archivo…';
+  document.getElementById('fboxCatRef').classList.remove('ok');
+  try{
+    parsedCatRef=await parseCatalogoRef(f);
+    if(!parsedCatRef.length) throw new Error('No encontré productos en el archivo');
+    document.getElementById('fboxCatRef').classList.add('ok');
+    document.getElementById('fphCatRef').innerHTML=`✓ ${f.name}<br>${parsedCatRef.length} productos detectados`;
+    document.getElementById('btnCatRef').disabled=false;
+  }catch(err){
+    parsedCatRef=null; document.getElementById('btnCatRef').disabled=true;
+    document.getElementById('fphCatRef').textContent='📄 Toca para elegir el Excel de catálogo';
+    showResult('resCatRef',false,'No pude leer el archivo: '+err.message);
+  }
+};
+
+async function subirCatalogoRef(){
+  if(!parsedCatRef||!parsedCatRef.length) return;
+  const btn=document.getElementById('btnCatRef');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
+  document.getElementById('resCatRef').className='result';
+  try{
+    await sbCargaAdmin('carga_catalogo_ref', { p_filas: parsedCatRef });
+    showResult('resCatRef',true,`✅ ${parsedCatRef.length} productos guardados en catálogo de referencia.`);
+  }catch(err){ showResult('resCatRef',false,'Error al subir: '+err.message); }
+  btn.textContent='Subir catálogo de referencia'; btn.disabled=false;
+}
+
+/* ================================================================
+   TAB CATÁLOGO — Excel parser (Informe de artículos)
+   ================================================================ */
+let parsedCat=null;
+
+async function parseInforme(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+  const crudo=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  let h=-1;
+  for(let i=0;i<aoa.length;i++){
+    const up=aoa[i].map(c=>String(c||'').trim().toUpperCase());
+    if(up.includes('SKU')&&up.includes('UPC')){ h=i; break; }
+  }
+  if(h<0) throw new Error('No encontré encabezados SKU/UPC en el archivo');
+  const H=aoa[h].map(c=>String(c||'').trim().toUpperCase());
+  const iSku=H.indexOf('SKU'),iUpc=H.indexOf('UPC');
+  const iDesc=H.findIndex(x=>x.includes('DESCRIP'));
+  const iOn=H.findIndex(x=>x.includes('ON HAND')||x==='ONHAND'||x.includes('EXIST'));
+  const iPre=H.findIndex(x=>x.includes('PRECIO'));
+  const seen={},rows=[];
+  for(let r=h+1;r<aoa.length;r++){
+    const row=aoa[r];
+    const upc=valorCrudo(row, crudo[r], iUpc);
+    const sku=valorCrudo(row, crudo[r], iSku);
+    if(!upc||!sku) continue;
+    // Ya NO se descartan las filas en notacion cientifica: valorCrudo las lee
+    // bien. Antes se saltaban, o sea que el producto se perdia del catalogo.
+    if(seen[upc]) continue; seen[upc]=1;
+    rows.push({upc,sku,desc:String(row[iDesc]||'').trim(),
+      onhand:iOn>=0?String(row[iOn]||'').trim():'',
+      precio:iPre>=0?String(row[iPre]||'').trim():''});
+  }
+  return rows;
+}
+
+document.getElementById('fileCat').onchange=async function(e){
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  document.getElementById('resCat').className='result';
+  document.getElementById('fphCat').textContent='Leyendo archivo…';
+  document.getElementById('fboxCat').classList.remove('ok');
+  try{
+    parsedCat=await parseInforme(f);
+    document.getElementById('fboxCat').classList.add('ok');
+    document.getElementById('fphCat').innerHTML=`✓ ${f.name}<br>${parsedCat.length} productos detectados`;
+    document.getElementById('btnCat').disabled=parsedCat.length===0;
+  }catch(err){
+    parsedCat=null; document.getElementById('btnCat').disabled=true;
+    document.getElementById('fphCat').textContent='📄 Toca para elegir el archivo (.xlsx)';
+    showResult('resCat',false,'No pude leer el archivo: '+err.message);
+  }
+};
+
+async function subirCatalogo(){
+  if(!parsedCat||!parsedCat.length) return;
+  const btn=document.getElementById('btnCat');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
+  document.getElementById('resCat').className='result';
+  try{
+    /* La respuesta trae el conteo, asi que se van la espera de 2,5 s y la
+       segunda llamada para "confirmar": existian porque el Apps Script contesta
+       antes de terminar de escribir. Aqui la funcion no vuelve hasta que la
+       transaccion cerro, y si algo falla, lanza. */
+    const rc = await sbCargaAdmin('carga_catalogo', { p_filas: parsedCat, p_by: 'Admin 1217' });
+    showResult('resCat',true,`✅ Catálogo actualizado: <b>${rc.skus}</b> productos. El tablero ya lo está viendo.`);
+  }catch(err){ showResult('resCat',false,'Error al subir: '+err.message); }
+  btn.textContent='Subir y actualizar'; btn.disabled=false;
+}
+
+/* ================================================================
+   TAB PROMOS — CEA PDF parser completo
+   ================================================================ */
+let parsedPromos=null;
+const MESES_P={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+function isoP(y,m,d){ return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+
+/* ================================================================
+   LECTOR DE TABLAS DE CEA EN PDF — compartido por Promos y EOL
+   ================================================================
+   Antes cada pestaña traía su propio regex y las dos exigían que el renglón
+   terminara con la palabra ACTIVO/EOL de la columna ESTATUS. El CEA 257
+   (PROMOCIONES EOL) no trae esa columna —sus encabezados son SKU ·
+   DESCRIPCIÓN · PRECIO REGULAR · PROMO ACTUAL · NUEVA PROMO— así que
+   ninguna de las dos leyó una sola fila del comunicado.
+
+   Ahora el PDF se lee como tabla de verdad: las palabras se agrupan en
+   renglones por su coordenada Y, se leen los encabezados y cada precio se
+   casa con SU columna por la posición horizontal. Eso es lo que distingue
+   "NUEVA PROMO" (lo que se cobra) de "DESCUENTO" (lo que se rebaja) en los
+   CEA de PRICE MATCH, donde quedarse con el último precio del renglón
+   cobraría de menos. Cuando la tabla no trae estatus, se deduce del título
+   del comunicado y del nombre del archivo.
+   ================================================================ */
+
+/* Saca de PDF.js los fragmentos de texto tal como vienen, con su posición y
+   su ancho. NO se parten en palabras aquí: PDF.js no garantiza que un
+   fragmento sea una palabra. El CEA 257 llega partido glifo por glifo
+   —"$" "3" "," "4" "9" "8" ".00"— y hasta el SKU viene en dos pedazos. */
+async function _ceaItemsPDF(file){
+  if(typeof pdfjsLib==='undefined') throw new Error('PDF.js no disponible — recarga la página');
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+  const out=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const vp=page.getViewport({scale:1});
+    const tc=await page.getTextContent();
+    tc.items.forEach(it=>{
+      const s=String(it.str==null?'':it.str).replace(/ /g,' ');
+      if(!s.trim()) return;
+      out.push({s:s, x:it.transform[4], y:vp.height-it.transform[5], w:it.width||0, page:p});
+    });
+  }
+  return out;
+}
+
+/* De los fragmentos de un renglón a sus palabras.
+
+   Primero se vuelven a pegar los pedazos que en la hoja están tocándose: si
+   el siguiente empieza a menos de 1 pt de donde acabó el anterior, entre
+   ellos no hubo espacio y son la misma palabra. Un espacio de verdad mide
+   2 pt o más en estos cuerpos de texto, así que no se pegan palabras
+   distintas.
+
+   Es la única forma que no depende de CÓMO parta PDF.js. Antes se buscaban
+   cortes concretos —el "$" suelto, la coma de miles— y este comunicado
+   partía de otra manera: "$3,498.00" se leyó como 3 pesos y así se guardó en
+   la nube. Aquí ya no importa dónde corte, importa dónde está impreso.
+
+   Después sí se separa por los espacios reales, repartiendo la posición
+   proporcionalmente. El centro horizontal es lo que casa cada celda con su
+   encabezado aunque venga centrada o alineada a la derecha. */
+function _ceaPalabras(its){
+  const trozos=[];
+  its.forEach(it=>{
+    const u=trozos[trozos.length-1];
+    if(u && it.x>=u.x && it.x-(u.x+u.w)<1){ u.s+=it.s; u.w=(it.x+it.w)-u.x; }
+    else trozos.push({s:it.s,x:it.x,w:it.w});
+  });
+  const out=[];
+  trozos.forEach(t=>{
+    const re=/\S+/g; let m;
+    while((m=re.exec(t.s))){
+      const a=m.index/t.s.length, b=(m.index+m[0].length)/t.s.length;
+      out.push({t:m[0], x:t.x+t.w*a, c:t.x+t.w*(a+b)/2});
+    }
+  });
+  return _ceaPegar(out);
+}
+
+/* Red por si algún PDF sí deja un espacio de verdad donde no va: el "$"
+   suelto de su cifra, o la coma de miles. Lo que viene pegado en la hoja ya
+   lo resolvió _ceaPalabras; esto sólo cubre el caso contrario. */
+function _ceaPegar(toks){
+  const out=[];
+  for(let i=0;i<toks.length;i++){
+    const a=toks[i],b=toks[i+1];
+    if(b){
+      if(a.t==='$'&&/^\d/.test(b.t)){ out.push({t:'$'+b.t,x:a.x,c:(a.c+b.c)/2}); i++; continue; }
+      if(/^\$?\d[\d,]*,$/.test(a.t)&&/^\d{3}(?:\.\d{1,2})?$/.test(b.t)){ out.push({t:a.t+b.t,x:a.x,c:(a.c+b.c)/2}); i++; continue; }
+    }
+    out.push({t:a.t,x:a.x,c:a.c});
+  }
+  return out;
+}
+
+/* Renglones por cercanía vertical. El agrupado anterior redondeaba y/6, y un
+   renglón que caía justo en el borde del bucket se partía en dos: media fila
+   sin precio y fila perdida. Aquí cada renglón se abre con su primer
+   fragmento y admite lo que caiga a menos de 4 pt de él. Ya armado el
+   renglón, _ceaPalabras reconstruye sus palabras. */
+function _ceaRenglones(items){
+  const porPag={};
+  items.forEach(i=>(porPag[i.page]||(porPag[i.page]=[])).push(i));
+  const filas=[];
+  Object.keys(porPag).map(Number).sort((a,b)=>a-b).forEach(pg=>{
+    const ps=porPag[pg].sort((a,b)=>a.y-b.y||a.x-b.x);
+    let grupo=[],y0=null;
+    const cerrar=()=>{ if(grupo.length) filas.push({page:pg,y:y0,toks:_ceaPalabras(grupo.sort((a,b)=>a.x-b.x))}); grupo=[]; };
+    ps.forEach(i=>{
+      if(y0===null){ y0=i.y; grupo=[i]; return; }
+      if(Math.abs(i.y-y0)<=4){ grupo.push(i); return; }
+      cerrar(); y0=i.y; grupo=[i];
+    });
+    cerrar();
+  });
+  return filas;
+}
+
+const _ceaTexto=f=>f.toks.map(t=>t.t).join(' ');
+/* Un renglón de encabezado no trae minúsculas; así se distingue de la prosa
+   que rodea a la tabla. */
+const _ceaEsCab=f=>f.toks.length>0 && f.toks.every(t=>!/[a-záéíóúñü]/.test(t.t));
+const _ceaEsDato=f=>f.toks.length>0 && /^\d{9}$/.test(f.toks[0].t);
+
+/* Columnas de la tabla leídas del encabezado: agrupa sus palabras por centro
+   horizontal y arma la etiqueta de cada columna ("PRECIO REGULAR",
+   "NUEVA PROMO", "DESCUENTO"…). */
+function _ceaColumnas(filas){
+  /* El renglón del encabezado, no el párrafo: "SKU" también aparece en la
+     prosa ("los siguientes SKU que se incorporan al listado"), y tomar esa
+     línea como encabezado inventaba columnas con media oración de etiqueta. */
+  let iSku=-1;
+  for(let i=0;i<filas.length;i++)
+    if(_ceaEsCab(filas[i])&&filas[i].toks.length>=2&&filas[i].toks.some(t=>/^SKU$/i.test(t.t))){ iSku=i; break; }
+  if(iSku<0) return [];
+  let ini=iSku,fin=iSku;
+  while(ini>0&&iSku-ini<3&&filas[ini-1].page===filas[iSku].page&&_ceaEsCab(filas[ini-1])&&!_ceaEsDato(filas[ini-1])) ini--;
+  while(fin+1<filas.length&&fin-iSku<3&&filas[fin+1].page===filas[iSku].page&&_ceaEsCab(filas[fin+1])&&!_ceaEsDato(filas[fin+1])) fin++;
+
+  const pals=[];
+  for(let i=ini;i<=fin;i++) filas[i].toks.forEach(t=>pals.push({t:t.t,c:t.c,x:t.x,fila:i}));
+  if(!pals.length) return [];
+
+  const cols=[];
+  pals.sort((a,b)=>a.c-b.c).forEach(p=>{
+    const ult=cols[cols.length-1];
+    if(ult&&Math.abs(p.c-ult.c)<=18){ ult.pals.push(p); ult.c=ult.pals.reduce((s,q)=>s+q.c,0)/ult.pals.length; }
+    else cols.push({c:p.c,pals:[p]});
+  });
+  return cols.map(c=>({c:c.c, et:c.pals.sort((a,b)=>a.fila-b.fila||a.x-b.x).map(p=>p.t).join(' ')}));
+}
+
+const _CEA_EST=/^(ACTIVO|ACTIVA|EOL|LANZAMIENTO|NUEVO|DESCONTINUADO)$/i;
+const _CEA_MARCA=/^[Xx✓✔\-–—]$/;
+const _CEA_TACHE=/^[Xx✓✔]$/;
+/* Columnas que NO son un precio a cobrar: el descuento es cuánto se rebaja,
+   no cuánto se cobra. */
+const _CEA_NO_PRECIO=/DESCUENTO|AHORRO|DIFERENCIA|MSI|MESES|COSTO|INVENTARIO|EXIST/i;
+function _ceaNum(t){ const n=parseFloat(String(t).replace(/[^0-9.]/g,'')); return isNaN(n)?null:n; }
+
+/* Un token es precio si trae "$". Cuando la tabla no usa "$" tiene que venir
+   escrito como dinero —coma de miles o centavos—: un entero pelón no cuenta,
+   porque "HUAWEI PURA 80 PRO" traía el 80 como precio y dejaba la
+   descripción cortada en "HUAWEI PURA". */
+function _ceaEsPrecio(t,hayDolar){
+  if(/^\$\d[\d,]*(?:\.\d{1,2})?$/.test(t)) return true;
+  if(hayDolar) return false;
+  if(!/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$|^\d{2,}\.\d{2}$/.test(t)) return false;
+  const n=_ceaNum(t); return n!==null&&n>=50;
+}
+
+/* Elige precio regular y precio a cobrar por la etiqueta de la columna; si el
+   encabezado no se pudo leer, cae al primero y al último del renglón. */
+function _ceaPrecios(px,etiqueta){
+  const como=(p,re)=>re.test(etiqueta(p.c)||'');
+  const base=px.filter(p=>!como(p,_CEA_NO_PRECIO));
+  const lista=base.length?base:px;
+  let pp = lista.find(p=>como(p,/NUEVA\s*PROMO/i))
+        || lista.find(p=>como(p,/PRICE\s*MATCH/i))
+        || lista.find(p=>como(p,/PROMO|OFERTA|ESPECIAL|PREVENTA/i));
+  let pr = lista.find(p=>como(p,/REGULAR|LISTA|P[UÚ]BLICO/i))
+        || lista.find(p=>como(p,/VENTA/i))
+        || lista.find(p=>como(p,/^PRECIO$/i));
+  if(pr&&pp&&pr===pp) pp=null;
+  if(!pr) pr=lista.find(p=>p!==pp)||null;
+  if(!pp&&lista.length>1) pp=lista.slice().reverse().find(p=>p!==pr)||null;
+  if(pr&&pp&&_ceaNum(pp.v)>=_ceaNum(pr.v)){
+    /* Si el precio a cobrar salió mayor o igual al regular, la lectura de
+       columnas falló: se toman el más caro y el más barato del renglón, que
+       es lo menos malo que puede pasar sin cobrarle de más al cliente. */
+    const ord=lista.slice().sort((a,b)=>_ceaNum(b.v)-_ceaNum(a.v));
+    pr=ord[0]; pp=ord[ord.length-1];
+    if(pr===pp) pp=null;
+  }
+  return {pr:pr?pr.v:'', pp:pp?pp.v:''};
+}
+
+/* Descompone un renglón de tabla. Devuelve el estatus tal como venía escrito
+   (o '' si la tabla no trae esa columna): quién decide el estatus final es
+   quien llama, que ya sabe si el documento completo es de EOL. */
+function _ceaFila(fila,etiqueta){
+  const toks=fila.toks;
+  if(!toks.length||!/^\d{9}$/.test(toks[0].t)) return null;
+  const resto=toks.slice(1);
+  if(!resto.length) return null;
+  const hayDolar=resto.some(t=>t.t.indexOf('$')>=0);
+
+  let fin=resto.length,marcas=[];
+  while(fin>0&&_CEA_MARCA.test(resto[fin-1].t)){ marcas.unshift(resto[fin-1].t); fin--; }
+  const cuerpo=resto.slice(0,fin);
+
+  const px=[],iPx=[];
+  cuerpo.forEach((t,i)=>{ if(_ceaEsPrecio(t.t,hayDolar)){ px.push({v:t.t.replace(/\$/g,''),c:t.c}); iPx.push(i); } });
+  let iEst=-1;
+  for(let i=0;i<cuerpo.length;i++) if(_CEA_EST.test(cuerpo[i].t)){ iEst=i; break; }
+
+  let corte=cuerpo.length;
+  if(iPx.length) corte=Math.min(corte,iPx[0]);
+  if(iEst>=0)    corte=Math.min(corte,iEst);
+  const desc=cuerpo.slice(0,corte).map(t=>t.t).join(' ').replace(/[\s|·,;]+$/,'').trim();
+  if(!desc) return null;
+
+  const p=_ceaPrecios(px,etiqueta);
+  return {sku:toks[0].t,desc:desc,pr:p.pr,pp:p.pp,estTok:iEst>=0?cuerpo[iEst].t:'',marcas:marcas};
+}
+
+function _ceaVigencia(flat){
+  const ds=s=>s.replace(/\s/g,'');
+  let d1='',d2='',vig='';
+  /* Una sola pasada tolerante: "Vigencia: 24 al 31 de agosto de 2026",
+     "vigentes del 15 al 19 de septiembre de 2025" y "vigentes del 13 AL 15
+     JUNIO 2025" —este último sin la palabra "de" antes del mes— son el mismo
+     dato escrito de tres maneras. Se exige que el mes exista de verdad para
+     no fabricar un enero con cualquier palabra que caiga en ese lugar. */
+  let vm=null,mv;
+  const reVig=/vigen\w*\D{0,40}?(\d\s*\d?)\s*(?:de\s+[A-Za-záéíóúÁÉÍÓÚ]+\s+)?al\s+(\d\s*\d?)\s*(?:de\s+)?([A-Za-záéíóúÁÉÍÓÚ]{4,})\s+(?:de[l]?\s+)?(\d{4})/gi;
+  while((mv=reVig.exec(flat))){ if(MESES_P[mv[3].toLowerCase()]){ vm=mv; break; } }
+  if(vm){
+    const mes=MESES_P[vm[3].toLowerCase()],y=+vm[4];
+    d1=isoP(y,mes,+ds(vm[1])); d2=isoP(y,mes,+ds(vm[2]));
+    vig=ds(vm[1])+' al '+ds(vm[2])+' de '+vm[3].toLowerCase()+' '+vm[4];
+  }
+  let eolD1=d1;
+  const em=flat.match(/EOL[^.]{0,60}?a partir del\s+(\d\s*\d?)\s+de\s+([A-Za-záéíóúÁÉÍÓÚ]+)/i);
+  if(em&&vm){
+    const mes2=MESES_P[em[2].toLowerCase()]||MESES_P[vm[3].toLowerCase()]||1;
+    eolD1=isoP(+vm[4],mes2,+ds(em[1]));
+  }
+  return {d1:d1,d2:d2,vig:vig,eolD1:eolD1};
+}
+
+/* Núcleo: del PDF a filas {sku,desc,pr,pp,est,msi,d1,d2} */
+async function _ceaTablaPDF(file){
+  const filas=_ceaRenglones(await _ceaItemsPDF(file));
+  const flat=filas.map(_ceaTexto).join(' ').replace(/\s+/g,' ');
+  const cols=_ceaColumnas(filas);
+  /* Etiqueta de la columna cuyo centro queda más cerca; si ninguna queda a
+     tiro se devuelve '' y la elección de precios cae al primero/último. */
+  const etiqueta=c=>{
+    let mej=null,d=45;
+    cols.forEach(col=>{ const dd=Math.abs(col.c-c); if(dd<d){ d=dd; mej=col; } });
+    return mej?mej.et:'';
+  };
+  const nom=String(file.name||'').replace(/[_\-]+/g,' ');
+  const docEsEol=/PROMOCIONES?\s+EOL|ART[IÍ]CULOS?\s+EOL|PRODUCTOS?\s+EOL|EQUIPOS?\s+EOL|LISTADO\s+(?:DE\s+)?(?:ART[IÍ]CULOS\s+)?EOL/i.test(nom+' '+flat.slice(0,1200));
+  let msiCols=[];
+  filas.forEach(f=>{
+    const ms=_ceaTexto(f).match(/\d{1,2}\s*MSI/gi);
+    if(ms&&ms.length>msiCols.length) msiCols=ms.map(s=>s.replace(/\D/g,''));
+  });
+  const v=_ceaVigencia(flat);
+
+  const seen={},crudas=[];
+  filas.forEach(f=>{ const r=_ceaFila(f,etiqueta); if(r&&!seen[r.sku]){ seen[r.sku]=1; crudas.push(r); } });
+
+  /* Red por si el agrupado por coordenada falla en algún PDF: cada tramo de
+     texto plano que va de un SKU al siguiente se intenta leer igual, pero sin
+     columnas (centro -9999) para que caiga al primero/último precio. */
+  const pos=[],reSku=/\b\d{9}\b/g; let ms;
+  while((ms=reSku.exec(flat))) pos.push(ms.index);
+  pos.forEach((p,i)=>{
+    if(seen[flat.substr(p,9)]) return;
+    const tramo=flat.slice(p, i+1<pos.length?pos[i+1]:Math.min(flat.length,p+160)).trim();
+    const r=_ceaFila({toks:tramo.split(' ').filter(Boolean).map(t=>({t:t,x:0,c:-9999}))},function(){return '';});
+    /* Sólo si trae precio o estatus: sin ese filtro, un SKU citado de pasada
+       en un párrafo entraba como promoción con la oración de descripción. */
+    if(r&&!seen[r.sku]&&(r.pr||r.estTok)){ seen[r.sku]=1; crudas.push(r); }
+  });
+
+  /* Si ningún renglón trajo estatus manda el documento: un CEA titulado
+     "PROMOCIONES EOL" es una tabla de EOL aunque no tenga esa columna. */
+  const hayEstatus=crudas.some(r=>r.estTok);
+  const rows=crudas.map(r=>{
+    const est=r.estTok ? (/EOL/i.test(r.estTok)?'EOL':'Activo')
+                       : ((!hayEstatus&&docEsEol)?'EOL':'Activo');
+    let msi='';
+    if(msiCols.length&&r.marcas.length===msiCols.length)
+      msi=msiCols.filter(function(_,i){ return _CEA_TACHE.test(r.marcas[i]); }).join(',');
+    return {sku:r.sku,desc:r.desc,pr:r.pr,pp:r.pp,est:est,msi:msi,
+            d1:est==='EOL'?v.eolD1:v.d1, d2:v.d2};
+  });
+  return {rows:rows,vig:v.vig};
+}
+
+async function parsePromosPDF(file){ return await _ceaTablaPDF(file); }
+
+/* ── Excel parser para promos ── */
+function _fmtDateXlsx(val){
+  if(!val) return '';
+  const s=String(val).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // número serial de Excel. Aquí toISOString() SÍ es lo correcto y no debe
+  // cambiarse a fecha local: el serial se convierte a medianoche UTC, y leerlo
+  // en hora local (UTC-6) devolvería el día anterior.
+  if(/^\d+(\.\d+)?$/.test(s)){
+    const d=new Date(Math.round((+s-25569)*86400*1000));
+    if(!isNaN(d)) return d.toISOString().slice(0,10);
+  }
+  return '';
+}
+function _limpiarPxXlsx(val){
+  return String(val||'').trim().replace(/[$,\s]/g,'').replace(/\.0+$/,'');
+}
+
+async function parsePromosXLSX(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array',cellDates:false});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+
+  // Busca fila de encabezados (debe tener SKU)
+  let h=-1;
+  for(let i=0;i<Math.min(aoa.length,25);i++){
+    const up=aoa[i].map(c=>String(c||'').trim().toUpperCase());
+    if(up.some(c=>c==='SKU'||c==='CÓDIGO'||c==='CODIGO')) { h=i; break; }
+  }
+  if(h<0) throw new Error('No encontré columna SKU en el Excel');
+
+  const H=aoa[h].map(c=>String(c||'').trim().toUpperCase());
+  const fi=(test)=>H.findIndex(c=>test(c));
+
+  const iSku  = fi(c=>c==='SKU'||c.includes('CÓDIGO')||c==='CODIGO');
+  const iDesc = fi(c=>c.includes('DESCRI')||c.includes('PRODUC')||c.includes('ARTÍC')||c.includes('ARTIC')||c.includes('NOMBRE'));
+  const iPr   = fi(c=>c.includes('REGULAR')||(c.includes('PRECIO')&&!c.includes('PROMO')&&!c.includes('ESPEC')));
+  const iPp   = fi(c=>c.includes('PROMO')||c.includes('OFERTA')||c.includes('ESPEC'));
+  const iEst  = fi(c=>c==='ESTATUS'||c==='STATUS'||c.includes('ESTATUS'));
+  const iMsi  = fi(c=>c.includes('MSI')||c.includes('MESES'));
+  const iD1   = fi(c=>c.includes('INICIO')||c.includes('DESDE')||c==='D1'||c==='VIGENCIA_INICIO');
+  const iD2   = fi(c=>c.includes('FIN')||c.includes('HASTA')||c==='D2'||c==='VIGENCIA_FIN');
+
+  if(iSku<0) throw new Error('No encontré columna SKU');
+
+  const seen={},rows=[];
+  let d1G='',d2G='';
+
+  for(let r=h+1;r<aoa.length;r++){
+    const row=aoa[r];
+    const sku=String(row[iSku]||'').trim().replace(/\.0+$/,'');
+    if(!sku||!/^\d{6,12}$/.test(sku)) continue;
+    if(seen[sku]) continue; seen[sku]=1;
+
+    const d1=iD1>=0?_fmtDateXlsx(row[iD1]):d1G;
+    const d2=iD2>=0?_fmtDateXlsx(row[iD2]):d2G;
+    if(!d1G&&d1) d1G=d1;
+    if(!d2G&&d2) d2G=d2;
+
+    const estRaw=iEst>=0?String(row[iEst]||'').trim().toUpperCase():'';
+    const est=estRaw.includes('EOL')?'EOL':'Activo';
+
+    rows.push({
+      sku,
+      desc: iDesc>=0?String(row[iDesc]||'').trim():'',
+      pr:   iPr>=0?_limpiarPxXlsx(row[iPr]):'',
+      pp:   iPp>=0?_limpiarPxXlsx(row[iPp]):'',
+      est, msi: iMsi>=0?String(row[iMsi]||'').trim():'',
+      d1:   d1||d1G, d2: d2||d2G
+    });
+  }
+
+  // Vigencia para mostrar
+  const mesesN=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  let vig='';
+  if(d1G&&d2G){
+    const [,m1,day1]=d1G.split('-');
+    const [,, day2]=d2G.split('-');
+    vig=`${+day1} al ${+day2} de ${mesesN[+m1-1]}`;
+  }
+  return {rows,vig};
+}
+
+document.getElementById('filePromos').onchange=async function(e){
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  document.getElementById('resPromos').className='result';
+  document.getElementById('fphPromos').textContent='Leyendo archivo…';
+  document.getElementById('fboxPromos').classList.remove('ok');
+  document.getElementById('detPromos').style.display='none';
+  try{
+    const isXlsx=/\.(xlsx|xls)$/i.test(f.name);
+    parsedPromos=isXlsx ? await parsePromosXLSX(f) : await parsePromosPDF(f);
+    if(!parsedPromos.rows.length) throw new Error('No encontré filas de promo — revisa el archivo');
+    const eolCount=parsedPromos.rows.filter(r=>r.est==='EOL').length;
+    document.getElementById('fboxPromos').classList.add('ok');
+    document.getElementById('fphPromos').innerHTML=
+      `✓ ${f.name}<br>${parsedPromos.rows.length} promos · ${eolCount} EOL · vigencia ${parsedPromos.vig||'no detectada'}`;
+    /* La lista de lo leído va antes del botón a propósito: un renglón mal
+       leído se ve aquí en tres segundos, y ya subido hay que perseguirlo en
+       la nube. */
+    document.getElementById('prevListPromos').innerHTML=parsedPromos.rows.map(r=>`
+      <div class="prev-item">
+        <strong>SKU ${r.sku}${r.est==='EOL'?' · EOL':''}</strong>
+        <span>${r.desc||'(sin descripción)'}</span>
+        <span>${r.pr?'regular $'+r.pr:'sin precio regular'}${r.pp?' → promo $'+r.pp:''}${r.msi?' · '+r.msi.split(',').join(' y ')+' MSI':''}</span>
+        <span>📅 ${r.d1||'sin inicio'} al ${r.d2||'SIN VIGENCIA — no se va a guardar'}</span>
+      </div>`).join('');
+    document.getElementById('detPromos').style.display='block';
+    document.getElementById('btnPromos').disabled=false;
+  }catch(err){
+    parsedPromos=null; document.getElementById('btnPromos').disabled=true;
+    document.getElementById('fphPromos').textContent='📄 Toca para elegir el PDF o Excel del CEA';
+    showResult('resPromos',false,'No pude leer el archivo: '+err.message);
+  }
+};
+
+async function subirPromos(){
+  if(!parsedPromos||!parsedPromos.rows.length) return;
+  const btn=document.getElementById('btnPromos');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
+  document.getElementById('resPromos').className='result';
+  try{
+    const rp = await sbCargaAdmin('carga_promos', { p_filas: parsedPromos.rows, p_by: 'Admin 1217' });
+    const est = { promoCount: rp.promos, promoVig: parsedPromos.vig };
+    const eolCount=parsedPromos.rows.filter(r=>r.est==='EOL').length;
+    /* Las que la base no admite se cuentan y se dicen: sin fecha de vigencia, o
+       con precio promo mayor o igual al regular. Una promo que falta es un
+       precio que el asesor no le cobra al cliente. */
+    if(rp.sin_fecha || rp.precio_invalido)
+      toast(`⚠️ ${(rp.sin_fecha||0)+(rp.precio_invalido||0)} promos no entraron (revisa vigencia y precios)`, false);
+    if(est&&Number(est.promoCount)>0){
+      showResult('resPromos',true,
+        `✅ <b>${est.promoCount}</b> promos actualizadas · vigencia ${est.promoVig||parsedPromos.vig}.<br>`+
+        `${eolCount} productos EOL guardados en la nube automáticamente.`);
+    } else {
+      showResult('resPromos',true,`Enviado (${parsedPromos.rows.length} promos, ${eolCount} EOL). Revisa en unos segundos.`);
+    }
+  }catch(err){ showResult('resPromos',false,'Error al subir: '+err.message); }
+  btn.textContent='Subir promociones'; btn.disabled=false;
+}
+
+/* ================================================================
+   TAB BUNDLES — PDF parser dual (texto descriptivo + tablas SKU)
+   ================================================================ */
+async function parseBundlePDF(file){
+  if(typeof pdfjsLib==='undefined') throw new Error('PDF.js no disponible');
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const allItems=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const pg=await pdf.getPage(p);
+    const vp=pg.getViewport({scale:1});
+    const tc=await pg.getTextContent();
+    tc.items.forEach(i=>{
+      if(i.str.trim()) allItems.push({str:i.str.trim(),x:i.transform[4],y:vp.height-i.transform[5],pg:p});
+    });
+  }
+
+  // Texto plano (une todo, fusiona digitos separados por espacio)
+  let texto=allItems.map(i=>i.str).join(' ');
+  texto=texto.replace(/(\d{1,8})\s+(\d{1,8})/g,(m,a,b)=>(a+b).length===9?a+b:m);
+
+  // Vigencia
+  const MESES={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+  let d1='',d2='',vigTxt='';
+  for(const pat of [
+    /del\s+(\d{1,2})\s+al\s+(\d{1,2})\s+de\s+([A-Za-záéíóúÁÉÍÓÚ]+)\s+de\s+(\d{4})/i,
+    /(\d{1,2})\s+al\s+(\d{1,2})\s+de\s+([A-Za-záéíóúÁÉÍÓÚ]+)\s+(?:de\s+)?(\d{4})/i,
+  ]){
+    const vm=texto.match(pat);
+    if(vm){ const mes=MESES[vm[3].toLowerCase()]||1,y=+vm[4];
+      d1=`${y}-${String(mes).padStart(2,'0')}-${String(+vm[1]).padStart(2,'0')}`;
+      d2=`${y}-${String(mes).padStart(2,'0')}-${String(+vm[2]).padStart(2,'0')}`;
+      vigTxt=`${vm[1]} al ${vm[2]} de ${vm[3]} ${vm[4]}`; break; }
+  }
+
+  // Limpiar nombre de producto (abreviaturas Huawei del catalogo)
+  const COLOR_RE=/\s*\b(negro|negra|blanco|blanca|plata|plateado|dorado|azul|verde|rojo|gris|midnight|silver|gold|black|white|morado|beige|naranja|titanio|grafito)\b.*/i;
+  function productName(desc){
+    let n=desc
+      .replace(/^(AUDÍF|AUDIF)\s+(IN\s+EAR|OVER\s+EAR|OPEN\s+EAR|TRUE\s+WRL|WT)\s+HW\s*/i,'')
+      .replace(/^(WATCH|RELOJ)\s+HW\s*/i,'')
+      .replace(/^HW\s+/i,'').replace(/^HUAWEI\s+/i,'')
+      .replace(COLOR_RE,'')
+      .replace(/\s*\b(AN|BN|NG|VD|RS|BL|GR|VT|NR|AZ|PL|DO)\b\s*$/i,'')
+      .replace(/\s*\d+[.,]\d+"\s*(VID|AMOLED|LCD)?.*/i,'')
+      .replace(/\s*\$[\d,].*/,'').replace(/\s+/g,' ').trim().slice(0,40);
+    n=n.split(' ').map(w=>w.length>1?w[0].toUpperCase()+w.slice(1).toLowerCase():w).join(' ');
+    n=n.replace(/\bF[-\s]?buds\b/i,'FreeBuds').replace(/\bFreebuds\b/,'FreeBuds')
+       .replace(/\bFreeclip\b/,'FreeClip').replace(/\bEarbuds\b/,'Earbuds');
+    return n;
+  }
+
+  const bundles=[], seen={};
+
+  /* MODO A: PDF descriptivo — busca "BUNDLE NOMBRE:" en texto plano */
+  const HDR_RE=/BUNDLE\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9\s\-']{1,50}?)\s*(?:[:/,]|\bo\b)/g;
+  const hdrMatches=[...texto.matchAll(HDR_RE)].filter(m=>{
+    const nm=m[1].trim().toUpperCase();
+    return !/^(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE|SEMANA|WEEK|BLOQUE|CEA\s|HUAWEI\s+\d|\d)/.test(nm);
+  });
+
+  if(hdrMatches.length>=1){
+    for(let m=0;m<hdrMatches.length;m++){
+      const match=hdrMatches[m];
+      const rawName=match[1].trim();
+      const secStart=match.index+match[0].length;
+      const secEnd=m+1<hdrMatches.length
+        ?hdrMatches[m+1].index
+        :Math.min(texto.length,secStart+700);
+      const sec=texto.slice(secStart,secEnd);
+      const pm=sec.match(/\$\s*([\d,]{4,})/);
+      if(!pm) continue;
+      const precio=pm[1].replace(/,/g,'');
+      const secSkus=[...new Set([...sec.matchAll(/\b(\d{9})\b/g)].map(x=>x[1]))];
+      const key=rawName.toUpperCase().replace(/\s+/g,'_');
+      if(seen[key]) continue; seen[key]=1;
+      const nombre='Bundle '+productName(rawName);
+      bundles.push({nombre,skus:secSkus.join('|'),precio,d1,d2});
+    }
+  }
+
+  /* MODO B: PDF de tabla — pares de renglones SKU proximos en Y */
+  if(bundles.length===0){
+    const renglones=[];
+    for(const item of allItems){
+      let row=renglones.find(r=>r.pg===item.pg&&Math.abs(r.y-item.y)<4);
+      if(!row){ row={y:item.y,pg:item.pg,items:[]}; renglones.push(row); }
+      row.items.push(item);
+    }
+    renglones.sort((a,b)=>a.pg!==b.pg?a.pg-b.pg:a.y-b.y);
+    for(const row of renglones){
+      row.items.sort((a,b)=>a.x-b.x);
+      row.text=row.items.map(i=>i.str).join(' ')
+        .replace(/(\d{1,8})\s+(\d{1,8})/g,(m,a,b)=>(a+b).length===9?a+b:m);
+    }
+    const skuRows=[];
+    for(const row of renglones){
+      const ms=[...row.text.matchAll(/\b(\d{9})\b/g)];
+      if(ms.length!==1) continue;
+      const sku=ms[0][1];
+      const desc=row.text.replace(/\b\d{9}\b/,'').replace(/\$[\d,.]+/g,'').replace(/\s+/g,' ').trim();
+      skuRows.push({y:row.y,pg:row.pg,sku,desc});
+    }
+    let i=0;
+    while(i<skuRows.length){
+      if(i+1>=skuRows.length){i++;continue;}
+      const r0=skuRows[i],r1=skuRows[i+1];
+      if(r0.pg!==r1.pg||r1.y-r0.y>45){i++;continue;}
+      const par=[r0,r1];
+      if(i+2<skuRows.length&&skuRows[i+2].pg===r1.pg&&skuRows[i+2].y-r1.y<=45) par.push(skuRows[i+2]);
+      i+=par.length;
+      const skus=[...new Set(par.map(r=>r.sku))];
+      if(skus.length<2) continue;
+      const key=skus.slice().sort().join(',');
+      if(seen[key]) continue; seen[key]=1;
+      const pg=r0.pg,maxSkuY=Math.max(...par.map(r=>r.y)),minSkuY=Math.min(...par.map(r=>r.y));
+      const isSkuRow=row=>par.some(c=>Math.abs(c.y-row.y)<5);
+      let precio='';
+      for(const row of renglones){
+        if(row.pg!==pg||row.y<=maxSkuY||row.y>maxSkuY+160||isSkuRow(row)) continue;
+        const pm=[...row.text.matchAll(/\$\s*([\d,]{4,})/g)];
+        if(pm.length){precio=pm[pm.length-1][1].replace(/,/g,'');break;}
+      }
+      if(!precio){for(const row of renglones){
+        if(row.pg!==pg||row.y<minSkuY-120||row.y>maxSkuY+160||isSkuRow(row)) continue;
+        const pm=[...row.text.matchAll(/\$\s*([\d,]{4,})/g)];
+        if(pm.length) precio=pm[pm.length-1][1].replace(/,/g,'');
+      }}
+      const mainDesc=par[0].desc||par[1].desc||'';
+      const nombre=mainDesc?'Bundle '+productName(mainDesc):'Bundle '+(bundles.length+1);
+      bundles.push({nombre,skus:skus.join('|'),precio,d1,d2});
+    }
+  }
+
+  const modoUsado=hdrMatches.length>=1?'A':'B';
+  const hdrInfo='[Modo '+modoUsado+'] Headers: '+hdrMatches.length+' -> '+hdrMatches.map(function(m){return m[1].trim();}).join(' | ')+'\n\n';
+  return {bundles,vig:vigTxt,debugText:hdrInfo+texto.slice(0,600)};
+}
+
+document.getElementById('filePdfBundle').onchange=async function(e){
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const ph=document.getElementById('fphBundle');
+  const fbox=document.getElementById('fboxBundle');
+  fbox.classList.remove('ok');
+  ph.innerHTML='<em>Leyendo PDF…</em>';
+  document.getElementById('previewBundles').style.display='none';
+  try{
+    const result=await parseBundlePDF(f);
+    if(!result.bundles.length){
+      fbox.classList.remove('ok');
+      const dt=result.debugText||'';
+      ph.innerHTML=dt
+        ? `⚠️ Sin bundles · mándame captura de esto:<br><span style="font-family:monospace;font-size:10px;white-space:pre-wrap;word-break:break-all;color:#555">${dt.replace(/</g,'&lt;').slice(0,400)}</span>`
+        : '⚠️ El PDF no tiene texto — puede ser imagen escaneada';
+      document.getElementById('previewBundles').style.display='none';
+      return;
+    }
+    document.getElementById('btnSaveAll').style.display='';
+    fbox.classList.add('ok');
+    const dbgLine=result.debugText.split('\n')[0]||'';
+    ph.innerHTML=`✓ ${f.name}<br>${result.bundles.length} bundle(s) · vigencia ${result.vig||'no detectada'}<br><span style="font-size:10px;color:#aaa">${dbgLine.replace(/</g,'&lt;')}</span>`;
+    document.getElementById('prevHdr').textContent=result.bundles.length+' bundles encontrados:';
+    document.getElementById('prevList').innerHTML=result.bundles.map(b=>{
+      const n=b.skus.split(',').length;
+      return `<div class="prev-item">
+        <strong>${b.nombre}</strong>
+        <span>${n} variante${n!==1?'s':''} (cualquier combinación de 2) · ${money(+b.precio)}</span>
+        ${b.d1?`<span>📅 ${b.d1} al ${b.d2}</span>`:''}
+      </div>`;
+    }).join('');
+    document.getElementById('btnSaveAll')._bundles=result.bundles;
+    document.getElementById('btnSaveAll')._vig=result.vig||'';
+    document.getElementById('previewBundles').style.display='block';
+  }catch(err){
+    fbox.classList.remove('ok');
+    ph.textContent='📄 Toca para elegir el PDF del CEA Bundle';
+    toast(err.message,false);
+  }
+};
+
+async function saveBundlesFromPdf(){
+  const btn=document.getElementById('btnSaveAll');
+  const bundles=btn._bundles||[];
+  if(!bundles.length) return;
+  btn.disabled=true;
+  const failed=[];
+  for(let i=0;i<bundles.length;i++){
+    const b=bundles[i];
+    btn.textContent=`Guardando ${i+1}/${bundles.length}…`;
+    try{
+      /* Los SKUs van con coma, no con `|`: el `|` era para esquivar el parseo
+         de la URL del Apps Script y aquí ya no hay URL que esquivar —el cuerpo
+         va en JSON—. La base parte por coma y arma el array de verdad. */
+      const r=await sbEscribir('bundle_guardar',{p_nombre:b.nombre, p_skus:b.skus, p_precio:Number(b.precio)||0, p_desde:b.d1||null, p_hasta:b.d2||null});
+      if(!r||!r.ok) failed.push(b.nombre);
+    }catch(e){ failed.push(b.nombre); }
+    /* La espera de 500 ms era por la cola del Apps Script, que descarta las
+       llamadas encimadas. Supabase no tiene esa cola, pero se conserva: subir
+       veinte combos de golpe no es urgente y el ritmo lento no molesta a nadie.
+       Si algún día estorba, quitarla es seguro. */
+    if(i<bundles.length-1) await new Promise(r=>setTimeout(r,500));
+  }
+  const ok=bundles.length-failed.length;
+  if(failed.length){
+    toast(`${ok}/${bundles.length} guardados ⚠️  Falló: ${failed.join(' | ')}`,false);
+  } else {
+    toast(`${bundles.length} bundle${bundles.length!==1?'s':''} guardados ✓`);
+    const vig=btn._vig||'';
+    notificarEquipo(`🎁 ${bundles.length} bundle${bundles.length!==1?'s':''} nuevos en el tablero${vig?' · vigencia '+vig:''}`);
+  }
+  btn.textContent='💾 Guardar todos en la nube'; btn.disabled=false;
+  if(ok) loadBundles();
+}
+
+/* El push sale de Supabase desde el 7-ago-2026. La llave de OneSignal ya no
+   vive en las Propiedades del Apps Script: está en `notif_config`, una tabla que
+   la anon key no puede leer, y solo la ve la función `notificar`, que corre como
+   dueña. El cliente manda el mensaje y su token de tienda; la llave no viaja
+   nunca al navegador. */
+async function notificarEquipo(msg){
+  const r = await sbEscribir('notificar', { p_msg: String(msg||'') });
+  if(r && r.ok === true){
+    /* Salió bien pero no había a quién mandarlo. Se dice UNA vez y sin alarma:
+       no hay nada roto, falta que el equipo active la campana del tablero.
+       El 7-ago-2026 los suscriptores eran cero — o sea que los avisos de combos
+       y promos llevaban tiempo sin llegarle a nadie. */
+    if(r.sin_suscriptores) toast('Guardado. Nadie tiene los avisos activados todavía', false);
+    return;
+  }
+  /* Antes esto se tragaba el fallo con un console.warn y ya. El push es
+     accesorio —lo importante ya se guardó— pero que NO llegue sí importa: el
+     equipo se entera de los combos nuevos por esa notificación. Se dice en voz
+     baja, sin bloquear ni deshacer nada. */
+  toast('Se guardó, pero la notificación no salió' +
+        (r && r.error ? ' · ' + r.error : ''), false);
+}
+
+async function loadBundles(){
+  document.getElementById('listB').innerHTML='<div class="empty">Cargando…</div>';
+  try{
+    /* En Supabase `skus` es un array de verdad y aqui se espera "a,b,c" --igual
+       que en el tablero, ver _deSupabase--. Y las fechas se llaman
+       vigente_desde/hasta, no d1/d2. */
+    renderBundles((await sbLeer('bundles_vigentes')).map(function(b){
+      return { id:String(b.id), nombre:b.nombre,
+               skus: Array.isArray(b.skus) ? b.skus.join(',') : String(b.skus||''),
+               precio:b.precio, d1:b.vigente_desde, d2:b.vigente_hasta };
+    }));
+  }
+  catch{ document.getElementById('listB').innerHTML='<div class="empty">Error al cargar</div>'; }
+}
+function renderBundles(list){
+  if(!Array.isArray(list)) list=[];
+  const el=document.getElementById('listB');
+  if(!list.length){ el.innerHTML='<div class="empty">No hay bundles activos</div>'; return; }
+  el.innerHTML=list.map(b=>{
+    const skus=(b.skus||'').split(',').filter(Boolean);
+    return `<div class="item">
+      <div class="item-info">
+        <strong>${b.nombre||'Bundle'}</strong>
+        <span>${skus.length} variante${skus.length!==1?'s':''} · ${money(b.precio)}${b.d2?' · hasta '+b.d2:''}</span>
+      </div>
+      <button class="btn-del" onclick="delBundle('${b.id}')">🗑️</button>
+    </div>`;
+  }).join('');
+}
+async function addBundle(){
+  const nom=document.getElementById('bNom').value.trim();
+  const skusRaw=document.getElementById('bSkus').value.trim();
+  const px=document.getElementById('bPx').value.trim();
+  const d1=document.getElementById('bD1').value;
+  const d2=document.getElementById('bD2').value;
+  if(!nom||!skusRaw||!px){ toast('Completa nombre, SKUs y precio',false); return; }
+  const skus=skusRaw.split(/[\n,]+/).map(s=>s.trim()).filter(s=>/^\d+$/.test(s));
+  if(!skus.length){ toast('Ingresa al menos un SKU válido',false); return; }
+  const btn=document.getElementById('btnB'); btn.disabled=true; btn.textContent='Guardando…';
+  try{
+    const r=await sbEscribir('bundle_guardar',{p_nombre:nom, p_skus:skus.join(','), p_precio:Number(px)||0, p_desde:d1||null, p_hasta:d2||null});
+    if(!r.ok){ toast(r.error||'Error al guardar',false); btn.disabled=false; btn.textContent='Agregar bundle'; return; }
+    toast('Bundle agregado ✓');
+    ['bNom','bPx','bD1','bD2'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('bSkus').value='';
+    loadBundles();
+  }catch{ toast('Error al guardar',false); }
+  btn.disabled=false; btn.textContent='Agregar bundle';
+}
+async function delBundle(id){
+  if(!confirm('¿Eliminar este bundle?')) return;
+  const r = await sbEscribir('bundle_eliminar', { p_id: Number(id) });
+  if(r.ok){ toast('Eliminado'); loadBundles(); }
+  else toast(r.error || 'Error', false);
+}
+async function clearBundles(){
+  if(!confirm('¿Eliminar TODOS los bundles? Tendrás que volverlos a subir del PDF.')) return;
+  const btn=document.querySelector('[onclick="clearBundles()"]');
+  if(btn){ btn.disabled=true; btn.textContent='Limpiando…'; }
+  try{
+    /* Se cayó el camino de respaldo que borraba uno por uno. Existía porque el
+       Apps Script podía no tener `bundle_clear` desplegado todavía, y entonces
+       había que recorrer la lista. En Supabase la función o está o no está: si
+       falta, el error lo dice, y borrar veinte veces "por si acaso" solo servía
+       para que un fallo a medias dejara la mitad de los combos vivos sin que
+       nadie supiera cuáles. */
+    const r = await sbEscribir('bundle_limpiar', {});
+    if(!r.ok){ toast(r.error || 'Error al limpiar', false); return; }
+    const n = Number(r.borradas) || 0;
+    toast(n + ' bundle' + (n!==1?'s':'') + ' eliminados ✓');
+    loadBundles();
+  }catch(e){ toast('Error: '+e.message,false); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='🗑️ Limpiar todos'; } }
+}
+
+/* ================================================================
+   TAB EOL — PDF parser (solo filas EOL del CEA)
+   ================================================================ */
+async function parseEolPDF(file){
+  /* Mismo lector que las promos: aquí sólo se quedan las filas EOL. Antes
+     este parser pedía la palabra EOL dentro del propio renglón y además la
+     buscaba suelta en el texto plano, lo que marcaba como EOL productos que
+     el CEA daba por ACTIVO —el EOL del renglón vecino caía dentro de la
+     ventana de búsqueda—. Ahora el estatus sale de la columna que le toca. */
+  const t=await _ceaTablaPDF(file);
+  const rows=t.rows.filter(r=>r.est==='EOL')
+                   .map(r=>({sku:r.sku,desc:r.desc,pr:r.pr,pp:r.pp,d1:r.d1,d2:r.d2}));
+  return {rows,vig:t.vig};
+}
+
+document.getElementById('filePdfEol').onchange=async function(e){
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const ph=document.getElementById('fphEol');
+  const fbox=document.getElementById('fboxEol');
+  fbox.classList.remove('ok'); ph.innerHTML='<em>Leyendo PDF…</em>';
+  document.getElementById('previewEol').style.display='none';
+  try{
+    const result=await parseEolPDF(f);
+    if(!result.rows.length) throw new Error('No encontré productos EOL — ¿es el CEA con la tabla de promos?');
+    fbox.classList.add('ok');
+    ph.innerHTML=`✓ ${f.name}<br>${result.rows.length} SKU(s) EOL · vigencia ${result.vig||'no detectada'}`;
+    document.getElementById('prevHdrEol').textContent=result.rows.length+' productos EOL encontrados:';
+    document.getElementById('prevListEol').innerHTML=result.rows.map(r=>`
+      <div class="prev-item">
+        <strong>SKU ${r.sku}</strong>
+        <span>${r.desc}</span>
+        <span>${r.pr?'precio regular $'+r.pr:'sin precio en el comunicado'}${r.pp?' → promo $'+r.pp:''}</span>
+        ${r.d1?`<span>📅 EOL desde ${r.d1}</span>`:''}
+      </div>`).join('');
+    document.getElementById('btnSaveEol')._rows=result.rows;
+    document.getElementById('previewEol').style.display='block';
+  }catch(err){
+    fbox.classList.remove('ok');
+    ph.textContent='📄 Toca para elegir el PDF del CEA';
+    toast(err.message,false);
+  }
+};
+
+const _esperar=ms=>new Promise(r=>setTimeout(r,ms));
+/* El reintento existía por el límite de peticiones seguidas de Google a un
+   mismo Apps Script, que es inconsistente: a veces 1,5 s entre llamadas
+   alcanzan y a veces hacen falta 5. Supabase no tiene esa cola, pero el
+   reintento se queda: ahora cubre un corte de red a mitad de una subida de
+   veinte EOL del PDF, que es igual de real y peor de diagnosticar —quedarían
+   la mitad cargados y nadie sabría cuáles—. */
+async function _eolAddConReintento(sku,precio){
+  const args={ p_sku:String(sku), p_precio: precio===''||precio==null ? null : Number(String(precio).replace(/[^0-9.]/g,'')) };
+  let r=await sbEscribir('eol_guardar',args);
+  if(!r.ok){ await _esperar(4000); r=await sbEscribir('eol_guardar',args); }
+  return r;
+}
+async function saveEolFromPdf(){
+  const btn=document.getElementById('btnSaveEol');
+  const rows=btn._rows||[];
+  if(!rows.length) return;
+  btn.disabled=true;
+  let ok=0,skip=0,err=0;
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];
+    btn.textContent=`Guardando… (${i+1}/${rows.length})`;
+    try{
+      const res=await _eolAddConReintento(r.sku,r.pr);
+      res&&res.existe?skip++:ok++;
+    }catch(e){ err++; }
+    await _esperar(2500);
+  }
+  toast(`${ok} agregados${skip?' · '+skip+' ya existían':''}${err?' · '+err+' error':''}`,err===0);
+  btn.textContent='💾 Guardar todos en la nube'; btn.disabled=false;
+  if(ok) loadEol();
+}
+
+async function parseEolXlsx(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+
+  let h=-1;
+  for(let i=0;i<Math.min(aoa.length,25);i++){
+    const up=aoa[i].map(c=>String(c||'').trim().toUpperCase());
+    if(up.some(c=>c==='SKU'||c.includes('SKU'))){ h=i; break; }
+  }
+  if(h<0) throw new Error('No encontré columna SKU en el archivo');
+
+  const H=aoa[h].map(c=>String(c||'').trim().toUpperCase());
+  const fi=test=>H.findIndex(c=>test(c));
+  const iSku  = fi(c=>c==='SKU'||c.includes('SKU'));
+  const iDesc = fi(c=>c.includes('DESCRI')||c.includes('PRODUC')||c.includes('ARTIC'));
+  const iPx   = fi(c=>c.includes('PRECIO')||c.includes('COSTO'));
+  const iFlag = fi(c=>c.includes('AGREGAR')||c.includes('SI/NO')||c.includes('EOL'));
+
+  const seen={},rows=[];
+  for(let r=h+1;r<aoa.length;r++){
+    const row=aoa[r]; if(!row) continue;
+    const sku=String(row[iSku]||'').trim().replace(/\.0$/,'');
+    if(!sku || !/^\d{4,}$/.test(sku)) continue;
+    // Si el archivo tiene una columna de confirmación (ej. "Agregar a EOL SI/NO"),
+    // solo se toman las filas marcadas — permite mandar la lista completa de
+    // candidatos y que el gerente ya haya decidido cuáles sí en el propio Excel.
+    if(iFlag>=0){
+      const flag=String(row[iFlag]||'').trim().toUpperCase();
+      if(flag && flag!=='SI' && flag!=='SÍ' && flag!=='YES' && flag!=='X') continue;
+      if(!flag) continue;
+    }
+    if(seen[sku]) continue; seen[sku]=1;
+    rows.push({
+      sku,
+      desc: iDesc>=0 ? String(row[iDesc]||'').trim() : '',
+      pr: iPx>=0 ? String(row[iPx]||'').trim().replace(/[^0-9.]/g,'') : ''
+    });
+  }
+  return rows;
+}
+
+document.getElementById('fileEolXlsx').onchange=async function(e){
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const ph=document.getElementById('fphEolXlsx');
+  const fbox=document.getElementById('fboxEolXlsx');
+  fbox.classList.remove('ok'); ph.innerHTML='<em>Leyendo Excel…</em>';
+  document.getElementById('previewEol').style.display='none';
+  try{
+    const rows=await parseEolXlsx(f);
+    if(!rows.length) throw new Error('No encontré SKUs para agregar — revisa la columna SKU (y la de confirmación, si trae una)');
+    fbox.classList.add('ok');
+    ph.innerHTML=`✓ ${f.name}<br>${rows.length} SKU(s) para agregar`;
+    document.getElementById('prevHdrEol').textContent=rows.length+' productos EOL encontrados en el Excel:';
+    document.getElementById('prevListEol').innerHTML=rows.map(r=>`
+      <div class="prev-item">
+        <strong>SKU ${r.sku}</strong>
+        <span>${r.desc||'(sin descripción en el archivo)'}${r.pr?' · precio $'+r.pr:''}</span>
+      </div>`).join('');
+    document.getElementById('btnSaveEol')._rows=rows;
+    document.getElementById('previewEol').style.display='block';
+  }catch(err){
+    fbox.classList.remove('ok');
+    ph.textContent='📄 Toca para elegir el Excel de EOL';
+    toast(err.message,false);
+  }
+};
+
+async function loadEol(){
+  document.getElementById('listE').innerHTML='<div class="empty">Cargando…</div>';
+  // eol_lista ya devuelve {sku, precio}: renderEol lo consume tal cual.
+  try{ renderEol(await sbLeer('eol_lista')); }
+  catch{ document.getElementById('listE').innerHTML='<div class="empty">Error al cargar</div>'; }
+}
+function renderEol(list){
+  if(!Array.isArray(list)) list=[];
+  const el=document.getElementById('listE');
+  if(!list.length){ el.innerHTML='<div class="empty">Sin entradas en la nube (los de datos.js siguen activos)</div>'; return; }
+  el.innerHTML=list.map(x=>`
+    <div class="item">
+      <div class="item-info">
+        <strong>SKU ${x.sku}</strong>
+        <span>Precio: ${x.precio?money(x.precio):'—'}</span>
+      </div>
+      <button class="btn-del" onclick="delEol('${x.sku}')">🗑️</button>
+    </div>`).join('');
+}
+async function addEol(){
+  const sku=document.getElementById('eSku').value.trim();
+  const px=document.getElementById('ePx').value.trim();
+  if(!sku){ toast('Ingresa el SKU',false); return; }
+  const btn=document.getElementById('btnE'); btn.disabled=true; btn.textContent='Guardando…';
+  try{
+    const r=await _eolAddConReintento(sku,px);
+    if(!r.ok){ toast(r.error||'Error al guardar',false); btn.disabled=false; btn.textContent='Agregar EOL'; return; }
+    toast(r.existe?'Ya existe este SKU':'EOL agregado ✓',!r.existe);
+    document.getElementById('eSku').value=''; document.getElementById('ePx').value='';
+    loadEol();
+  }catch{ toast('Error al guardar',false); }
+  btn.disabled=false; btn.textContent='Agregar EOL';
+}
+async function delEol(sku){
+  if(!confirm('¿Eliminar SKU '+sku+' de EOL?')) return;
+  const r = await sbEscribir('eol_eliminar', { p_sku: String(sku) });
+  if(r.ok){ toast('Eliminado'); loadEol(); }
+  else toast(r.error || 'Error', false);
+}
+
+/* ===== AVISOS CEA / LEA ===== */
+const MESES_AV={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+function isoAV(y,m,d){ return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+// Vigencia por defecto de un aviso: una semana. Fecha local — con toISOString()
+// (UTC) a partir de las 6 pm en México daba 8 días en vez de 7.
+function d7(){ const f=new Date(Date.now()+7*24*60*60*1000); return isoAV(f.getFullYear(), f.getMonth()+1, f.getDate()); }
+
+async function parseCeaPDF(file){
+  if(!file) return;
+  document.getElementById('ceaBox').className='filebox ok';
+  document.getElementById('ceaBox').innerHTML='<p class="ph">📄 '+file.name+'</p>';
+  document.getElementById('ceaLoading').style.display='block';
+  document.getElementById('ceaForm').style.display='none';
+  try {
+    const ab=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+    let texto='';
+    for(let p=1;p<=Math.min(pdf.numPages,12);p++){
+      const pg=await pdf.getPage(p);
+      const tc=await pg.getTextContent();
+      texto+=tc.items.map(i=>i.str).join(' ')+'\n';
+    }
+    // Detectar título
+    let titulo='';
+    const asunto=texto.match(/[Aa]sunto\s*[:\-]\s*(.{5,100})/);
+    if(asunto){ titulo=asunto[1].trim().replace(/\s+/g,' ').slice(0,100); }
+    else {
+      const ceaN=texto.match(/CEA[\s\-]+([A-Z0-9\-]+)/i);
+      const leaN=texto.match(/LEA[\s\-]+([A-Z0-9\-]+)/i);
+      if(ceaN) titulo='CEA '+ceaN[1];
+      else if(leaN) titulo='LEA '+leaN[1];
+      else {
+        const lines=texto.split('\n').map(l=>l.trim()).filter(l=>l.length>8&&!/^\d{1,2}[\/\-]/.test(l));
+        titulo=(lines[0]||file.name.replace('.pdf','')).slice(0,100);
+      }
+    }
+    // Detectar vigencia
+    let d2='';
+    const pats=[
+      /al\s+(\d{1,2})\s+de\s+([A-Za-záéíóúÁÉÍÓÚ]+)\s+(?:de\s+)?(\d{4})/i,
+      /hasta\s+(?:el\s+)?(\d{1,2})\s+de\s+([A-Za-záéíóúÁÉÍÓÚ]+)\s+(?:de\s+)?(\d{4})/i,
+      /vigencia[^0-9]*(\d{1,2})[^0-9]+\d{1,2}[^0-9]+([A-Za-záéíóú]+)[^0-9]+(\d{4})/i,
+    ];
+    for(const pat of pats){
+      const m=texto.match(pat);
+      if(m){ const mes=MESES_AV[m[2].toLowerCase()]; if(mes){ d2=isoAV(m[3],mes,String(m[1]).padStart(2,'0')); break; } }
+    }
+    if(!d2) d2=d7();
+    // Resumen: limpiar y tomar los primeros 500 chars útiles
+    let cuerpo=texto.replace(/\s+/g,' ')
+      .replace(/CEA|LEA/gi,'').replace(/Huawei/gi,'Huawei').trim()
+      .replace(/^[\d\s\.\-:\/]+/,'').trim();
+    // Quitar el titulo del inicio si aparece
+    if(cuerpo.toLowerCase().startsWith(titulo.toLowerCase().slice(0,20)))
+      cuerpo=cuerpo.slice(titulo.length).trim();
+    const detalle=cuerpo.slice(0,500).trim();
+
+    document.getElementById('aT').value=titulo;
+    document.getElementById('aD').value=detalle;
+    document.getElementById('aD2').value=d2;
+    document.getElementById('ceaForm').style.display='block';
+    document.getElementById('ceaResult').className='result';
+  } catch(e){
+    toast('Error al leer el PDF: '+e.message, false);
+  } finally {
+    document.getElementById('ceaLoading').style.display='none';
+  }
+}
+
+async function guardarAviso(){
+  const titulo=document.getElementById('aT').value.trim();
+  const detalle=document.getElementById('aD').value.trim();
+  const d2=document.getElementById('aD2').value||d7();
+  const prioridad=document.getElementById('aP').value;
+  if(!titulo){ toast('Falta el título',false); return; }
+  const btn=document.getElementById('btnSaveAviso');
+  btn.disabled=true; btn.textContent='⏳ Guardando…';
+  try{
+    /* `p_tipo` NO es decorativo: el tablero lo pinta como etiqueta azul
+       (cardAviso, tablero.html l. 1354) para distinguir un CEA/LEA oficial de
+       un recado interno. La tabla de Supabase no tenía la columna; se agrega en
+       supabase_escrituras_resto.sql. */
+    const j=await sbEscribir('aviso_guardar',{p_titulo:titulo, p_detalle:detalle.slice(0,800), p_hasta:d2, p_prioridad:prioridad, p_tipo:'CEA/LEA'});
+    if(j.ok){
+      toast('Aviso guardado ✓',true);
+      document.getElementById('ceaForm').style.display='none';
+      document.getElementById('ceaBox').className='filebox';
+      document.getElementById('ceaBox').innerHTML='<p class="ph">📎 Toca para seleccionar el PDF del CEA o LEA</p>';
+      document.getElementById('ceaFile').value='';
+      cargarListaAvisos();
+    } else toast(j.error||'Error',false);
+  } catch(e){ toast('Error al guardar',false); }
+  finally{ btn.disabled=false; btn.textContent='💾 Guardar aviso'; }
+}
+
+async function guardarAvisoManual(){
+  const titulo=document.getElementById('mT').value.trim();
+  const detalle=document.getElementById('mD').value.trim();
+  const d2=document.getElementById('mD2').value||d7();
+  const prioridad=document.getElementById('mP').value;
+  if(!titulo){ toast('Falta el título',false); return; }
+  try{
+    const j=await sbEscribir('aviso_guardar',{p_titulo:titulo, p_detalle:detalle.slice(0,800), p_hasta:d2, p_prioridad:prioridad, p_tipo:'manual'});
+    if(j.ok){
+      toast('Aviso guardado ✓',true);
+      document.getElementById('mT').value='';
+      document.getElementById('mD').value='';
+      document.getElementById('mD2').value='';
+      cargarListaAvisos();
+    } else toast(j.error||'Error',false);
+  } catch(e){ toast('Error al guardar',false); }
+}
+
+async function cargarListaAvisos(){
+  const el=document.getElementById('ceaLista');
+  el.innerHTML='<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Cargando…</p>';
+  try{
+    const data=(await sbLeer('avisos_vigentes')).map(function(a){
+      return { id:String(a.id), titulo:a.titulo, detalle:a.detalle||'',
+               prioridad:a.prioridad||'normal',
+               d2:a.vigente_hasta,
+               fecha: a.creado_en ? String(a.creado_en).slice(0,10) : '',
+               tipo:a.tipo||'manual' };
+    });
+    if(!Array.isArray(data)||data.length===0){
+      el.innerHTML='<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Sin avisos en nube.</p>';
+      return;
+    }
+    el.innerHTML=data.map(a=>`
+      <div class="prev-item" style="border-left:4px solid ${a.prioridad==='alta'?'var(--rojo)':'var(--verde)'}">
+        <strong>${a.titulo}</strong>
+        <span>${(a.detalle||'').slice(0,120)}${a.detalle&&a.detalle.length>120?'…':''}</span>
+        <span style="color:#aaa;font-size:11px;margin-top:4px;display:block">Vence: <b>${a.d2||'—'}</b> · ${a.tipo||'manual'}</span>
+        <button onclick="eliminarAviso('${a.id}')" style="margin-top:8px;background:none;border:1.5px solid #fcc;border-radius:8px;padding:5px 12px;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:var(--rojo);cursor:pointer">🗑 Eliminar</button>
+      </div>`).join('');
+  } catch(e){
+    el.innerHTML='<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Error al cargar.</p>';
+  }
+}
+
+async function eliminarAviso(id){
+  if(!confirm('¿Eliminar este aviso?')) return;
+  try{
+    // El id de Supabase es numérico (bigserial); el de la hoja era un timestamp
+    // en texto. Number() aquí evita que PostgREST rechace el tipo.
+    const j=await sbEscribir('aviso_eliminar',{p_id:Number(id)});
+    if(j.ok){ toast('Aviso eliminado',true); cargarListaAvisos(); }
+    else toast(j.error||'Error',false);
+  } catch(e){ toast('Error al eliminar',false); }
+}
+
+/* ================================================================
+   TAB COMISIONES — OCR de capturas de Sonar (Comisiones + Extracobertura)
+   Lee la captura con Tesseract.js (bounding boxes por palabra), agrupa
+   en renglones por cercanía en Y, clasifica cada token (dinero/porcentaje/
+   entero/texto) y cruza ambos reportes por número de empleado.
+   SIEMPRE se muestra una vista previa editable antes de guardar — el OCR
+   de una tabla densa nunca es 100% confiable.
+   ================================================================ */
+let comisionesDraft = {};
+
+/* ================= PEGAR LA TABLA COMO TEXTO (sin OCR) =================
+   Lo mejor que le puede pasar a estos reportes: en Sonar se selecciona la tabla
+   con el mouse, Ctrl+C, y aquí Ctrl+V. Los informes son HTML, así que el
+   portapapeles trae los valores EXACTOS —y los nombres completos, no truncados
+   como en la captura—. Cero OCR, cero revisar dígitos.
+   Al copiar, cada celda cae en su propia línea. El orden de columnas se toma de
+   la fila de encabezados, que también se copia, en vez de suponerlo: así da
+   igual si el reporte trae o no las columnas "% Δ". */
+
+// Número en formato de Sonar: "$1.971.240,01" -> 1971240.01 · "58.91%" -> 58.91
+// Con coma, la coma es el decimal y los puntos son miles. Sin coma, el punto es
+// decimal salvo que le sigan 3 dígitos ("1.971.240" son miles).
+function numMX(s){
+  let t = String(s==null?'':s).replace(/[$%\s ↑↓▲▼]/g,'').trim();
+  if(!t || !/\d/.test(t)) return null;
+  const neg = /^-/.test(t);
+  t = t.replace(/^-/,'');
+  if(t.indexOf(',') >= 0){
+    t = t.replace(/\./g,'').replace(',', '.');
+  }else{
+    const m = t.match(/\.(\d+)$/);
+    if(m && m[1].length === 3) t = t.replace(/\./g,'');
+  }
+  const n = parseFloat(t);
+  return isNaN(n) ? null : (neg ? -n : n);
+}
+
+// Traduce cada encabezado copiado al campo que guardamos; null = columna que no
+// nos interesa (las "% Δ", niveles, etc.) pero que sí ocupa posición.
+function campoDeEncabezado(h){
+  const n = normTxt(h).replace(/[^A-Z%$ ]/g,'').replace(/\s+/g,' ').trim();
+  if(!n || n === '%' || n === '% A' || n === '%A' || n === 'A') return null;
+  if(n === 'TIENDA') return 'tienda';
+  if(n.indexOf('NO EMPLEADO') === 0) return 'empNo';
+  if(n.indexOf('NOMBRE EMPLEADO') === 0) return 'nombre';
+  if(n === 'PUESTO') return 'puesto';
+  if(n === 'VENTA') return 'venta';
+  if(n.indexOf('% PPTO') === 0) return 'pptoPct';
+  if(n.indexOf('ALCANCE') === 0) return 'alcance';
+  if(n.replace(/ /g,'').indexOf('TDAEMPLEADO') === 0) return 'tdaEmpleado';
+  if(n.indexOf('% GARANTIAS') === 0) return 'garantiaPct';
+  if(n.indexOf('PZAS GARANTIA') === 0) return 'garantiaPzas';
+  if(n.indexOf('PZAS ELEGIBLE') === 0) return 'garantiaElegible';
+  if(n.indexOf('$ GARANTIA') === 0) return 'garantiaMonto';
+  return null;
+}
+/* ¿Esta línea ya es un dato y no un encabezado? Marca dónde termina la fila de
+   encabezados: los que no nos interesan ("Tipo Aplicacion", "Nivel de comision")
+   igual tienen que contarse para no desalinear las columnas. */
+function pareceDato(l){
+  const s = String(l||'').trim();
+  return /^\d+\.$/.test(s)                      // "1." (numeración de Attach)
+      || /^\d{3,6}\s*-\s*\d{4,7}\s*-/.test(s)   // "TIENDA-EMPLEADO-NOMBRE"
+      || /^\$\s*\d/.test(s)                     // "$232.245,13" (pero NO "$ Garantía")
+      || /^-?[\d.,]+\s*%?$/.test(s);            // "1217", "58.91%", "40,54 %"
+}
+
+/* Convierte el texto pegado en filas de empleado. null si no reconoce una tabla
+   de Sonar. Se queda con la PRIMERA aparición de cada empleado y reporta las
+   repetidas, porque el informe trae un renglón por periodo. */
+function parsearTablaPegada(texto){
+  const lineas = String(texto||'').split(/\r?\n/).map(s=>s.trim()).filter(s=>s!=='');
+  // Los encabezados: arrancan en la primera columna reconocida y terminan donde
+  // empiezan los datos. Las desconocidas se guardan como null (ocupan posición).
+  let ini = -1, cols = null;
+  for(let i=0; i<lineas.length; i++){
+    if(!campoDeEncabezado(lineas[i]) || pareceDato(lineas[i])) continue;
+    const c = [];
+    let j = i;
+    for(; j<lineas.length && !pareceDato(lineas[j]); j++) c.push(campoDeEncabezado(lineas[j]) || null);
+    if(c.filter(Boolean).length >= 3){ ini = j; cols = c; break; }
+  }
+  if(!cols) return null;
+
+  const tipo = cols.indexOf('garantiaPct') >= 0 ? 'attach' : 'comisiones';
+  const N = cols.length;
+  const filas = [], vistos = {}, repetidos = [];
+  let i = ini;
+  while(i < lineas.length){
+    if(/^\d+\.$/.test(lineas[i])){ i++; continue; }   // numeración de fila de Attach
+    if(i + N > lineas.length) break;
+    const celdas = lineas.slice(i, i + N);
+    const r = {};
+    cols.forEach(function(campo, k){ if(campo) r[campo] = celdas[k]; });
+    i += N;
+
+    let empNo = null, nombre = null;
+    if(tipo === 'attach'){
+      const m = String(r.tdaEmpleado||'').match(/^\s*(\d{3,6})\s*-\s*(\d{4,7})\s*-\s*(.+)$/);
+      if(!m) continue;
+      empNo = m[2]; nombre = m[3].trim();
+    }else{
+      if(!/^\d{4,7}$/.test(String(r.empNo||'').trim())) continue;
+      empNo = String(r.empNo).trim(); nombre = String(r.nombre||'').trim();
+    }
+    nombre = nombre.replace(/#/g, 'Ñ');   // Sonar manda la Ñ corrupta: "SALDA#A"
+    if(vistos[empNo]){ if(repetidos.indexOf(nombre)<0) repetidos.push(nombre||empNo); continue; }
+    vistos[empNo] = true;
+    filas.push({ empNo:empNo, nombre:nombre, crudo:r });
+  }
+  return filas.length ? { tipo:tipo, filas:filas, repetidos:repetidos } : null;
+}
+
+/* Vuelca lo parseado al borrador que ya usa la vista previa editable. */
+function aplicarTablaPegada(res){
+  let n = 0;
+  res.filas.forEach(function(f){
+    const rec = asegurarFila(f.empNo);
+    if(f.nombre){ rec.nombre = tituloCase(f.nombre); rec.nombreCompleto = true; }
+    const c = f.crudo;
+    if(res.tipo === 'comisiones'){
+      rec.venta    = numMX(c.venta);
+      rec.pptoPct  = numMX(c.pptoPct);
+      rec.alcance  = numMX(c.alcance);
+      // El puesto de Sonar ("SUBGERENTE TIENDA RS") se acerca al de la lista
+      const p = normTxt(c.puesto||'');
+      const hit = PUESTOS_CONOCIDOS.filter(function(x){ return p.indexOf(normTxt(x).split(' ')[0]) === 0; })[0];
+      if(hit) rec.puesto = hit;
+    }else{
+      rec.garantiaPct      = numMX(c.garantiaPct);
+      rec.garantiaPzas     = numMX(c.garantiaPzas);
+      rec.garantiaElegible = numMX(c.garantiaElegible);
+      rec.garantiaMonto    = numMX(c.garantiaMonto);
+    }
+    n++;
+  });
+  renderComisPreview();
+  const nombre = res.tipo === 'comisiones' ? 'Comisiones' : 'Extracobertura';
+  let msg = n + ' fila(s) de ' + nombre + ' leídas del texto pegado ✓ (sin OCR)';
+  if(res.repetidos.length) msg += ' — ' + res.repetidos.length + ' empleado(s) venían repetidos por periodo: se tomó el primer renglón';
+  toast(msg, true);
+}
+
+/* ================= RECORTE PREVIO AL OCR =================
+   Medido con la captura real de "Comisiones HES": dándole la pantalla completa,
+   Tesseract acierta 10 de 12 valores (una venta con un dígito cambiado —$60 mil
+   de diferencia— y otra perdida por completo). Recortando solo la tabla:
+   12 de 12, y además reconoce los puestos. El modo PSM 6 asume que la imagen es
+   UN bloque de texto, así que todo lo que no sea la tabla lo estorba.
+   Devuelve una promesa: el recorte, la imagen completa, o null si se cancela. */
+let _cropResolver = null, _cropFile = null, _cropSel = null, _cropDrag = null;
+
+function pedirRecorte(file, titulo){
+  return new Promise(function(resolve){
+    _cropResolver = resolve; _cropFile = file; _cropSel = null; _cropDrag = null;
+    document.getElementById('cropTitulo').textContent = titulo;
+    const img = document.getElementById('cropImg');
+    img.src = URL.createObjectURL(file);
+    document.getElementById('cropSel').style.display = 'none';
+    document.getElementById('cropShade').style.display = 'block';
+    document.getElementById('cropOk').disabled = true;
+    document.getElementById('cropInfo').textContent = 'Sin zona marcada';
+    document.getElementById('cropWrap').classList.add('on');
+  });
+}
+
+function _cropCerrar(valor){
+  const img = document.getElementById('cropImg');
+  if(img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+  document.getElementById('cropWrap').classList.remove('on');
+  const r = _cropResolver; _cropResolver = null; _cropFile = null;
+  if(r) r(valor);
+}
+function cropCancelar(){ _cropCerrar(null); }
+function cropCompleta(){ _cropCerrar(_cropFile); }
+
+// Coordenadas del puntero relativas a la imagen mostrada (mouse o dedo)
+function _cropPunto(ev){
+  const img = document.getElementById('cropImg');
+  const r = img.getBoundingClientRect();
+  const t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
+  return {
+    x: Math.max(0, Math.min(r.width,  t.clientX - r.left)),
+    y: Math.max(0, Math.min(r.height, t.clientY - r.top))
+  };
+}
+
+function _cropPintar(){
+  const sel = document.getElementById('cropSel');
+  const img = document.getElementById('cropImg');
+  if(!_cropSel){ sel.style.display='none'; document.getElementById('cropShade').style.display='block'; return; }
+  const { x0, y0, x1, y1 } = _cropSel;
+  sel.style.left = Math.min(x0,x1) + 'px';
+  sel.style.top  = Math.min(y0,y1) + 'px';
+  sel.style.width  = Math.abs(x1-x0) + 'px';
+  sel.style.height = Math.abs(y1-y0) + 'px';
+  sel.style.display = 'block';
+  // La sombra la pinta el box-shadow gigante de #cropSel; la general estorba
+  document.getElementById('cropShade').style.display = 'none';
+  // Tamaño en píxeles REALES de la imagen, que es lo que verá el OCR
+  const esc = img.clientWidth ? img.naturalWidth / img.clientWidth : 1;
+  const w = Math.round(Math.abs(x1-x0) * esc), h = Math.round(Math.abs(y1-y0) * esc);
+  const chico = w < 300 || h < 60;
+  document.getElementById('cropInfo').innerHTML = w + ' × ' + h + ' px' +
+    (chico ? ' <b style="color:var(--naranja)">— zona muy chica, ¿alcanzas a leer los números?</b>' : '');
+  document.getElementById('cropOk').disabled = (w < 40 || h < 20);
+}
+
+(function cropEventos(){
+  const stage = document.getElementById('cropStage');
+  function inicio(ev){
+    if(ev.target.id !== 'cropImg') return;
+    ev.preventDefault();
+    const p = _cropPunto(ev);
+    _cropDrag = true; _cropSel = { x0:p.x, y0:p.y, x1:p.x, y1:p.y };
+    _cropPintar();
+  }
+  function mover(ev){
+    if(!_cropDrag) return;
+    ev.preventDefault();
+    const p = _cropPunto(ev);
+    _cropSel.x1 = p.x; _cropSel.y1 = p.y;
+    _cropPintar();
+  }
+  function fin(){ _cropDrag = false; }
+  stage.addEventListener('mousedown', inicio);
+  stage.addEventListener('mousemove', mover);
+  window.addEventListener('mouseup', fin);
+  stage.addEventListener('touchstart', inicio, {passive:false});
+  stage.addEventListener('touchmove', mover, {passive:false});
+  window.addEventListener('touchend', fin);
+})();
+
+function cropAceptar(){
+  const img = document.getElementById('cropImg');
+  // Sin selección, o sin layout de la imagen (ventana oculta, imagen aún sin
+  // pintar): mejor mandar la captura entera que un recorte vacío.
+  if(!_cropSel || !img.clientWidth){ _cropCerrar(_cropFile); return; }
+  const esc = img.naturalWidth / img.clientWidth;   // pantalla -> píxeles reales
+  const { x0, y0, x1, y1 } = _cropSel;
+  const sx = Math.round(Math.min(x0,x1) * esc), sy = Math.round(Math.min(y0,y1) * esc);
+  const sw = Math.round(Math.abs(x1-x0) * esc),  sh = Math.round(Math.abs(y1-y0) * esc);
+  const cv = document.createElement('canvas');
+  cv.width = sw; cv.height = sh;
+  // Fondo blanco: si la captura es PNG con transparencia, el negro por defecto
+  // deja el texto ilegible para el OCR.
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#fff'; cx.fillRect(0,0,sw,sh);
+  cx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  const nombre = (_cropFile && _cropFile.name ? _cropFile.name.replace(/\.\w+$/,'') : 'captura') + ' (recorte).png';
+  cv.toBlob(function(blob){
+    let f;
+    try{ f = new File([blob], nombre, { type:'image/png' }); }
+    catch(e){ f = blob; f.name = nombre; }   // navegadores sin constructor File
+    _cropCerrar(f);
+  }, 'image/png');
+}
+
+let tesseractLoading = null;
+function loadTesseract(){
+  if(window.Tesseract) return Promise.resolve();
+  if(tesseractLoading) return tesseractLoading;
+  tesseractLoading = new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  return tesseractLoading;
+}
+function normTxt(s){ return String(s||'').normalize('NFD').replace(/[^\x00-\x7F]/g,'').toUpperCase().trim(); }
+function escHtml(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function tituloCase(s){ return String(s).toLowerCase().replace(/(^|\s)([a-záéíóúñ])/g, (m,sp,c)=> sp+c.toUpperCase()); }
+
+/* La imagen se manda A COLOR. Se probó blanco y negro (Otsu) y escala de grises,
+   con y sin contraste: el gris hunde el azul y el morado de Sonar a un tono
+   medio parecido al de la letra, y se lee PEOR que la imagen tal cual.
+   Lo que sí ayuda —medido con las capturas reales— es ampliarla al doble
+   cuando viene chica: la tabla de Attach pasó de 0 valores leídos a 12 de 16,
+   y la de Comisiones se mantuvo en 12 de 12. Ampliar x3 o x4 ya no aporta. */
+const ANCHO_MINIMO_OCR = 2600;
+
+async function agrandarSiHaceFalta(file){
+  try{
+    const bmp = await createImageBitmap(file);
+    if(bmp.width >= ANCHO_MINIMO_OCR) return file;
+    const cv = document.createElement('canvas');
+    cv.width = bmp.width * 2; cv.height = bmp.height * 2;
+    const cx = cv.getContext('2d');
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(bmp, 0, 0, cv.width, cv.height);
+    return await new Promise(function(res){ cv.toBlob(function(b){ res(b || file); }, 'image/png'); });
+  }catch(e){ return file; }   // ante cualquier duda, la imagen original
+}
+
+async function ocrWords(file){
+  await loadTesseract();
+  file = await agrandarSiHaceFalta(file);
+  const worker = await Tesseract.createWorker('spa');
+  // Modo de segmentación 6 = "bloque uniforme de texto". El modo automático (por
+  // defecto) le cuesta trabajo con tablas densas de dashboards — este suele leer
+  // mejor filas/columnas de números. Gratis, solo cambia la configuración.
+  await worker.setParameters({ tessedit_pageseg_mode: '6' });
+  const { data } = await worker.recognize(file);
+  await worker.terminate();
+  return data.words || [];
+}
+
+// Agrupa palabras (con bbox) en renglones por cercanía en Y; dentro de cada renglón, ordena por X
+function agruparRenglones(words){
+  // x1 (borde derecho) se conserva porque las columnas numéricas de Sonar van
+  // alineadas a la derecha: es lo que permite saber a qué columna pertenece
+  // cada número, sin depender del orden en que aparezcan.
+  const items = words.filter(w=>w.text && w.text.trim()).map(w=>({
+    text:w.text.trim(), x0:w.bbox.x0, x1:w.bbox.x1, y:(w.bbox.y0+w.bbox.y1)/2, h:(w.bbox.y1-w.bbox.y0)
+  }));
+  items.sort((a,b)=>a.y-b.y);
+  const renglones = [];
+  items.forEach(it=>{
+    let row = renglones.find(r=> Math.abs(r.y-it.y) < Math.max(10, it.h*0.6));
+    if(!row){ row = { y:it.y, items:[] }; renglones.push(row); }
+    row.items.push(it);
+    row.y = row.items.reduce((s,w)=>s+w.y,0)/row.items.length;
+  });
+  renglones.sort((a,b)=>a.y-b.y);
+  renglones.forEach(r=>{
+    r.items.sort((a,b)=>a.x0-b.x0);
+    r.items = fusionarFragmentosNumericos(r.items);
+  });
+  return renglones;
+}
+
+// El OCR a veces parte un monto en dos por un espacio accidental
+// (ej. "$358" + ".806,80" en vez de "$358.806,80") — se vuelven a unir.
+function fusionarFragmentosNumericos(items){
+  const out = [];
+  for(let i=0; i<items.length; i++){
+    const cur = items[i], nxt = items[i+1];
+    if(nxt && /^\$?\d{1,3}$/.test(cur.text) && /^\.\d{3}([.,]\d+)*$/.test(nxt.text)){
+      out.push({ text: cur.text + nxt.text, x0: cur.x0, x1: nxt.x1, y: cur.y, h: cur.h });
+      i++; continue;
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
+// Clasifica cada palabra de un renglón: dinero / porcentaje / entero (pzas) / No. Empleado / texto
+function tokenizarFila(items){
+  const toks = [];
+  for(let i=0;i<items.length;i++){
+    const t = items[i].text;
+    const s = t.replace(/^\$/,'');
+    const next = items[i+1] && items[i+1].text;
+    // Número (con o sin decimales) seguido de un "%" suelto → porcentaje partido en 2 tokens
+    // (debe revisarse ANTES que "dinero", porque "56,25" solo también matchea el patrón de dinero).
+    // Se aceptan hasta 4 dígitos enteros: Alcance/Garantía SÍ pueden pasar de 100 (ver nota en
+    // esPctSospechoso) y un OCR mal leído ("3929%") es más fácil de notar/corregir que un
+    // campo que se queda vacío sin más.
+    // x1 = borde derecho del token, para ubicarlo en su columna (ver columnasDe)
+    const x1 = items[i].x1;
+    if(/^\d{1,4}(?:[.,]\d{1,2})?$/.test(s) && next === '%'){
+      toks.push({tipo:'pct', val: parseFloat(s.replace(',','.')), x1: (items[i+1] && items[i+1].x1) || x1}); i++; continue;
+    }
+    const pctM = s.match(/^(\d{1,4}(?:[.,]\d{1,2})?)%$/);
+    if(pctM){ toks.push({tipo:'pct', val: parseFloat(pctM[1].replace(',','.')), x1:x1}); continue; }
+    // Dinero con separador de miles ("35.441,20", "1.971.240,01"). El OCR a veces agrega o
+    // pierde un dígito decimal ("91.899,965" en vez de "91.899,96") — se toleran 1 a 4
+    // dígitos y se recortan/rellenan a 2, porque un monto siempre son centavos.
+    let mMoney;
+    if((mMoney = s.match(/^(\d{1,3}(?:\.\d{3})+)(?:,(\d{1,4}))?$/))){
+      const entero = mMoney[1].replace(/\./g,'');
+      const dec = (mMoney[2]||'00').slice(0,2).padEnd(2,'0');
+      toks.push({tipo:'money', val: parseFloat(entero+'.'+dec), x1:x1}); continue;
+    }
+    if((mMoney = s.match(/^(\d+),(\d{1,4})$/))){
+      const dec = mMoney[2].slice(0,2).padEnd(2,'0');
+      toks.push({tipo:'money', val: parseFloat(mMoney[1]+'.'+dec), x1:x1}); continue;
+    }
+    if(/^\d{5,7}$/.test(s)){ toks.push({tipo:'empno', val: s, x1:x1}); continue; }
+    if(/^\d{1,3}$/.test(s)){ toks.push({tipo:'int', val: parseInt(s,10), x1:x1}); continue; }
+    if(s === '%') continue;
+    toks.push({tipo:'text', val: t, x1:x1});
+  }
+  return toks;
+}
+
+/* ---- Columnas del reporte de Attach ----
+   Sus columnas "% Δ" aparecen o no según el periodo, así que contar valores por
+   orden ("el primer entero es Pzas") se desalinea en cuanto el OCR pierde o
+   inventa un token: así se acabó leyendo $4.549,14 (el elegible) donde el
+   reporte decía $275 de garantía. Con el borde derecho de cada encabezado se
+   ubica cada número en SU columna, sin depender del orden.
+   Devuelve null si no encuentra el encabezado — ahí se usa el modo por orden. */
+function columnasDe(renglones){
+  for(const row of renglones){
+    const it = row.items;
+    const norm = it.map(w=> normTxt(w.text).replace(/[^A-Z$%]/g,''));
+    const col = {};
+    for(let i=0;i<it.length;i++){
+      const prev = norm[i-1] || '';
+      if(norm[i].startsWith('GARANTIA')){
+        if(prev.startsWith('PZAS'))    col.pzas     = it[i].x1;
+        else if(prev.indexOf('$')>=0)  col.monto    = it[i].x1;
+      }
+      if(norm[i].startsWith('ELEGIBLE')){
+        if(prev.startsWith('PZAS'))    col.elegible = it[i].x1;
+        else if(prev.indexOf('$')>=0)  col.montoEleg= it[i].x1;
+      }
+    }
+    if(col.pzas!=null && col.elegible!=null && col.monto!=null) return col;
+  }
+  return null;
+}
+
+// Valor cuyo borde derecho cae más cerca de la columna, dentro de una tolerancia
+// (media distancia entre columnas vecinas, para no robarle el dato al vecino).
+function valorEnColumna(toks, x, tolerancia){
+  let mejor = null, dist = Infinity;
+  for(const t of toks){
+    if(t.x1==null || (t.tipo!=='int' && t.tipo!=='money')) continue;
+    const d = Math.abs(t.x1 - x);
+    if(d < dist){ dist = d; mejor = t; }
+  }
+  return (mejor && dist <= tolerancia) ? mejor.val : null;
+}
+
+const PUESTOS_CONOCIDOS = ['Gerente de Tienda','Subgerente de Tienda','Asesor de Tienda','Encargado de Tienda','Auxiliar de Tienda'];
+// Busca en qué posición de la lista de palabras empieza un puesto conocido (nombre y puesto
+// vienen pegados en un solo bloque de texto, truncados con "..."), y devuelve dónde cortar.
+function ubicarPuesto(restoWords){
+  const norm = restoWords.map(w=> normTxt(w).replace(/\.+$/,''));
+  for(let start=0; start<norm.length; start++){
+    for(const p of PUESTOS_CONOCIDOS){
+      const completo = normTxt(p).split(' ');
+      // El OCR a veces se salta la palabra "DE" al truncar la columna (ej. lee
+      // "SUBGERENTE TI" en vez de "SUBGERENTE DE TI") — se prueba también sin ella.
+      const sinDe = completo.filter(w=>w!=='DE');
+      const variantes = sinDe.length!==completo.length ? [completo, sinDe] : [completo];
+      for(const palabrasP of variantes){
+        let ok = true;
+        for(let j=0; j<palabrasP.length; j++){
+          const w = norm[start+j];
+          if(!w || w.length<2 || !palabrasP[j].startsWith(w)){ ok=false; break; }
+        }
+        if(ok) return { puesto:p, start };
+      }
+    }
+  }
+  return null;
+}
+
+function asegurarFila(key){
+  if(!comisionesDraft[key]) comisionesDraft[key] = { empNo:key, nombre:'', nombreCompleto:false, puesto:'',
+    venta:null, pptoPct:null, alcance:null, garantiaPct:null, garantiaPzas:null, garantiaElegible:null, garantiaMonto:null };
+  return comisionesDraft[key];
+}
+
+// Muestra, por renglón, el texto crudo detectado y cómo se clasificó cada token —
+// sirve para ver exactamente qué leyó el OCR cuando un número sale mal.
+function volcarDebugFilas(renglones){
+  return renglones.map((row,i)=>{
+    const crudo = row.items.map(it=>it.text).join(' ');
+    const toks = tokenizarFila(row.items);
+    const clasif = toks.map(t=> t.tipo + (t.val!==undefined?'('+t.val+')':'')).join(' ');
+    return 'Fila '+(i+1)+':\n  crudo:  '+crudo+'\n  tokens: '+clasif;
+  }).join('\n\n');
+}
+
+async function procesarComisionesImg(file){
+  document.getElementById('fboxComis').classList.add('ok');
+  document.getElementById('fphComis').textContent = '✓ ' + file.name;
+  const status = document.getElementById('comisOcrStatus');
+  status.style.display='block'; status.textContent='Leyendo imagen…';
+  try{
+    const words = await ocrWords(file);
+    const renglones = agruparRenglones(words);
+    document.getElementById('comisDebugTxt').textContent = volcarDebugFilas(renglones);
+    document.getElementById('comisDebugWrap').style.display = 'block';
+    let encontrados = 0;
+    renglones.forEach(row=>{
+      const toks = tokenizarFila(row.items);
+      const idxEmp = toks.findIndex(t=>t.tipo==='empno');
+      if(idxEmp<0) return;
+      const empNo = toks[idxEmp].val;
+      const restoWordsFull = toks.slice(idxEmp+1).filter(t=>t.tipo==='text').map(t=>t.val);
+      // "Sobre"/"Menor"/"Mayor" son palabras de columnas posteriores (Tipo Aplicación, Nivel de
+      // comisión) que nunca aparecen en un nombre o puesto — acotan dónde termina ese bloque.
+      const stopIdx = restoWordsFull.findIndex(w=> ['SOBRE','MENOR','MAYOR'].includes(normTxt(w).replace(/\.+$/,'')));
+      const restoWords = stopIdx>=0 ? restoWordsFull.slice(0, stopIdx) : restoWordsFull;
+      const ubic = ubicarPuesto(restoWords);
+      const puesto = ubic ? ubic.puesto : '';
+      let nombre = (ubic ? restoWords.slice(0, ubic.start) : restoWords).join(' ');
+      nombre = nombre.replace(/\.{2,}$/,'').trim();
+      const primerPctIdx = toks.findIndex(t=>t.tipo==='pct');
+      const moneys = toks.filter((t,i)=> t.tipo==='money' && (primerPctIdx<0 || i<primerPctIdx));
+      const pcts = toks.filter(t=>t.tipo==='pct');
+      const venta = moneys.length ? moneys[moneys.length-1].val : null;
+      const pptoPct = pcts[0] ? pcts[0].val : null;
+      const alcance = pcts[1] ? pcts[1].val : null;
+      if(venta==null && pptoPct==null && alcance==null) return;
+      encontrados++;
+      const rec = asegurarFila(String(empNo));
+      rec.venta = venta; rec.pptoPct = pptoPct; rec.alcance = alcance;
+      if(puesto) rec.puesto = puesto;
+      if(!rec.nombreCompleto && nombre) rec.nombre = nombre;
+    });
+    status.style.display='none';
+    toast(encontrados ? (encontrados+' fila(s) leídas de Comisiones ✓') : 'No reconocí filas — revisa la captura o agrega manualmente', encontrados>0);
+    renderComisPreview();
+  }catch(e){
+    status.style.display='none';
+    toast('Error al leer la imagen: '+e.message, false);
+  }
+}
+
+async function procesarGarantiasImg(file){
+  document.getElementById('fboxGar').classList.add('ok');
+  document.getElementById('fphGar').textContent = '✓ ' + file.name;
+  const status = document.getElementById('garOcrStatus');
+  status.style.display='block'; status.textContent='Leyendo imagen…';
+  try{
+    const words = await ocrWords(file);
+    const renglones = agruparRenglones(words);
+    document.getElementById('garDebugTxt').textContent = volcarDebugFilas(renglones);
+    document.getElementById('garDebugWrap').style.display = 'block';
+
+    const textoCompleto = renglones.map(r=>r.items.map(i=>i.text).join(' ')).join(' ');
+    const fm = textoCompleto.match(/(\d{1,2}\s+[a-zA-Zé]{3,}\s+\d{4})\s*-\s*(\d{1,2}\s+[a-zA-Zé]{3,}\s+\d{4})/);
+    if(fm && !document.getElementById('comisPeriodoGar').value.trim()){
+      document.getElementById('comisPeriodoGar').value = fm[1] + ' – ' + fm[2];
+    }
+
+    const COLS = columnasDe(renglones);
+    // Tolerancia: media distancia entre columnas vecinas, para que un número no
+    // se le asigne a la columna de al lado.
+    const TOL = COLS ? Math.max(30, Math.min(
+      Math.abs(COLS.elegible - COLS.pzas), Math.abs(COLS.monto - COLS.elegible)) / 2) : 0;
+
+    let storeIdDetectado = null, encontrados = 0;
+    renglones.forEach(row=>{
+      const juntoSinEspacios = row.items.map(i=>i.text).join('').replace(/\s+/g,'');
+      const m = juntoSinEspacios.match(/(\d{3,6})-(\d{4,7})-([A-ZÁÉÍÓÚÑ]+)/i);
+      if(!m) return;
+      const storeId = m[1], empNo = m[2];
+      storeIdDetectado = storeId;
+
+      const rowTextoConEspacios = row.items.map(i=>i.text).join(' ');
+      const m2 = rowTextoConEspacios.match(/\d{3,6}\s*-\s*\d{4,7}\s*-\s*([A-ZÁÉÍÓÚÑ ]+)/i);
+      let nombreCompleto = m2 ? m2[1].trim().replace(/\s{2,}/g,' ').replace(/[\d%].*$/,'').trim() : '';
+      // Sin nombre reconocible, no es una fila real de empleado — probablemente un
+      // falso positivo del patrón tienda-empno (evita tarjetas fantasma vacías).
+      if(!nombreCompleto) return;
+
+      const toks = tokenizarFila(row.items);
+      const primerPctIdx = toks.findIndex(t=>t.tipo==='pct');
+      const pcts = toks.filter(t=>t.tipo==='pct');
+      const ints = toks.filter((t,i)=> t.tipo==='int' && (primerPctIdx<0 || i>primerPctIdx));
+      const moneys = toks.filter(t=>t.tipo==='money');
+      // El % de garantía es la primera columna de datos: ahí el orden sí sirve.
+      const garantiaPct = pcts[0] ? pcts[0].val : null;
+      let garantiaPzas, garantiaElegible, garantiaMonto;
+      if(COLS){
+        garantiaPzas     = valorEnColumna(toks, COLS.pzas, TOL);
+        garantiaElegible = valorEnColumna(toks, COLS.elegible, TOL);
+        garantiaMonto    = valorEnColumna(toks, COLS.monto, TOL);
+      }else{
+        garantiaPzas     = ints[0] ? ints[0].val : null;
+        garantiaElegible = ints[1] ? ints[1].val : null;
+        garantiaMonto    = moneys[0] ? moneys[0].val : null;
+      }
+      if(garantiaPct==null && garantiaMonto==null) return;
+      encontrados++;
+
+      const rec = asegurarFila(String(empNo));
+      rec.garantiaPct = garantiaPct; rec.garantiaPzas = garantiaPzas;
+      rec.garantiaElegible = garantiaElegible; rec.garantiaMonto = garantiaMonto;
+      if(nombreCompleto){ rec.nombre = tituloCase(nombreCompleto); rec.nombreCompleto = true; }
+    });
+
+    status.style.display='none';
+    if(storeIdDetectado && _cfg && _cfg.store_id && String(storeIdDetectado) !== String(_cfg.store_id)){
+      if(!confirm('⚠️ Esta captura parece ser de la tienda ' + storeIdDetectado + ', pero estás en Admin de la tienda ' + _cfg.store_id + '.\n\n¿Guardar de todos modos los datos leídos?')){
+        toast('Descartado — vuelve a intentar con la captura correcta', false);
+        return;
+      }
+    }
+    toast(encontrados ? (encontrados+' fila(s) leídas de Extracobertura ✓') : 'No reconocí filas — revisa la captura o agrega manualmente', encontrados>0);
+    renderComisPreview();
+  }catch(e){
+    status.style.display='none';
+    toast('Error al leer la imagen: '+e.message, false);
+  }
+}
+
+// %Ppto es un valor fijo del plan de comisiones (10%, 20%, 35%...) — nunca pasa de 100,
+// así que si sale así es casi seguro basura del OCR.
+function esPctSospechoso(v){ return v!=null && (v>100 || v<0); }
+// Alcance y Garantía% SÍ pueden pasar de 100 legítimamente: un asesor puede vender más
+// seguros de los que le tocan elegibles esa semana, porque el cliente tiene 30 días
+// después de la venta para comprarlo, o superar su meta de venta. Pero un OCR mal leído
+// puede escupir algo como "3929%" — un techo alto (nadie llega a 1000% real) sigue
+// atrapando esos casos sin chocar con la regla de negocio.
+function esPctExtremo(v){ return v!=null && (v>999 || v<0); }
+function claseSi(v){ return esPctSospechoso(v) ? 'sospechoso' : ''; }
+function claseSiExtremo(v){ return esPctExtremo(v) ? 'sospechoso' : ''; }
+
+/* El propio reporte se contradice cuando el OCR falla: Garantía% tiene que ser
+   Pzas ÷ Elegibles. Las celdas azules de "Pzas Elegible" son justo donde peor
+   lee (vio "6" donde decía 66, y "A" donde decía 74), así que aquí se atrapa
+   con el porcentaje —que sí se lee bien— y se sugiere el valor que cuadra. */
+function revisarAttach(r){
+  if(r.garantiaPct==null || r.garantiaPzas==null || !r.garantiaPct) return null;
+  const esperado = Math.round(r.garantiaPzas / (r.garantiaPct/100));
+  if(!isFinite(esperado) || esperado<=0) return null;
+  if(r.garantiaElegible==null) return { esperado, motivo:'no se pudo leer' };
+  const pctReal = r.garantiaPzas / r.garantiaElegible * 100;
+  // 1.5 puntos de holgura: el reporte trae el % ya redondeado a 2 decimales
+  if(Math.abs(pctReal - r.garantiaPct) > 1.5)
+    return { esperado, motivo: r.garantiaPzas+' de '+r.garantiaElegible+' daría '+pctReal.toFixed(1)+'%, no '+r.garantiaPct+'%' };
+  return null;
+}
+function aplicarElegible(k, v){
+  comisionesDraft[k].garantiaElegible = v;
+  renderComisPreview();
+}
+
+function renderComisPreview(){
+  const cont = document.getElementById('comisPreview');
+  const keys = Object.keys(comisionesDraft);
+  document.getElementById('btnComis').disabled = keys.length===0;
+  if(!keys.length){
+    cont.innerHTML = '<p class="empty" style="text-align:center;color:#ccc;font-size:13px;padding:20px">Sube una captura para empezar.</p>';
+    return;
+  }
+  cont.innerHTML = keys.map(k=>{
+    const r = comisionesDraft[k];
+    const faltaGar = r.garantiaPct==null;
+    const chk = revisarAttach(r);
+    const sospechosos = [
+      esPctSospechoso(r.pptoPct) && '%Ppto',
+      esPctExtremo(r.alcance) && 'Alcance %',
+      esPctExtremo(r.garantiaPct) && 'Garantía %',
+    ].filter(Boolean);
+    return `<div class="comis-card ${faltaGar?'warn':''}">
+      <div class="comis-top">
+        <input class="nombre" value="${escHtml(r.nombre)}" placeholder="Nombre completo" oninput="comisUpdate('${k}','nombre',this.value)">
+        <button class="comis-del" onclick="eliminarComisFila('${k}')" title="Quitar">✕</button>
+      </div>
+      ${sospechosos.length ? `<div class="comis-warn-tag">⚠ Revisa ${sospechosos.join(', ')} — se ve como error del OCR, no un dato real</div>` : ''}
+      <div class="comis-f" style="margin-bottom:6px"><label>Puesto</label>
+        <select onchange="comisUpdate('${k}','puesto',this.value)">
+          <option value="">—</option>
+          ${PUESTOS_CONOCIDOS.map(p=>`<option value="${p}" ${r.puesto===p?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div class="comis-sec">💰 Comisiones</div>
+      <div class="comis-grid">
+        <div class="comis-f"><label>Venta</label><input type="number" step="0.01" value="${r.venta??''}" oninput="comisUpdate('${k}','venta',this.value)"></div>
+        <div class="comis-f"><label>% Ppto</label><input type="number" step="0.01" class="${claseSi(r.pptoPct)}" value="${r.pptoPct??''}" oninput="comisUpdate('${k}','pptoPct',this.value); this.classList.toggle('sospechoso', +this.value>100)"></div>
+        <div class="comis-f"><label>Alcance % <span style="font-weight:400;text-transform:none;color:#ccc">(puede pasar de 100)</span></label><input type="number" step="0.01" class="${claseSiExtremo(r.alcance)}" value="${r.alcance??''}" oninput="comisUpdate('${k}','alcance',this.value); this.classList.toggle('sospechoso', +this.value>999)"></div>
+      </div>
+      <div class="comis-sec">🛡️ Extracobertura ${faltaGar?'<span style="color:var(--naranja);text-transform:none;font-weight:600"> · sin datos</span>':''}</div>
+      <div class="comis-grid">
+        <div class="comis-f"><label>Garantía % <span style="font-weight:400;text-transform:none;color:#ccc">(puede pasar de 100)</span></label><input type="number" step="0.01" class="${claseSiExtremo(r.garantiaPct)}" value="${r.garantiaPct??''}" oninput="comisUpdate('${k}','garantiaPct',this.value); this.classList.toggle('sospechoso', +this.value>999)"></div>
+        <div class="comis-f"><label>Pzas Garantía</label><input type="number" value="${r.garantiaPzas??''}" oninput="comisUpdate('${k}','garantiaPzas',this.value)"></div>
+        <div class="comis-f"><label>Pzas Elegible</label><input type="number" class="${chk?'sospechoso':''}" value="${r.garantiaElegible??''}" oninput="comisUpdate('${k}','garantiaElegible',this.value)"></div>
+      </div>
+      ${chk ? `<div class="comis-warn-tag">⚠ <b>Pzas Elegible</b> ${chk.motivo}. Con ${r.garantiaPct}% de garantía y ${r.garantiaPzas} pzas, deberían ser <b>${chk.esperado}</b>
+        <button type="button" onclick="aplicarElegible('${k}',${chk.esperado})" style="margin-left:6px;border:none;background:var(--naranja);color:#fff;border-radius:6px;padding:3px 8px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">Usar ${chk.esperado}</button></div>` : ''}
+      <div class="comis-f" style="margin-top:6px"><label>Monto Garantía ($)</label><input type="number" step="0.01" value="${r.garantiaMonto??''}" oninput="comisUpdate('${k}','garantiaMonto',this.value)"></div>
+    </div>`;
+  }).join('');
+}
+function comisUpdate(key, field, val){
+  const r = comisionesDraft[key]; if(!r) return;
+  if(field==='nombre'){ r.nombre = val; r.nombreCompleto = true; }
+  else if(field==='puesto'){ r.puesto = val; }
+  else { r[field] = val===''? null : Number(val); }
+}
+function eliminarComisFila(key){ delete comisionesDraft[key]; renderComisPreview(); }
+function agregarEmpleadoManual(){
+  asegurarFila('manual'+Date.now());
+  renderComisPreview();
+}
+
+async function guardarComisiones(){
+  const keys = Object.keys(comisionesDraft);
+  if(!keys.length) return;
+  const rows = keys.map(k=>{
+    const r = comisionesDraft[k];
+    return { empNo:r.empNo, nombre:r.nombre, puesto:r.puesto, venta:r.venta||0, pptoPct:r.pptoPct||0, alcance:r.alcance||0,
+             garantiaPct:r.garantiaPct, garantiaPzas:r.garantiaPzas, garantiaElegible:r.garantiaElegible, garantiaMonto:r.garantiaMonto };
+  }).filter(r=>r.nombre);
+  if(!rows.length){ toast('Faltan nombres — revisa la vista previa', false); return; }
+  const btn = document.getElementById('btnComis');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Guardando…';
+  document.getElementById('resComis').className = 'result';
+  try{
+    await sbCargaAdmin('carga_comisiones', { p_filas: rows,
+        p_periodo: document.getElementById('comisPeriodo').value.trim(),
+        // El periodo de garantías es otro campo y otra ventana de fechas: lo
+        // pinta comisiones.html. Sin él esa pantalla muestra un guion.
+        p_periodo_gar: document.getElementById('comisPeriodoGar').value.trim() });
+    showResult('resComis', true, '✅ Comisiones guardadas — el equipo ya las puede ver en su Tablero.');
+    cargarComisionesCloud();
+  }catch(e){ showResult('resComis', false, 'Error al guardar: '+e.message); }
+  btn.disabled=false; btn.textContent='💾 Guardar comisiones en la nube';
+}
+
+async function cargarComisionesCloud(){
+  const el = document.getElementById('comisCloudInfo');
+  el.innerHTML = '<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Cargando…</p>';
+  try{
+    // comisiones_lista devuelve FILAS; aqui se espera {actualizado, periodo…,
+    // empleados:[…]}, que es la forma que armaba el Apps Script.
+    const _f = await sbLeer('comisiones_lista');
+    const data = _f.length ? {
+      actualizado: _f[0].actualizado ? String(_f[0].actualizado).slice(0,10) : '',
+      periodoComisiones: _f[0].periodo || '',
+      periodoGarantias: _f[0].periodo_gar || '',
+      empleados: _f.map(function(k){
+        return { empNo:k.empno||'', nombre:k.nombre||'', puesto:k.puesto||'',
+                 venta:Number(k.venta)||0, alcance:Number(k.alcance)||0,
+                 // null no es 0: "sin dato" y "cero garantias" se ven igual en
+                 // pantalla y significan cosas distintas para quien cobra.
+                 garantiaPct: k.gar_pct==null ? null : Number(k.gar_pct) };
+      })
+    } : null;
+    if(!data || !Array.isArray(data.empleados) || !data.empleados.length){
+      el.innerHTML = '<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Sin comisiones guardadas todavía.</p>';
+      return;
+    }
+    el.innerHTML = `<p style="font-size:11px;color:#888;margin-bottom:8px">Actualizado: <b>${data.actualizado||'—'}</b> · Periodo: ${data.periodoComisiones||'—'}</p>` +
+      data.empleados.map(e=>`<div class="prev-item"><strong>${escHtml(e.nombre)}</strong><span>${escHtml(e.puesto||'')} · venta ${money(e.venta)} · ${e.alcance}% de meta${e.garantiaPct!=null?' · '+e.garantiaPct+'% garantía':''}</span></div>`).join('');
+  }catch(e){
+    el.innerHTML = '<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Error al cargar.</p>';
+  }
+}
+
+/* Toda imagen pasa primero por el recortador — es lo que hace la diferencia
+   entre leer bien la tabla y confundir montos (ver nota en pedirRecorte). */
+async function recortarYProcesar(file, cual){
+  const esGar = cual === 'gar';
+  const zona = await pedirRecorte(file, esGar
+    ? 'Marca la tabla de Garantías por fechas'
+    : 'Marca la tabla "Detalle de comisiones por empleado"');
+  if(!zona) return;                      // canceló
+  if(esGar) procesarGarantiasImg(zona); else procesarComisionesImg(zona);
+}
+
+document.getElementById('fileComis').onchange = function(e){ const f=e.target.files&&e.target.files[0]; if(f) recortarYProcesar(f,'comis'); e.target.value=''; };
+document.getElementById('fileGar').onchange = function(e){ const f=e.target.files&&e.target.files[0]; if(f) recortarYProcesar(f,'gar'); e.target.value=''; };
+
+/* Pegar captura directo del portapapeles (Ctrl+V) — evita depender de guardar
+   la imagen como archivo antes de subirla, útil cuando el recorte de pantalla
+   solo queda copiado y no se guarda automáticamente. Cada cuadro escucha su
+   propio evento "paste" (se dispara sobre el elemento que tiene el foco). */
+function extraerImagenPegada(e){
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for(const it of items){ if(it.type && it.type.indexOf('image/')===0) return it.getAsFile(); }
+  return null;
+}
+/* Al pegar: si viene TEXTO de una tabla de Sonar se usa tal cual (exacto, sin
+   OCR); si viene una imagen, se recorta y se lee con OCR. Da igual en cuál de
+   las dos cajas se pegue: el encabezado dice si es Comisiones o Extracobertura. */
+function alPegar(e, cual){
+  const texto = e.clipboardData && e.clipboardData.getData('text/plain');
+  if(texto && texto.trim().length > 20){
+    const res = parsearTablaPegada(texto);
+    if(res){ e.preventDefault(); aplicarTablaPegada(res); return; }
+  }
+  const file = extraerImagenPegada(e);
+  if(!file) return;
+  e.preventDefault();
+  recortarYProcesar(file, cual);
+}
+document.getElementById('fboxComis').addEventListener('paste', function(e){ alPegar(e,'comis'); });
+document.getElementById('fboxGar').addEventListener('paste', function(e){ alPegar(e,'gar'); });
+
+/* ================================================================
+   TAB CONFIG — Configuración de tienda
+   ================================================================ */
+/* Pinta la config y DESPUES la refresca desde el servidor.
+
+   24-ago-2026: `_cfg` sale de `hes_store`, la sesion guardada en ESTE
+   dispositivo, que se escribe una vez al entrar y nunca se refresca. El gerente
+   veia el campo de los codigos de reparacion VACIO teniendolos puestos en la
+   base — y si guardaba desde ahi, los borraba de verdad.
+
+   Primero se pinta lo que haya, para que la pestaña no salga en blanco si no
+   hay red; luego se pide lo bueno y se corrige lo que difiera. Si la lectura
+   falla no se toca nada: mas vale un dato viejo a la vista que un formulario
+   vacio que, al guardarse, borra lo que habia. */
+function loadConfig(){
+  const cfg = _cfg || {};
+  document.getElementById('cfgGas').value   = cfg.gas_url   || '';
+  document.getElementById('cfgSheet').value = cfg.sheet_url || '';
+  document.getElementById('cfgHoja').value  = cfg.hoja_auth || '';
+  document.getElementById('cfgVend').value  = (cfg.vendedores||[]).join('\n');
+  document.getElementById('cfgSkuRep').value = cfg.sku_reparacion || '';
+  refrescarConfig();
+  pintarDivergencias();
+}
+
+async function refrescarConfig(){
+  try{
+    if(!sb && !initSB()) return;
+    const storeId = (_cfg && _cfg.store_id) || '';
+    if(!storeId) return;
+    const { data, error } = await sb.from('tiendas')
+      .select('gas_url,sheet_url,hoja_auth,vendedores,sku_reparacion')
+      .eq('store_id', storeId).maybeSingle();
+    if(error || !data) return;      // sin red o sin permiso: se queda lo pintado
+
+    document.getElementById('cfgGas').value   = data.gas_url   || '';
+    document.getElementById('cfgSheet').value = data.sheet_url || '';
+    document.getElementById('cfgHoja').value  = data.hoja_auth || '';
+    document.getElementById('cfgVend').value  = (data.vendedores||[]).join('\n');
+    document.getElementById('cfgSkuRep').value = data.sku_reparacion || '';
+
+    /* Y se pone al dia la sesion de este dispositivo, que es de donde leen las
+       demas pantallas. Sin esto, el gerente ve el dato bueno en el formulario y
+       la app sigue usando el viejo. */
+    try{
+      const stored = JSON.parse(localStorage.getItem('hes_store')||'{}');
+      localStorage.setItem('hes_store', JSON.stringify(Object.assign({}, stored, data)));
+      Object.assign(_cfg, data);
+    }catch(e){}   // cuota llena: el formulario ya enseña lo bueno, que es lo que se venia a ver
+  }catch(e){}     // nunca debe impedir abrir la pestaña
+}
+
+async function guardarConfig(){
+  const gas_url    = document.getElementById('cfgGas').value.trim();
+  const sheet_url  = document.getElementById('cfgSheet').value.trim();
+  const hoja_auth  = document.getElementById('cfgHoja').value.trim();
+  const vendedores = document.getElementById('cfgVend').value
+    .split('\n').map(s=>s.trim()).filter(Boolean);
+  /* En MAYUSCULAS y sin espacios, como los codigos del catalogo: el del ticket
+     viene asi, y compararlos con distinto formato no casaria nunca — y no daria
+     error, solo dejaria de detectar reparaciones en silencio. */
+  const sku_reparacion = document.getElementById('cfgSkuRep').value
+    .trim().toUpperCase();
+
+  const btn = document.getElementById('btnConfig');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Guardando…';
+
+  try{
+    const stored = JSON.parse(localStorage.getItem('hes_store')||'{}');
+    const updated = Object.assign({}, stored, {gas_url, sheet_url, hoja_auth, vendedores, sku_reparacion});
+    localStorage.setItem('hes_store', JSON.stringify(updated));
+  }catch(e){}   // cuota llena: lo que importa es que quede en Supabase, abajo
+
+  /* Antes esto decía "✅ Guardado" pasara lo que pasara: el catch solo escribía
+     en la consola y el error que devuelve Supabase —que NO lanza excepción, lo
+     regresa en la respuesta— ni se miraba. La config podía no guardarse y el
+     gerente se iba tranquilo. */
+  let problema = '';
+  try{
+    if(!sb) initSB();
+    if(!sb){
+      problema = 'no se pudo conectar con Supabase';
+    }else{
+      const storeId = (_cfg && _cfg.store_id) || '';
+      if(!storeId){
+        problema = 'no hay tienda en la sesión; vuelve a entrar desde el menú';
+      }else{
+        const { error } = await sb.from('tiendas')
+          .update({gas_url, sheet_url, hoja_auth, vendedores, sku_reparacion})
+          .eq('store_id', storeId);
+        if(error) problema = error.message || 'Supabase rechazó el cambio';
+      }
+    }
+  }catch(e){ problema = String(e && e.message ? e.message : e); }
+
+  btn.disabled = false;
+  btn.textContent = '💾 Guardar configuración';
+  if(problema){
+    showResult('resConfig', false,
+      '⚠ NO se guardó: ' + problema + '. Vuelve a intentar; si sigue, revisa tu sesión.');
+    return;
+  }
+  showResult('resConfig', true,
+    '✅ Guardado. El equipo verá estos datos la próxima vez que abran Captura de Series o recarguen el tablero.');
+  /* Después de guardar, no antes: el aviso tiene que hablar de la lista que
+     acaba de quedar en Supabase. Si corrigió el nombre, desaparece solo; si lo
+     escribió mal de nuevo, lo dice en el momento y no a fin de mes. */
+  pintarDivergencias();
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(()=>{});
+}
+</script>
+</body>
+</html>

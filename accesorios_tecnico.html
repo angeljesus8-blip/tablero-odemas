@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Accesorios y reparaciones · Mr Fix</title>
+<link rel="icon" href="icon-192.png">
+<!--
+  CONSULTA PARA TECNICOS EXTERNOS — 20-ago-2026.
+
+  Dos tecnicos de Mr Fix cotejan aqui su mes. Es lo UNICO que ven del sistema:
+  no hay menu, ni tablero, ni captura, ni comisiones, ni forma de llegar a
+  ellos desde esta pagina.
+
+  NO USA EL TOKEN DE LA TIENDA. Ese token es el permiso de escritura sobre
+  todo, y un externo no puede tenerlo. Entran con una clave propia que solo
+  aceptan dos funciones de lectura (`supabase_tecnicos.sql`).
+
+  Y no se sirve desde el service worker ni se enlaza en index.html: no es parte
+  de la app del equipo.
+-->
+<style>
+  :root{ --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1c9c4f;
+         --gris:#777; --linea:#ececec; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; background:#f7f7f8; color:#222;
+        font-family:Montserrat,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header{ background:#fff; border-bottom:3px solid var(--rojo); padding:14px 16px;
+          position:sticky; top:0; z-index:10; }
+  header h1{ font-size:16px; font-weight:800; margin:0; }
+  header p{ font-size:11.5px; color:var(--gris); margin:2px 0 0; }
+  main{ max-width:560px; margin:0 auto; padding:14px; }
+  .caja{ background:#fff; border:1px solid var(--linea); border-radius:12px;
+         padding:14px; margin-bottom:12px; }
+  label{ display:block; font-size:12px; font-weight:700; color:var(--gris);
+         margin-bottom:5px; text-transform:uppercase; letter-spacing:.03em; }
+  input,select{ width:100%; padding:12px; border:1.5px solid #ddd; border-radius:9px;
+                font-size:15px; font-family:inherit; background:#fff; }
+  .btn{ width:100%; padding:14px; border:none; border-radius:11px; background:var(--rojo);
+        color:#fff; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; }
+  .btn.sec{ background:#eee; color:#444; font-size:13px; padding:10px; }
+  .fila{ display:flex; gap:9px; align-items:baseline; padding:9px 0;
+         border-bottom:1px solid #f4f4f4; font-size:13px; }
+  .fila:last-child{ border:none; }
+  .fila .d{ width:24px; font-weight:800; color:#bbb; }
+  .fila .t{ font-family:ui-monospace,monospace; color:var(--gris); font-size:12px; }
+  .fila .p{ flex:1; }
+  .fila .m{ font-weight:800; color:var(--verde); white-space:nowrap; }
+  .tot{ display:flex; justify-content:space-between; font-size:14px; font-weight:800;
+        padding-top:10px; margin-top:4px; border-top:2px solid var(--linea); }
+  .seccion{ font-size:12.5px; font-weight:800; color:#444; margin:0 0 8px;
+            padding-bottom:7px; border-bottom:2px solid var(--linea); }
+  .nota{ font-size:12px; color:var(--gris); line-height:1.5; }
+  .err{ color:var(--rojo); font-weight:700; font-size:13px; }
+  .lupa{ background:none; border:1.5px solid #ddd; border-radius:7px; cursor:pointer;
+         font-size:11px; padding:3px 8px; color:var(--gris); white-space:nowrap; }
+  img.tk{ width:100%; border-radius:10px; margin-top:10px; }
+  footer{ text-align:center; font-size:10.5px; color:#bbb; padding:18px 0 26px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Accesorios y reparaciones</h1>
+  <p id="sub">HES Angelópolis 1217</p>
+</header>
+
+<main>
+  <!-- Entrada -->
+  <div class="caja" id="cajaClave">
+    <label for="clave">Tu clave de acceso</label>
+    <input id="clave" type="password" autocomplete="off" placeholder="la que te dieron en la tienda">
+    <p class="nota" style="margin:8px 0 10px">Solo da acceso a esta consulta.</p>
+    <button class="btn" onclick="entrar()">Entrar</button>
+    <p class="err" id="errClave" style="display:none;margin-top:10px"></p>
+  </div>
+
+  <!-- Consulta -->
+  <div id="cajaDatos" style="display:none">
+    <div class="caja">
+      <label for="mes">Mes</label>
+      <select id="mes" onchange="cargar()"></select>
+    </div>
+
+    <!-- Dos secciones y DOS TOTALES, nunca uno solo. Los accesorios van al
+         reporte de comisiones de la tienda y las reparaciones no: son dos
+         cobros distintos. Un total que los sumara daría un número que no le
+         sirve a nadie y que se prestaría a cotejarlo contra el que no es. -->
+    <div class="caja">
+      <div class="seccion">🔌 Accesorios vendidos</div>
+      <div id="lista"><p class="nota">Consultando…</p></div>
+      <div class="tot" id="total" style="display:none"></div>
+    </div>
+
+    <div class="caja">
+      <div class="seccion">🔧 Reparaciones</div>
+      <div id="listaRep"><p class="nota">Consultando…</p></div>
+      <div class="tot" id="totalRep" style="display:none"></div>
+    </div>
+
+    <button class="btn sec" onclick="salir()">Salir</button>
+  </div>
+</main>
+
+<footer>Odemás · Grupo Gigante — HES 1217</footer>
+
+<script>
+const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
+const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+const TIENDA = '1217';
+const CKEY = 'mrfix_clave';
+const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO',
+               'AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+const $ = id => document.getElementById(id);
+let CLAVE = '';
+let FILAS = [];   // accesorios del mes que se está viendo
+let REPS  = [];   // reparaciones del mismo mes, en su propia lista
+
+/* POR QUE devolvio null la ultima llamada: 'red' o 'servidor'. Las dos daban
+   «No hay conexion», y esa mentira costo una tarde (20-ago-2026): las dos
+   funciones estaban marcadas STABLE y PostgREST las corre en transaccion de
+   solo lectura, asi que el sello de `ultimo_acceso` reventaba con 405 — y solo
+   con la clave BUENA, porque una mala se sale antes del UPDATE. El tecnico
+   estuvo buscando senal por el centro comercial con el fallo aqui. */
+let RPC_FALLO = '';
+
+async function rpc(fn, params, ms){
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 12000);
+  RPC_FALLO = '';
+  try{
+    const r = await fetch(SB_URL + '/rest/v1/rpc/' + fn, {
+      method:'POST', signal: ctl.signal,
+      headers:{ apikey:SB_KEY, Authorization:'Bearer '+SB_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify(Object.assign({ p_store: TIENDA, p_clave: CLAVE }, params || {}))
+    });
+    if(!r.ok){
+      RPC_FALLO = 'servidor';
+      // El detalle no se le enseña al tecnico externo, pero queda a mano de
+      // quien abra la consola: sin esto el 405 no dejaba rastro en ningun sitio.
+      console.error('rpc ' + fn + ' → HTTP ' + r.status);
+      return null;
+    }
+    return await r.json();
+  }catch(e){ RPC_FALLO = 'red'; return null; }
+  finally{ clearTimeout(t); }
+}
+
+// Lo que se le dice al tecnico. «Avisa en la tienda» porque un fallo del
+// servidor no lo arregla el reintentando, y reintentar es lo unico que se le
+// ocurre a quien lee «no hay conexion».
+function porQue(fallo){
+  return fallo === 'servidor'
+    ? 'La consulta no está disponible ahora mismo. Avisa en la tienda.'
+    : 'No hay conexión. Inténtalo otra vez en un momento.';
+}
+
+function llenarMeses(){
+  if($('mes').options.length) return;
+  const hoy = new Date();
+  let html = '';
+  for(let i = 0; i < 12; i++){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    html += '<option value="' + d.getFullYear() + '-' + (d.getMonth()+1) + '">'
+          + MESES[d.getMonth()] + ' ' + d.getFullYear() + '</option>';
+  }
+  $('mes').innerHTML = html;
+}
+
+async function entrar(){
+  const c = $('clave').value.trim();
+  if(!c) return;
+  CLAVE = c;
+  $('errClave').style.display = 'none';
+
+  /* Se comprueba pidiendo datos: con clave mala la función devuelve cero filas
+     y no dice por qué. Aquí sí hay que distinguir «clave mala» de «no hay
+     ventas este mes», o quien entre bien un día flojo creería que su clave
+     dejó de servir. Por eso se prueba contra el mes ANTERIOR también. */
+  llenarMeses();
+  const hoy = new Date();
+  const ant = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+
+  /* Y contra las DOS listas, no solo la de accesorios. Un técnico cuyo mes
+     llevara únicamente reparaciones —que para él es un mes normal— leería
+     «esa clave no es válida» y dejaría de intentarlo. */
+  const a = await mesDe(hoy);
+  const falloA = a.fallo;
+  const b = a.hay ? a : await mesDe(ant);
+
+  if(a.roto || (!a.hay && !b.hay)){
+    CLAVE = '';
+    $('errClave').textContent = a.roto
+      ? porQue(falloA)
+      : 'Esa clave no es válida, o no hay nada registrado todavía.';
+    $('errClave').style.display = 'block';
+    return;
+  }
+
+  try{ localStorage.setItem(CKEY, CLAVE); }catch(e){}   // si no se puede guardar, se pedirá otra vez
+  $('cajaClave').style.display = 'none';
+  $('cajaDatos').style.display = 'block';
+  cargar();
+}
+
+function salir(){
+  try{ localStorage.removeItem(CKEY); }catch(e){}   // igual: peor caso, sigue pidiendo la clave
+  CLAVE = ''; FILAS = []; REPS = [];   // las dos: si no, el siguiente que entre vería lo del anterior
+  $('clave').value = '';
+  $('cajaDatos').style.display = 'none';
+  $('cajaClave').style.display = 'block';
+}
+
+/* Las dos listas de un mes, de una vez.
+
+   El fallo que se devuelve es SOLO el de accesorios, a propósito. Esa función
+   existe desde antes que las reparaciones: mientras
+   `reparaciones_tecnico_lista` no esté pegada en el servidor devuelve 404, y
+   tratarlo como avería cerraría la pantalla entera —incluidos los accesorios,
+   que sí contestan— por una función que todavía no existe. Sin reparaciones se
+   ve la mitad; con la pantalla cerrada no se ve nada. */
+async function mesDe(d){
+  const p = { p_anio: d.getFullYear(), p_mes: d.getMonth() + 1 };
+  const acc = await rpc('accesorios_tecnico_lista', p);
+  const fallo = RPC_FALLO;                 // la siguiente llamada lo sobreescribe
+  const rep = await rpc('reparaciones_tecnico_lista', p);
+  return {
+    acc: Array.isArray(acc) ? acc : [],
+    rep: Array.isArray(rep) ? rep : [],
+    roto: acc === null,
+    fallo: fallo,
+    hay: (Array.isArray(acc) && acc.length > 0) || (Array.isArray(rep) && rep.length > 0)
+  };
+}
+
+async function cargar(){
+  const [anio, mes] = ($('mes').value || '').split('-').map(Number);
+  $('lista').innerHTML = '<p class="nota">Consultando…</p>';
+  $('listaRep').innerHTML = '<p class="nota">Consultando…</p>';
+  $('total').style.display = 'none';
+  $('totalRep').style.display = 'none';
+
+  const p = { p_anio: anio, p_mes: mes };
+  const acc = await rpc('accesorios_tecnico_lista', p);
+  const falloAcc = RPC_FALLO;
+  const rep = await rpc('reparaciones_tecnico_lista', p);
+  const falloRep = RPC_FALLO;
+
+  FILAS = Array.isArray(acc) ? acc : [];
+  REPS  = Array.isArray(rep) ? rep : [];
+
+  pintar('lista', 'total', acc, falloAcc, mes, 'acc');
+  pintar('listaRep', 'totalRep', rep, falloRep, mes, 'rep');
+}
+
+/* Una sola función para las dos secciones. Con una copia por lista, el día que
+   se toque el formato del importe o el botón del ticket habría que acordarse de
+   la otra — y la que se quedara atrás no daría error, solo se vería distinta. */
+function pintar(idLista, idTotal, filas, fallo, mes, tipo){
+  const rep = (tipo === 'rep');
+  if(filas === null){
+    $(idLista).innerHTML = '<p class="err">' + esc(porQue(fallo)) + '</p>';
+    return;
+  }
+  if(!filas.length){
+    $(idLista).innerHTML = '<p class="nota">No hay ' +
+      (rep ? 'reparaciones' : 'accesorios') + ' en ' + MESES[mes-1] + '.</p>';
+    return;
+  }
+
+  $(idLista).innerHTML = filas.map((f, i) => `
+    <div class="fila">
+      <span class="d">${String(f.dia).slice(8,10)}</span>
+      <span class="t">${esc(f.ticket)}</span>
+      <span class="p">${rep ? 'Reparación'
+                            : esc(f.producto) + (Number(f.cantidad) > 1 ? ' ×' + f.cantidad : '')}</span>
+      <span class="m">$${Number(f.importe).toLocaleString('es-MX')}</span>
+      ${f.tiene_foto
+        ? `<button class="lupa" onclick="verTicket('${tipo}',${i})">ticket</button>`
+        : '<span style="width:46px"></span>'}
+    </div>`).join('');
+
+  const total = filas.reduce((s, f) => s + Number(f.importe || 0), 0);
+  const que = rep ? (filas.length === 1 ? 'reparación' : 'reparaciones')
+                  : (filas.length === 1 ? 'venta' : 'ventas');
+  $(idTotal).innerHTML = '<span>' + filas.length + ' ' + que +
+    '</span><span>$' + total.toLocaleString('es-MX', {minimumFractionDigits:2}) + '</span>';
+  $(idTotal).style.display = 'flex';
+}
+
+async function verTicket(tipo, i){
+  const f = (tipo === 'rep' ? REPS : FILAS)[i];
+  if(!f) return;
+  const cont = $(tipo === 'rep' ? 'listaRep' : 'lista');
+  const antes = cont.innerHTML;
+  cont.innerHTML = '<p class="nota">Abriendo el ticket ' + esc(f.ticket) + '…</p>';
+  const d = await rpc('accesorios_tecnico_foto', { p_captura_id: f.captura_id }, 20000);
+  if(!d || d.ok !== true){
+    /* La foto dura 31 días —`venta_foto_guardar` limpia las más viejas en cada
+       guardado—: el mes en curso sí, el anterior no. Se dice el plazo, porque
+       «no se pudo abrir» a secas invita a reintentar toda la tarde algo que no
+       va a volver. */
+    cont.innerHTML = '<p class="err">No se pudo abrir ese ticket. Las fotos se ' +
+      'guardan 31 días; si el ticket es de hace más, ya no está.</p>' + antes;
+    return;
+  }
+  cont.innerHTML = '<button class="btn sec" onclick="cargar()">← Volver</button>' +
+    '<img class="tk" src="data:' + (d.mime || 'image/jpeg') + ';base64,' + d.imagen + '">';
+}
+
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// Si ya entró antes, no se le vuelve a pedir la clave.
+(function(){
+  let g = '';
+  try{ g = localStorage.getItem(CKEY) || ''; }catch(e){}   // sin localStorage se pide y ya
+  if(g){ $('clave').value = g; entrar(); }
+})();
+</script>
+</body>
+</html>

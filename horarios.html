@@ -1,0 +1,2067 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planeador de Horarios — Odemás</title>
+<!-- Montserrat sigue viniendo del CDN AQUÍ Y SOLO AQUÍ (8-ago-2026).
+     El resto del tablero la sirve desde ./fuentes/, porque con la señal de la
+     tienda el CDN caído dibuja todo con la letra del sistema. Este archivo no
+     puede: es copia de 02_Equipo/horario_semanal.html, que se publica también
+     en el repo planeador-odemas para las otras tiendas, y allí no existe la
+     carpeta ./fuentes/ — el @font-face fallaría siempre en vez de solo cuando
+     falle la red. Para arreglarlo hay que llevar la fuente a los dos repos. -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --rojo:       #D12026;
+  --naranja:    #F37021;
+  --azul:       #336BB4;
+  --blanco:     #FFFFFF;
+  --gris-txt:   #1a1a1a;
+  --gris-sub:   #777777;
+  --borde:      #E0E0E0;
+  --gris-fondo: #F5F5F5;
+
+  --c-descanso:  #D32F2F;
+  --c-apertura:  #C8E6C9;
+  --c-cierre:    #FFF9C4;
+  --c-doble:     #FFCCBC;
+  --c-comp:      #E3F2FD;
+  --c-comida:    #FCE4EC;
+  --c-ley:       #FFFDE7;
+  --c-vacante:   #616161;
+  --c-ausente:   #E1BEE7;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Montserrat', 'Segoe UI', sans-serif;
+  background: #FFF;
+  color: var(--gris-txt);
+  padding: 14px;
+}
+
+header {
+  background: #FFF;
+  border-bottom: 3px solid var(--rojo);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 0;
+}
+.logo-odemas { height: 38px; object-fit: contain; flex-shrink: 0; }
+.logo-bars { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.logo-bars span { display: block; width: 32px; height: 7px; border-radius: 2px; }
+.bar-rojo    { background: var(--rojo); }
+.bar-naranja { background: var(--naranja); }
+.bar-azul    { background: var(--azul); }
+.header-info h1 { font-size: 16px; font-weight: 700; color: var(--gris-txt); line-height: 1.2; }
+.header-info p  { font-size: 11px; color: var(--gris-sub); margin-top: 2px; font-weight: 400; }
+.semana-badge {
+  margin-left: auto;
+  background: var(--gris-fondo);
+  border: 1.5px solid var(--borde);
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: 12px; font-weight: 600;
+  color: var(--gris-txt);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+.wrapper-tabla {
+  overflow-x: auto;
+  border: 1px solid var(--borde);
+  border-radius: 0 0 8px 8px;
+  border-top: none;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+  margin-bottom: 14px;
+}
+table { border-collapse: collapse; width: 100%; min-width: 680px; background: #FFF; }
+th, td { border: 1px solid var(--borde); padding: 5px 6px; text-align: center; vertical-align: middle; font-size: 11px; line-height: 1.35; }
+thead th { background: var(--azul); color: #FFF; font-weight: 700; font-size: 11px; padding: 9px 5px; letter-spacing: 0.2px; }
+thead th.col-nombre { background: var(--rojo); text-align: left; padding-left: 14px; min-width: 155px; font-size: 12px; }
+thead th small { display: block; font-weight: 500; font-size: 10px; opacity: 0.85; margin-top: 1px; }
+
+tr.fila-persona td { background: var(--rojo); color: #FFF; font-weight: 700; font-size: 11px; text-align: left; padding: 7px 14px; border-color: rgba(255,255,255,0.25); letter-spacing: 0.3px; }
+td.lbl { background: var(--gris-fondo); color: var(--gris-sub); font-size: 9px; font-style: italic; text-align: left; padding-left: 18px; border-right: 3px solid var(--rojo); white-space: nowrap; }
+
+tr.sep-rojo    td { background: var(--rojo);    height: 3px; padding: 0; border: none; }
+tr.sep-naranja td { background: var(--naranja); height: 3px; padding: 0; border: none; }
+
+.descanso  { background: var(--c-descanso) !important; color: #FFF !important; font-weight: 700; }
+.apertura  { background: var(--c-apertura); font-weight: 600; color: #1B5E20; }
+.cierre    { background: var(--c-cierre);   font-weight: 600; color: #5D4037; }
+.doble     { background: var(--c-doble);    font-weight: 700; color: #BF360C; }
+.comp         { background: var(--c-comp);     font-weight: 600; color: #0D47A1; }
+.permiso      { background: #E8F5E9; font-weight: 600; color: #1B5E20; }
+.capacitacion { background: #FFF8E1; font-weight: 600; color: #E65100; }
+.comida    { background: var(--c-comida);   color: #880E4F; font-size: 10px; }
+.ley-silla { background: var(--c-ley);      color: #827717; font-size: 9px; }
+.vacante   { background: var(--c-vacante) !important; color: #CCC !important; font-size: 9px; }
+.ausente   { background: var(--c-ausente);  color: #4A148C; font-weight: 600; }
+.vacio     { background: #FAFAFA; color: #DDD; font-size: 9px; }
+
+.leyenda { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: #FFF; border: 1px solid var(--borde); border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.06); margin-bottom: 10px; }
+.ley-item { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; color: var(--gris-txt); }
+.ley-color { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
+
+.nota-pie { font-size: 10px; color: var(--gris-sub); padding: 4px 2px; margin-bottom: 4px; }
+.nota-pie strong { color: var(--rojo); }
+.footer { font-size: 9px; color: #BBB; text-align: right; padding-top: 4px; }
+
+/* ── Vista de celular ──
+   La tabla mide ~1050 px: un celular tiene 400. Antes solo se encogía la letra
+   a 9 px, así que no cabía Y no se leía. En pantalla angosta se cambia por
+   tarjetas: primero TU semana (sabemos quién entró), luego el resto plegado.
+   La tabla sigue ahí para quien la quiera — botón "Ver tabla completa". */
+#vista-movil { display: none; }
+
+@media (max-width: 700px) {
+  body { padding: 8px; }
+  header { flex-wrap: wrap; gap: 10px; }
+  .semana-badge { margin-left: 0; }
+  .logo-odemas { height: 28px; }
+  h1 { font-size: 15px; }
+
+  #vista-movil { display: block; }
+  .wrapper-tabla, .leyenda, .nota-pie { display: none; }
+  /* Con la tabla a la vista se invierte: manda ella y se ocultan las tarjetas. */
+  body.ver-tabla #vista-movil { display: none; }
+  body.ver-tabla .wrapper-tabla,
+  body.ver-tabla .leyenda,
+  body.ver-tabla .nota-pie { display: block; }
+  body.ver-tabla .leyenda { display: flex; }
+  body.ver-tabla .wrapper-tabla { display: block; }
+  body.ver-tabla th, body.ver-tabla td { font-size: 9px; padding: 3px 2px; }
+}
+
+.mv-card {
+  background: #fff; border: 1px solid var(--borde); border-radius: 10px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.06); margin-bottom: 12px; overflow: hidden;
+}
+.mv-yo { border: 2px solid var(--rojo); }
+.mv-head {
+  background: var(--rojo); color: #fff; padding: 9px 12px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+}
+.mv-head small { display: block; font-weight: 500; opacity: 0.9; font-size: 10px; margin-top: 2px; }
+.mv-dia {
+  display: grid; grid-template-columns: 62px 1fr; align-items: center;
+  gap: 8px; padding: 8px 12px; border-top: 1px solid var(--borde);
+}
+.mv-dia:first-of-type { border-top: none; }
+.mv-hoy { background: #FFF9E6; }
+.mv-fecha { font-size: 11px; font-weight: 700; color: var(--gris-sub); line-height: 1.25; }
+.mv-fecha b { display: block; font-size: 13px; color: var(--gris-txt); }
+.mv-turno {
+  border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 700;
+  text-align: center; line-height: 1.3;
+}
+.mv-extra { font-size: 11px; color: var(--gris-sub); margin-top: 4px; text-align: center; }
+.mv-extra span { display: inline-block; margin: 0 5px; }
+
+/* El resto del equipo: plegado, se abre al tocar */
+.mv-sec { font-size: 11px; font-weight: 700; color: var(--gris-sub);
+          text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 2px 8px; }
+.mv-det { background: #fff; border: 1px solid var(--borde); border-radius: 10px;
+          margin-bottom: 8px; overflow: hidden; }
+.mv-det > summary {
+  padding: 11px 12px; font-size: 12px; font-weight: 700; color: var(--gris-txt);
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+}
+.mv-det > summary::-webkit-details-marker { display: none; }
+.mv-det > summary::before { content: '▸'; color: var(--rojo); font-size: 13px; }
+.mv-det[open] > summary::before { content: '▾'; }
+.mv-det > summary small { font-weight: 500; color: var(--gris-sub); }
+
+.mv-btn-tabla {
+  width: 100%; padding: 12px; margin-top: 6px;
+  background: #fff; color: var(--gris-txt);
+  border: 1.5px solid var(--borde); border-radius: 8px;
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.mv-btn-tabla:hover { background: var(--gris-fondo); }
+
+/* El "volver" se inyecta fuera de #vista-movil (va encima de la tabla), así que
+   se oculta a mano: en escritorio la tabla manda y no hay a dónde volver. */
+#mv-volver { display: none; }
+@media (max-width: 700px) { body.ver-tabla #mv-volver { display: block; } }
+
+/* ── Auth overlay ── */
+#overlay-login {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 999;
+  align-items: center; justify-content: center;
+}
+#overlay-login.activo { display: flex; }
+.login-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 36px 32px;
+  width: 340px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+  text-align: center;
+}
+.login-box img { height: 44px; margin-bottom: 20px; }
+.login-box h2 { font-size: 16px; font-weight: 700; color: var(--gris-txt); margin-bottom: 6px; }
+.login-box p  { font-size: 11px; color: var(--gris-sub); margin-bottom: 20px; }
+.login-box input {
+  width: 100%; padding: 10px 12px; margin-bottom: 12px;
+  border: 1.5px solid var(--borde); border-radius: 6px;
+  font-family: inherit; font-size: 13px; outline: none;
+  box-sizing: border-box;
+}
+.login-box input:focus { border-color: var(--azul); }
+.btn-login {
+  width: 100%; padding: 11px;
+  background: var(--rojo); color: #fff;
+  border: none; border-radius: 6px;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
+}
+.btn-login:hover { opacity: .88; }
+.login-error { font-size: 11px; color: var(--rojo); margin-top: 10px; min-height: 16px; }
+.vac-dias-grid { display:flex; gap:3px; justify-content:center; flex-wrap:nowrap; margin-top:5px; }
+.vac-dia-pill { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:4px; font-size:10px; font-weight:700; cursor:pointer; background:#f0f0f0; color:#aaa; border:1.5px solid #ddd; transition:.12s; user-select:none; }
+.vac-dia-pill input { display:none; }
+.vac-dia-pill.activo { background:var(--rojo); color:#fff; border-color:var(--rojo); }
+.login-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.ltab { flex: 1; padding: 8px; border: 1.5px solid var(--borde); border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #fff; color: var(--gris-sub); transition: all .15s; }
+.ltab.activo { background: var(--rojo); color: #fff; border-color: var(--rojo); }
+
+/* ── Barra de usuario ── */
+#barra-usuario {
+  display: none;
+  background: var(--gris-fondo);
+  border-bottom: 1px solid var(--borde);
+  padding: 6px 20px;
+  font-size: 11px; color: var(--gris-sub);
+  justify-content: flex-end; align-items: center; gap: 14px;
+}
+#barra-usuario.activo { display: flex; }
+#barra-usuario span { font-weight: 600; color: var(--gris-txt); }
+.btn-sm {
+  padding: 4px 12px; border-radius: 4px; font-family: inherit;
+  font-size: 11px; font-weight: 600; cursor: pointer; border: 1.5px solid;
+}
+.btn-admin { border-color: var(--azul); color: var(--azul); background: #fff; }
+.btn-admin:hover { background: var(--azul); color: #fff; }
+.btn-logout { border-color: var(--rojo); color: var(--rojo); background: #fff; }
+.btn-logout:hover { background: var(--rojo); color: #fff; }
+
+/* ── Panel Admin (modal) ── */
+#modal-admin {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 888;
+  align-items: flex-start; justify-content: center;
+  padding: 30px 16px;
+  overflow-y: auto;
+}
+#modal-admin.activo { display: flex; }
+.admin-box {
+  background: #fff; border-radius: 10px;
+  padding: 28px 28px; width: 100%; max-width: 1100px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+}
+.admin-box h3 { font-size: 14px; font-weight: 700; color: var(--gris-txt); margin-bottom: 16px; }
+.admin-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.tab-btn { padding: 6px 16px; border-radius: 4px; border: 1.5px solid var(--borde); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #fff; color: var(--gris-sub); }
+.tab-btn.activo { background: var(--azul); color: #fff; border-color: var(--azul); }
+.admin-box textarea {
+  width: 100%; height: 300px; font-family: monospace; font-size: 11px;
+  border: 1.5px solid var(--borde); border-radius: 6px; padding: 10px;
+  resize: vertical; outline: none; box-sizing: border-box;
+}
+.admin-box textarea:focus { border-color: var(--azul); }
+.admin-actions { display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end; }
+.btn-guardar { background: var(--rojo); color: #fff; padding: 8px 20px; border: none; border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.btn-guardar:hover { opacity: .88; }
+.btn-cerrar-admin { background: #fff; color: var(--gris-sub); padding: 8px 16px; border: 1.5px solid var(--borde); border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; }
+.admin-msg { font-size: 11px; color: #2e7d32; margin-top: 8px; min-height: 16px; }
+
+/* ── Formulario Equipo ── */
+.eq-section { margin-bottom: 16px; }
+.eq-section h4 { font-size: 12px; font-weight: 700; color: var(--gris-txt); margin-bottom: 8px; }
+.eq-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.eq-table th { background: var(--gris-fondo); padding: 5px 6px; text-align: left; border-bottom: 2px solid var(--borde); font-size: 10px; color: var(--gris-sub); font-weight: 600; }
+.eq-table td { padding: 4px 4px; border-bottom: 1px solid var(--borde); }
+.eq-input { width: 100%; padding: 5px 7px; border: 1.5px solid var(--borde); border-radius: 4px; font-family: inherit; font-size: 11px; box-sizing: border-box; }
+.eq-input:focus { border-color: var(--azul); outline: none; }
+.eq-short { width: 90px; }
+.eq-cargo { width: 110px; }
+.btn-quitar-as { background: none; border: none; color: #c62828; cursor: pointer; font-size: 14px; padding: 2px 6px; }
+.btn-quitar-as:hover { color: var(--rojo); }
+.btn-agregar-as { margin-top: 8px; padding: 6px 14px; background: #fff; border: 1.5px dashed var(--azul); border-radius: 4px; color: var(--azul); font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+.btn-agregar-as:hover { background: #e3f2fd; }
+
+/* ── Formulario Próxima semana ── */
+.prox-header { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--gris-txt); margin-bottom: 12px; }
+.prox-header .btn-sm { padding: 2px 10px; font-size: 12px; border: 1.5px solid var(--borde); background: #fff; border-radius: 4px; cursor: pointer; }
+.prox-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.prox-table th { background: var(--gris-fondo); padding: 6px 8px; text-align: left; border-bottom: 2px solid var(--borde); font-size: 10px; color: var(--gris-sub); font-weight: 600; }
+.prox-table td { padding: 6px 6px; border-bottom: 1px solid var(--borde); vertical-align: middle; }
+.prox-nombre { font-weight: 600; font-size: 11px; min-width: 130px; }
+.prox-esp { min-width: 200px; }
+.dia-check { display: inline-flex; flex-direction: column; align-items: center; margin-right: 4px; font-size: 9px; color: var(--gris-sub); cursor: pointer; gap: 2px; }
+.dia-check input { cursor: pointer; }
+.esp-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; min-width:340px; }
+.esp-day-wrap { display:flex; flex-direction:column; align-items:stretch; font-size:10px; color:var(--gris-sub); gap:2px; }
+.esp-day-wrap .esp-lbl { text-align:center; font-size:9px; font-weight:600; }
+.esp-day-wrap select { font-size:10px; padding:3px 4px; border:1px solid var(--borde); border-radius:4px; background:#fff; cursor:pointer; width:100%; }
+.esp-day-wrap select.sel-ap { background:#E8F5E9; }
+.esp-day-wrap select.sel-ci { background:#FBE9E7; }
+.esp-day-wrap select.sel-pm { background:#EDE7F6; color:#4A148C; }
+.esp-day-wrap select.sel-cap { background:#FFF8E1; }
+.cap-times { display:flex; flex-direction:column; gap:2px; margin-top:2px; }
+.cap-times input[type=time] { font-size:9px; width:100%; border:1px solid var(--borde); border-radius:3px; padding:2px 4px; }
+
+/* ── Volver al menú (solo dentro del tablero) ──
+   Este mismo archivo se publica en dos lados: como planeador suelto en
+   planeador-odemas (multi-tienda) y como horarios.html dentro del tablero de la
+   tienda. El botón se pinta solo en el segundo caso — ver mostrarVolverAlMenu().
+   Va por encima del overlay de login (z-index 999) para que el asesor que entró
+   por equivocación pueda regresar sin cerrar la app. */
+#volver-menu {
+  display: none;
+  position: fixed; top: 10px; left: 10px; z-index: 1000;
+  background: #fff; color: var(--gris-txt);
+  border: 1.5px solid var(--borde); border-radius: 999px;
+  padding: 7px 15px; font-family: inherit; font-size: 12px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+#volver-menu:hover { background: var(--rojo); color: #fff; border-color: var(--rojo); }
+
+/* En el celular, flotando se encimaba con el logo. Va en su propia línea, antes
+   del encabezado. Esta regla tiene que ir DESPUÉS del position:fixed de arriba:
+   misma especificidad, gana la última. */
+@media (max-width: 700px) {
+  #volver-menu { position: static; margin: 0 0 10px; }
+}
+
+/* ── Pantalla de carga ──
+   El overlay de login venía marcado como activo desde el HTML, así que se veía
+   el formulario un instante antes de que arrancar() resolviera la sesión — un
+   flashazo de "pon tu usuario" a quien no tiene que poner nada. Ahora lo que se
+   ve mientras tanto es esto, y el login solo aparece si de verdad hace falta. */
+#cargando {
+  display: none;
+  position: fixed; inset: 0; z-index: 1001;
+  background: #fff;
+  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+}
+#cargando.activo { display: flex; }
+#cargando p { font-size: 12px; color: var(--gris-sub); font-weight: 600; }
+.spinner {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid var(--gris-fondo); border-top-color: var(--rojo);
+  animation: girar 0.8s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* ── Acciones del gerente ──
+   En escritorio, `contents` deja que los botones sigan siendo hijos directos de
+   la barra: el diseño de siempre, sin tocar nada. El botón "⚙ Acciones" sobra
+   ahí, así que se esconde. */
+#acciones-ger { display: contents; }
+#btn-acciones { display: none; }
+
+@media (max-width: 700px) {
+  #barra-usuario.activo { flex-direction: column; align-items: stretch; gap: 8px; }
+  #sesion-txt {
+    font-size: 10px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #btn-acciones { display: block; width: 100%; padding: 9px; font-size: 12px; }
+  #acciones-ger { display: none; }
+  #acciones-ger.abierto { display: flex; flex-direction: column; gap: 6px; }
+  /* Botones a lo ancho: en un teléfono se tocan con el pulgar, no con puntería */
+  #acciones-ger .btn-sm { width: 100%; padding: 11px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<!-- continuidad.js NO va aquí a proposito (8-ago-2026). Este archivo es una
+     COPIA que tambien vive en el repo planeador-odemas, donde ese archivo no
+     existe: la etiqueta daria 404 en cada carga. Es el mismo motivo por el que
+     la fuente sigue viniendo del CDN aqui y no de ./fuentes/.
+     Se pierde volver-donde-estabas en el horario, que es pantalla de consulta:
+     al regresar se ve el horario otra vez y no hay trabajo a medias. -->
+
+
+<!-- Volver al menú del tablero (se muestra solo si se abrió desde ahí) -->
+<button id="volver-menu" onclick="location.href='index.html'">← Menú</button>
+
+<!-- Lo primero que se ve, hasta que arrancar() sabe quién entró -->
+<div id="cargando" class="activo">
+  <div class="spinner"></div>
+  <p>Cargando tu horario…</p>
+</div>
+
+<!-- Login Overlay: sin "activo". Lo enciende arrancar() solo si hace falta -->
+<div id="overlay-login">
+  <div class="login-box">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAk8AAAFiCAYAAADvHTwbAAAACXBIWXMAAC4jAAAuIwF4pT92" alt="Odemás" onerror="this.style.display='none'" style="height:44px;margin-bottom:16px;">
+    <h2>Planeador de Horarios</h2>
+    <div class="login-tabs">
+      <button class="ltab activo" data-tab="ger" onclick="switchLoginTab('ger')">Soy gerente</button>
+      <button class="ltab" data-tab="eq" onclick="switchLoginTab('eq')">Ver mi horario</button>
+    </div>
+    <div id="login-ger">
+      <div id="login-ger-form">
+        <p style="font-size:11px;color:#888;margin-bottom:12px">Ingresa con tu correo y contraseña</p>
+        <input type="email" id="inp-email" placeholder="usuario@odemas.com.mx" autocomplete="username">
+        <input type="password" id="inp-pass" placeholder="Contraseña" autocomplete="current-password">
+        <button class="btn-login" onclick="doLogin()">Entrar</button>
+        <p style="font-size:11px;color:#888;margin-top:12px;text-align:center">¿Primera vez? <a href="#" onclick="mostrarRegistro();return false;" style="color:var(--rojo);font-weight:600;">Crear cuenta</a></p>
+      </div>
+      <div id="login-reg-form" style="display:none">
+        <p style="font-size:11px;color:#888;margin-bottom:12px">Solo correos <strong>@odemas.com.mx</strong></p>
+        <input type="email" id="inp-reg-email" placeholder="usuario@odemas.com.mx" autocomplete="username">
+        <input type="password" id="inp-reg-pass" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="new-password">
+        <input type="password" id="inp-reg-pass2" placeholder="Confirmar contraseña" autocomplete="new-password">
+        <button class="btn-login" onclick="doRegistro()">Crear cuenta</button>
+        <p style="font-size:11px;color:#888;margin-top:12px;text-align:center"><a href="#" onclick="ocultarRegistro();return false;" style="color:var(--rojo);font-weight:600;">← Volver</a></p>
+      </div>
+    </div>
+    <div id="login-eq" style="display:none">
+      <p style="font-size:11px;color:#888;margin-bottom:12px">Ingresa tu número de empleado — el mismo del tablero</p>
+      <input type="text" id="inp-empno" inputmode="numeric" placeholder="Número de empleado" maxlength="10" style="text-align:center;font-size:20px;letter-spacing:4px;font-weight:700;">
+      <button class="btn-login" onclick="doLoginEmpleado()">Ver horario</button>
+    </div>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- Barra de usuario (gerente).
+     En el celular no caben siete botones en una línea: con flex-end los de la
+     izquierda —Editar datos y Guardar semana— quedaban cortados FUERA de la
+     pantalla, imposibles de tocar. Ahí se pliegan tras "⚙ Acciones". -->
+<div id="barra-usuario">
+  <span id="sesion-txt">Sesión: <span id="usuario-email"></span></span>
+  <button class="btn-sm" id="btn-acciones" onclick="toggleAcciones()" aria-expanded="false">⚙ Acciones</button>
+  <div id="acciones-ger">
+    <button class="btn-sm btn-admin" onclick="abrirAdmin()">✎ Editar datos</button>
+    <button class="btn-sm" id="btn-guardar-sem" onclick="guardarSemana()" style="background:var(--azul);color:#fff;border:none;display:none;">💾 Guardar semana</button>
+    <button class="btn-sm" id="btn-desbloquear-sem" onclick="desbloquearSemana()" style="background:#888;color:#fff;border:none;display:none;">🔓 Desbloquear</button>
+    <button class="btn-sm" id="btn-exportar" onclick="exportarExcel()" style="background:#1B5E20;color:#fff;border:none;display:none;">⬇ Excel</button>
+    <button class="btn-sm" onclick="respaldoBajar()" title="Descarga equipo, historial, excepciones y semanas guardadas en un archivo">🗄️ Respaldo</button>
+    <button class="btn-sm" onclick="document.getElementById('inp-respaldo').click()" title="Restaura un respaldo descargado antes">↥ Restaurar</button>
+    <input type="file" id="inp-respaldo" accept="application/json,.json" style="display:none" onchange="respaldoSubir(this)">
+    <button class="btn-sm btn-logout" onclick="doLogout()">Cerrar sesión</button>
+  </div>
+</div>
+
+<!-- Modal Admin -->
+<div id="modal-admin">
+  <div class="admin-box">
+    <h3>Editor de datos — HES 1217</h3>
+    <div class="admin-tabs">
+      <button class="tab-btn activo" data-tab="equipo"     onclick="cambiarTab('equipo')">👥 Equipo</button>
+      <button class="tab-btn"        data-tab="proxima"    onclick="cambiarTab('proxima')">📅 Próx. semana</button>
+      <button class="tab-btn"        data-tab="historial"  onclick="cambiarTab('historial')">historial</button>
+      <button class="tab-btn"        data-tab="excepciones" onclick="cambiarTab('excepciones')">excepciones</button>
+    </div>
+    <div id="admin-json-area" style="display:none">
+      <textarea id="admin-textarea" spellcheck="false"></textarea>
+    </div>
+    <div id="admin-equipo-area"></div>
+    <div id="admin-proxima-area" style="display:none"></div>
+    <div class="admin-msg" id="admin-msg"></div>
+    <div class="admin-actions">
+      <button class="btn-cerrar-admin" onclick="vaciarForm()" style="margin-right:auto" title="Borra los campos de la pestaña actual">🧹 Vaciar</button>
+      <button class="btn-cerrar-admin" onclick="cerrarAdmin()">Cancelar</button>
+      <button class="btn-guardar" id="btn-guardar-admin" onclick="guardarAdmin()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <img class="logo-odemas" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAk8AAAFiCAYAAADvHTwbAAAACXBIWXMAAC4jAAAuIwF4pT92AAAGPGlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDMgNzkuOTY5MGE4N2ZjLCAyMDI1LzAzLzA2LTIwOjUwOjE2ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1sbnM6cGhvdG9zaG9wPSJodHRwOi8vbnMuYWRvYmUuY29tL3Bob3Rvc2hvcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjYuMTAgKE1hY2ludG9zaCkiIHhtcDpDcmVhdGVEYXRlPSIyMDI1LTA4LTI3VDE1OjA3OjU2LTA2OjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyNS0wOC0yN1QxNTowODozOS0wNjowMCIgeG1wOk1ldGFkYXRhRGF0ZT0iMjAyNS0wOC0yN1QxNTowODozOS0wNjowMCIgZGM6Zm9ybWF0PSJpbWFnZS9wbmciIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6ZGEwYmRjYWYtNmY3OS00MTVkLWI2OGEtMDMzOGM5M2U4MzM5IiB4bXBNTTpEb2N1bWVudElEPSJhZG9iZTpkb2NpZDpwaG90b3Nob3A6YjAzYzFmNzEtYWYxZi0wNDQ0LWIzMmMtNjgzYmIxMjMzZTYxIiB4bXBNTTpPcmlnaW5hbERvY3VtZW50SUQ9InhtcC5kaWQ6MDQyNzQyYjktYWViMi00Y2QzLTk4Y2QtYWMxMzljYzlhYjdiIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDowNDI3NDJiOS1hZWIyLTRjZDMtOThjZC1hYzEzOWNjOWFiN2IiIHN0RXZ0OndoZW49IjIwMjUtMDgtMjdUMTU6MDc6NTYtMDY6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCAyNi4xMCAoTWFjaW50b3NoKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY29udmVydGVkIiBzdEV2dDpwYXJhbWV0ZXJzPSJmcm9tIGFwcGxpY2F0aW9uL3ZuZC5hZG9iZS5waG90b3Nob3AgdG8gaW1hZ2UvcG5nIi8+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJzYXZlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpkYTBiZGNhZi02Zjc5LTQxNWQtYjY4YS0wMzM4YzkzZTgzMzkiIHN0RXZ0OndoZW49IjIwMjUtMDgtMjdUMTU6MDg6MzktMDY6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCAyNi4xMCAoTWFjaW50b3NoKSIgc3RFdnQ6Y2hhbmdlZD0iLyIvPiA8L3JkZjpTZXE+IDwveG1wTU06SGlzdG9yeT4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz5TM9xKAABSg0lEQVR4nO3dB5hU5fU/8O8sIFXpuICCgmJbUVGxN2KMfY0aE2uMGj2uSkxMlMTE5BdTMPaNIccYe+wVe4s9lrUjFrAClqVI72Xm/5zlXf8rLsvMzn3vfe/M9/M8Iwsud15mZ+49933Pe04ml8uBiIiIiPJTkef3ERERERGDJyIiIqLCMHgi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mxUEcEURh2HgRBQIBk9E6QygFricmv0ztfgc8bsdAbLocf6yvFq13KOqlvMUm0wtFmZqcQaA77Sibx4DJ6KAMHgiSl8A9brbRfevuGabmnFfqEt385bmFTzdgYRkahvKVVjZirvy/CsMnIgCw+CJKF0B1D8A7JypjSR/ptXGjx09J9ilu2VrzHuyZccnkKBMLeZkanE40DAT1VIQysCJKEAMnojSEUDZ7rkfZGpxeqYWSxCGB5DOmafHVNVKOiQuU9uQA7UzgEnN/G8GTkSBYvBEFH4A9SmAnTK1uBNhsWT14CzNVmDJihZPbQ8iIJnahrpZ263SbJiBE1HAGDwRhR1APW0X1kxtLBWrCzJ+7GibLXkfAZq3+qTxXIhBX6a24Wf9XQDKwIkofAyeiMINoLYHsE+mFl8hXA8jQAtXHzy9rqrTEKBMLZZlanEqgM0ZOBGFraCKckQUn0xtw3Jd6Gxm7OcIzMLlbVoab9AytZiQ9BiIqGWceSKiYvwPAVqw+uDpuXhHQkSliMETEbXa+LGjbUkxjpYwBVm8vAK5b1fAsj9h8ERERWPwRETFCi4gyTW/dPeeqs5MZkREVEoYPBFRsV5BgJoJnuqSGQkRlRoGT0RUrDcQoMXfrvUU5DiJKH0YPBFRsd4BEETF7qaaKZRpxSiJiIrG4ImIijJ+7OglISaNrxI8WRrUuORGQ0SlhMETEUVhfODLdpNUdV5yoyGiUsLgiYiiMBFhzzx9mNxIiKjUMHgioigEF5xkcyubBDtB9uAjonRi8EREJTnzZJZnM8EGd0SUXgyeiCgKnyBAyxg8EZEHDJ6IqGjjx46eAWApwg2evkx2JERUShg8EVFUggtQlv//nKcvkh0JEZUSBk9EVLLBk5t5sgKeU5MeCxGVjrZJD4CISsb9a1Vkl3dom90IgcisDOjeUlUrkklERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERlJ5P0AIiIiMqBiHQDsKfHp5ijqk95PD45bRu/ICIiIj9EpDOARwEM9/QU7wE4xNOxaRUMnigWInIvgGoPh75eVY/3cFwiokiIyFoA7vcYONn59ThVnefp+LSKilX/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" alt="Odemás" onerror="this.style.display='none'">
+  <div class="logo-bars">
+    <span class="bar-rojo"></span>
+    <span class="bar-naranja"></span>
+    <span class="bar-azul"></span>
+  </div>
+  <!-- Los rellena fijarSesion() con la tienda de quien entró: este archivo lo
+       usan varias tiendas y antes decía "Angelópolis 1217" para todas. -->
+  <div class="header-info">
+    <h1 id="hdr-tienda">Planeador de Horarios</h1>
+    <p>Odemás · Grupo Gigante</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;">
+    <button onclick="navSemana(-1)" style="border:1.5px solid var(--borde);background:#fff;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;font-weight:700;color:var(--gris-txt);">‹</button>
+    <div class="semana-badge" id="badge-semana">—</div>
+    <button onclick="navSemana(1)"  style="border:1.5px solid var(--borde);background:#fff;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;font-weight:700;color:var(--gris-txt);">›</button>
+  </div>
+</header>
+
+<div id="sin-asignar" style="display:none;text-align:center;padding:60px 20px;color:var(--gris-sub);">
+  <div style="font-size:40px;margin-bottom:12px;">📋</div>
+  <div style="font-size:16px;font-weight:700;color:var(--gris-txt);margin-bottom:8px;">Horario aún sin asignar</div>
+  <div style="font-size:12px;">Configura las excepciones en <strong>📅 Próx. semana</strong> para generar este horario.</div>
+</div>
+
+<!-- Vista de celular: la llena renderMovil() con los MISMOS datos de la tabla -->
+<div id="vista-movil"></div>
+
+<div class="wrapper-tabla" id="wrapper-tabla">
+<table>
+  <thead>
+    <tr>
+      <th class="col-nombre">EMPLEADO / TURNO</th>
+      <th>Dom<br><small id="f0"></small></th>
+      <th>Lun<br><small id="f1"></small></th>
+      <th>Mar<br><small id="f2"></small></th>
+      <th>Mié<br><small id="f3"></small></th>
+      <th>Jue<br><small id="f4"></small></th>
+      <th>Vie<br><small id="f5"></small></th>
+      <th>Sáb<br><small id="f6"></small></th>
+    </tr>
+  </thead>
+  <tbody id="cuerpo"></tbody>
+</table>
+</div>
+
+<div class="nota-pie" id="nota-pie"></div>
+
+<div class="leyenda">
+  <div class="ley-item"><div class="ley-color" style="background:#D32F2F;"></div>Descanso</div>
+  <div class="ley-item"><div class="ley-color" style="background:#C8E6C9;"></div>Apertura</div>
+  <div class="ley-item"><div class="ley-color" style="background:#FFF9C4;"></div>Cierre</div>
+  <div class="ley-item"><div class="ley-color" style="background:#FFCCBC;"></div>Turno Doble</div>
+  <div class="ley-item"><div class="ley-color" style="background:#E3F2FD;"></div>Compensación</div>
+  <div class="ley-item"><div class="ley-color" style="background:#FCE4EC;"></div>Comida</div>
+  <div class="ley-item"><div class="ley-color" style="background:#FFFDE7;"></div>Ley Silla</div>
+  <div class="ley-item"><div class="ley-color" style="background:#E1BEE7;"></div>Vacaciones / Ausente</div>
+</div>
+
+<div class="footer" id="pie"></div>
+
+<script>
+// ============================================================
+//  SUPABASE
+// ============================================================
+/* 4-ago-2026: el planeador vivía en su propio proyecto (lgnyqfstmcqpkbekspte),
+   con su propio padrón de cuentas y su propio PIN. El equipo entraba dos veces:
+   su número en el tablero, y otro PIN aquí. Ahora es el mismo proyecto que el
+   resto de HES Red, así que la sesión del tablero vale también aquí.
+   Ver 09_Tablero/supabase_horarios.sql y MAPA.md (Cadena 7). */
+const SUPABASE_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* Quién está viendo esto y de qué tienda. Se llena de tres formas: heredado del
+   tablero (localStorage), por correo de gerente, o por número de empleado. */
+let _tienda = null;      // { store_id, nombre }
+let _empno  = null;      // número de quien entró, si entró por número
+let _puedeEditar = false;
+
+let _tabAdmin = 'equipo';
+let _semProxOffset = 1;
+let _datosAdmin = { historial: {}, excepciones: {} };
+
+// ============================================================
+//  EQUIPO DINÁMICO
+// ============================================================
+// Plantilla genérica a propósito. El equipo real vive en Supabase, ligado a la
+// cuenta del gerente y protegido por sesión (ver cargarConfig). Esto es solo lo
+// que alcanza a ver alguien SIN sesión — y este archivo es público, así que aquí
+// no van nombres ni números de empleado.
+// Para cargar el equipo real: entrar como gerente y editarlo en Admin → Equipo.
+const EQUIPO_DEFAULT = {
+  gerentes: [
+    { key: 'G1', nombre: 'GERENTE',    cargo: 'Gerente',    emp: '', descFijo: 5 },
+    { key: 'G2', nombre: 'SUBGERENTE', cargo: 'Subgerente', emp: '', descFijo: 4 },
+  ],
+  asesores: [
+    { key: 'A1', nombre: 'ASESOR 1', cargo: 'Asesor', emp: '', descFijo: 3 },
+    { key: 'A2', nombre: 'ASESOR 2', cargo: 'Asesor', emp: '', descFijo: 1 },
+  ]
+};
+
+let _equipoData = null;
+let EQUIPO = {}, PERSONAS = [], GERENTES = [], ASESORES = [];
+const DIAS_NOMBRES = ['Domingo','Lunes','Martes',`Miércoles`,'Jueves','Viernes','Sábado'];
+let _H_OPEN = 10, _H_CLOSE = 21;
+
+function fmtH(h) {
+  const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+}
+
+function buildTurnoInfo(hOpen, hClose) {
+  const gAp = hOpen, gCi = hClose - 8.5, gCo = hClose - 7;
+  const aAp = hOpen + 1, aA10 = hOpen, aCi = hClose - 8.5;
+  TURNO_INFO = {
+    ger: {
+      apertura:      { label: `APERTURA ${fmtH(gAp)}–${fmtH(gAp+9)}`,      cls: 'apertura', entrada: gAp  },
+      cierre:        { label: `CIERRE ${fmtH(gCi)}–${fmtH(hClose)}`,        cls: 'cierre',   entrada: gCi  },
+      doble:         { label: `TURNO DOBLE ${fmtH(hOpen)}–${fmtH(hClose)}`, cls: 'doble',    entrada: hOpen },
+      comp_apertura: { label: `APERTURA ${fmtH(gAp)}–${fmtH(gAp+7)}`,      cls: 'comp',     entrada: gAp  },
+      comp_cierre:   { label: `CIERRE ${fmtH(gCo)}–${fmtH(hClose)}`,       cls: 'comp',     entrada: gCo  },
+    },
+    as: {
+      apertura:    { label: `APERTURA ${fmtH(aAp)}–${fmtH(aAp+9)}`,   cls: 'apertura', entrada: aAp,  ls1: `${fmtH(hOpen+2)} a ${fmtH(hOpen+2+1/6)}`,  ls2: `${fmtH(hOpen+7)} a ${fmtH(hOpen+7+1/6)}`  },
+      apertura_10: { label: `APERTURA ${fmtH(aA10)}–${fmtH(aA10+9)}`, cls: 'apertura', entrada: aA10, ls1: `${fmtH(hOpen+2)} a ${fmtH(hOpen+2+1/6)}`,  ls2: `${fmtH(hOpen+7)} a ${fmtH(hOpen+7+1/6)}`  },
+      cierre:      { label: `CIERRE ${fmtH(aCi)}–${fmtH(hClose)}`,    cls: 'cierre',   entrada: aCi,  ls1: `${fmtH(hOpen+4)} a ${fmtH(hOpen+4+1/6)}`,  ls2: `${fmtH(hOpen+8.5)} a ${fmtH(hOpen+8.5+1/6)}` },
+    }
+  };
+}
+
+let TURNO_INFO = {};
+buildTurnoInfo(_H_OPEN, _H_CLOSE);
+
+function aplicarEquipo(data) {
+  _equipoData = data || EQUIPO_DEFAULT;
+  _H_OPEN  = _equipoData.horaApertura ?? 10;
+  _H_CLOSE = _equipoData.horaCierre   ?? 21;
+  buildTurnoInfo(_H_OPEN, _H_CLOSE);
+  GERENTES = _equipoData.gerentes.map(g => g.key);
+  ASESORES = _equipoData.asesores.map(a => a.key);
+  PERSONAS = [...GERENTES, ...ASESORES];
+  EQUIPO = {};
+  _equipoData.gerentes.forEach(g => { EQUIPO[g.key] = { ...g, tipo: 'ger' }; });
+  _equipoData.asesores.forEach(a => { EQUIPO[a.key] = { ...a, tipo: 'as'  }; });
+}
+
+/* ── Acceso ──
+   Tres puertas, y ninguna pide nada que la persona no tenga ya:
+     1. Heredada del tablero: si entró a HES Red, aquí no se le pregunta nada.
+     2. Correo y contraseña (gerente o subgerente) — para la URL suelta.
+     3. Número de empleado — para el equipo en la URL suelta.
+   La 1 es la que quita el segundo login. Las otras dos existen porque este
+   mismo archivo se publica también para las tiendas que aún no tienen tablero. */
+
+const COLS_TIENDA = 'store_id,nombre';
+
+// Le pega la tienda y el permiso a quien acaba de identificarse.
+function fijarSesion(tienda, opciones) {
+  _tienda = { store_id: tienda.store_id, nombre: tienda.nombre || '' };
+  _empno  = (opciones && opciones.empno) || null;
+  _puedeEditar = !!(opciones && opciones.puedeEditar);
+  const h = document.getElementById('hdr-tienda');
+  if (h) h.textContent = 'HES ' + _tienda.store_id + (_tienda.nombre ? ' · ' + _tienda.nombre : '');
+}
+
+async function doLogin() {
+  const email = document.getElementById('inp-email').value.trim();
+  const pass  = document.getElementById('inp-pass').value;
+  const err   = document.getElementById('login-error');
+  err.textContent = '';
+  const { data, error } = await _sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { err.textContent = 'Correo o contraseña incorrectos.'; return; }
+
+  /* Igual que en el tablero: la cuenta puede ser la dueña de la tienda o la de
+     alguien del equipo con su propio correo (el subgerente), que no aparece en
+     `tiendas` y hay que vincular por su ficha. */
+  let tienda = (await _sb.from('tiendas').select(COLS_TIENDA).eq('user_id', data.user.id).maybeSingle()).data;
+  if (!tienda) {
+    const v = await _sb.rpc('vincular_mi_cuenta');
+    if (v.data && v.data.ok) {
+      tienda = (await _sb.from('tiendas').select(COLS_TIENDA).eq('store_id', v.data.store_id).maybeSingle()).data;
+    }
+  }
+  if (!tienda) {
+    err.textContent = 'Este correo no está dado de alta en ninguna tienda. Pide al gerente que lo registre en Admin → Equipo.';
+    return;
+  }
+  fijarSesion(tienda, { puedeEditar: true });
+  mostrarApp(email);
+}
+
+/* El equipo entra con SU número, el mismo del tablero. Ya no hay un PIN
+   compartido: cuando alguien se va, se le da de baja en Admin → Equipo y deja de
+   ver el horario, sin cambiárselo a todos los demás. */
+async function doLoginEmpleado() {
+  const empno = document.getElementById('inp-empno').value.trim();
+  const err   = document.getElementById('login-error');
+  err.textContent = '';
+  if (!empno) { err.textContent = 'Escribe tu número de empleado.'; return; }
+
+  const quien = (await _sb.rpc('login_empleado', { p_pin: empno })).data;
+  const fila  = Array.isArray(quien) ? quien[0] : quien;
+  if (!fila) { err.textContent = 'No reconozco ese número. ¿Ya te dieron de alta?'; return; }
+
+  fijarSesion({ store_id: fila.store_id, nombre: fila.nombre }, { empno: empno });
+  const datos = (await _sb.rpc('horario_equipo', { p_store_id: fila.store_id, p_empno: empno })).data;
+  if (!datos) { err.textContent = 'Tu tienda todavía no tiene horario publicado.'; return; }
+  mostrarHorarioEquipo(datos);
+}
+
+async function doLogout() {
+  await _sb.auth.signOut();
+  /* Quien llegó desde el tablero comparte sesión con él: cerrarla aquí lo saca
+     de toda la app, que es justo lo que espera al pulsar "Cerrar sesión". */
+  location.href = /\/horarios\.html$/.test(location.pathname) ? 'index.html' : location.pathname;
+}
+
+function mostrarRegistro() {
+  document.getElementById('login-ger-form').style.display = 'none';
+  document.getElementById('login-reg-form').style.display = '';
+  document.getElementById('login-error').textContent = '';
+}
+function ocultarRegistro() {
+  document.getElementById('login-reg-form').style.display = 'none';
+  document.getElementById('login-ger-form').style.display = '';
+  document.getElementById('login-error').textContent = '';
+}
+
+async function doRegistro() {
+  const email = document.getElementById('inp-reg-email').value.trim();
+  const pass  = document.getElementById('inp-reg-pass').value;
+  const pass2 = document.getElementById('inp-reg-pass2').value;
+  const err   = document.getElementById('login-error');
+  err.textContent = '';
+  const dominiosPermitidos = ['@odemas.com.mx', '@radioshack.com.mx'];
+  if (!dominiosPermitidos.some(d => email.toLowerCase().endsWith(d))) {
+    err.textContent = 'Solo se permiten correos @odemas.com.mx o @radioshack.com.mx'; return;
+  }
+  if (pass.length < 6) { err.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
+  if (pass !== pass2)  { err.textContent = 'Las contraseñas no coinciden.'; return; }
+  const { error } = await _sb.auth.signUp({ email, password: pass });
+  if (error) { err.textContent = error.message; return; }
+  err.style.color = '#2e7d32';
+  err.textContent = 'Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.';
+  setTimeout(() => { err.style.color = ''; ocultarRegistro(); }, 4000);
+}
+
+function switchLoginTab(tab) {
+  document.querySelectorAll('.ltab').forEach(b => b.classList.toggle('activo', b.dataset.tab === tab));
+  document.getElementById('login-ger').style.display = tab === 'ger' ? '' : 'none';
+  document.getElementById('login-eq').style.display  = tab === 'eq'  ? '' : 'none';
+  document.getElementById('login-error').textContent = '';
+}
+
+/* Vista del equipo: lo que el gerente guardó, sin poder tocarlo.
+   `horario_equipo` devuelve `semanas_guardadas` directo, así que se acabó el
+   rodeo de publicar una foto dentro de `excepciones.__publicadas` —eso existía
+   solo porque el RPC viejo no la devolvía y no había permiso para cambiarlo.
+   Se sigue leyendo `__publicadas` como respaldo: los respaldos de antes del
+   4-ago-2026 la traen, y sin esto una semana ya publicada se vería regenerada
+   (que es exactamente el desfase gerente/equipo que se arregló en julio). */
+function mostrarHorarioEquipo(data) {
+  document.getElementById('overlay-login').classList.remove('activo');
+  document.getElementById('cargando').classList.remove('activo');
+  aplicarEquipo(data.equipo);
+  _cache.excepciones = data.excepciones;
+  const guardada = data.semanas_guardadas?.[`semana_${_semana}`]
+                ?? data.excepciones?.__publicadas?.[`semana_${_semana}`];
+  const dias = guardada ? guardada.dias : generarSemana(_semana, data.historial, data.excepciones);
+  _espActual = data.excepciones?.[`semana_${_semana}`]?.turno_especial ?? {};
+  const comidas = calcularComidas(dias);
+  renderTabla(_semana, _domingo, dias, comidas);
+}
+
+/* ── Datos Supabase ──
+   Antes esto colgaba de user_id: el horario existía solo para la cuenta que lo
+   había creado, así que el subgerente no veía ni editaba el mismo. Ahora cuelga
+   de store_id y la RLS (`admin_de`) decide quién puede escribir — la misma regla
+   que ya cuida `tiendas` y `empleados`. */
+async function cargarConfig(clave) {
+  if (!_tienda) return null;
+  const { data, error } = await _sb.from('horarios_config')
+    .select('contenido').eq('store_id', _tienda.store_id).eq('clave', clave).maybeSingle();
+  if (error) { console.warn('No se pudo leer ' + clave + ':', error.message); return null; }
+  return data?.contenido ?? null;
+}
+async function guardarConfig(clave, contenido) {
+  if (!_tienda) return;
+  const { error } = await _sb.from('horarios_config').upsert(
+    { store_id: _tienda.store_id, clave, contenido, updated_at: new Date().toISOString() },
+    { onConflict: 'store_id,clave' }
+  );
+  /* Sin esto, quien no tiene permiso guardaba "bien" y al recargar no había
+     nada: la RLS rechaza en silencio y el upsert no lanza excepción. */
+  if (error) {
+    alert('No se pudo guardar (' + clave + '): ' + error.message +
+          '\n\nSi entraste con tu número y no con tu correo, no tienes permiso de editar.');
+    throw error;
+  }
+}
+
+/* ── Respaldo ──
+   El horario del equipo vivía SOLO dentro de Supabase: si la base se perdía o
+   alguien borraba una clave, no había de dónde sacarlo. Esto lo baja a un
+   archivo y lo vuelve a subir. Se usó para mudar el planeador de su proyecto
+   viejo al de HES Red (4-ago-2026), pero sirve como respaldo de siempre. */
+const CLAVES_RESPALDO = ['equipo', 'historial', 'excepciones', 'semanas_guardadas'];
+
+async function respaldoBajar() {
+  try {
+    const datos = {};
+    for (const c of CLAVES_RESPALDO) datos[c] = await cargarConfig(c) ?? null;
+    const vacias = CLAVES_RESPALDO.filter(c => datos[c] === null);
+    if (vacias.length === CLAVES_RESPALDO.length) {
+      alert('No encontré nada que respaldar. ¿Iniciaste sesión como gerente?');
+      return;
+    }
+    const paquete = { version: 1, bajado: new Date().toISOString(), datos };
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(paquete, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'horarios_respaldo_' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    alert('Respaldo descargado' + (vacias.length ? '.\n\nOjo: venían vacías ' + vacias.join(', ') + '.' : '.'));
+  } catch (e) {
+    alert('No se pudo respaldar: ' + e.message);
+  }
+}
+
+async function respaldoSubir(input) {
+  const file = input.files && input.files[0];
+  input.value = '';                       // permite reintentar el mismo archivo
+  if (!file) return;
+  try {
+    const paquete = JSON.parse(await file.text());
+    const datos = paquete && paquete.datos;
+    if (!datos || typeof datos !== 'object') throw new Error('el archivo no trae "datos"');
+    const traeAlgo = CLAVES_RESPALDO.filter(c => datos[c] != null);
+    if (!traeAlgo.length) throw new Error('el archivo no trae ninguna de las cuatro claves');
+    if (!confirm('Vas a sobrescribir ' + traeAlgo.join(', ') + ' con el archivo.\n\n¿Seguro?')) return;
+    for (const c of traeAlgo) {
+      let contenido = datos[c];
+      /* Los respaldos anteriores al 4-ago-2026 traen el PIN del planeador dentro
+         de `equipo`. Ya no se usa —el equipo entra con su número— y no tiene por
+         qué quedarse guardado en la base nueva. */
+      if (c === 'equipo' && contenido && typeof contenido === 'object' && 'pin' in contenido) {
+        contenido = { ...contenido };
+        delete contenido.pin;
+      }
+      await guardarConfig(c, contenido);
+    }
+    alert('Restaurado: ' + traeAlgo.join(', ') + '.\n\nSe recarga la app.');
+    location.reload();
+  } catch (e) {
+    alert('No se pudo restaurar: ' + e.message);
+  }
+}
+
+// ── Panel Admin ───────────────────────────────────────────
+async function abrirAdmin() {
+  _datosAdmin.historial   = await cargarConfig('historial')   ?? {};
+  _datosAdmin.excepciones = await cargarConfig('excepciones') ?? {};
+  _semProxOffset = 1;
+  cambiarTab('equipo');
+  document.getElementById('modal-admin').classList.add('activo');
+}
+function cerrarAdmin() {
+  document.getElementById('modal-admin').classList.remove('activo');
+  document.getElementById('admin-msg').textContent = '';
+}
+function vaciarForm() {
+  const msg = document.getElementById('admin-msg');
+  if (_tabAdmin === 'proxima') {
+    const semTarget = _semana + _semProxOffset;
+    if (!confirm(`¿Vaciar todas las solicitudes, vacaciones y descansos especiales de la Semana ${semTarget}?\n\nNo se guarda hasta que des "Guardar".`)) return;
+    delete _datosAdmin.excepciones[`semana_${semTarget}`];
+    renderFormProxima();
+  } else if (_tabAdmin === 'equipo') {
+    if (!confirm('¿Vaciar nombre, cargo y número de empleado de todas las filas?\n\nNo se guarda hasta que des "Guardar".')) return;
+    document.querySelectorAll('#admin-equipo-area .eq-input').forEach(i => {
+      if (['nombre','cargo','emp'].includes(i.dataset.campo)) i.value = '';
+    });
+  } else {
+    if (!confirm('¿Vaciar el contenido de este editor JSON?\n\nNo se guarda hasta que des "Guardar".')) return;
+    document.getElementById('admin-textarea').value = '{}';
+  }
+  msg.textContent = '🧹 Formulario vaciado. Da "Guardar" para aplicar o "Cancelar" para descartar.';
+  msg.style.color = '#E65100';
+}
+function cambiarTab(tab) {
+  _tabAdmin = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('activo', b.dataset.tab === tab));
+  const esJSON = ['historial','excepciones'].includes(tab);
+  document.getElementById('admin-json-area').style.display   = esJSON          ? '' : 'none';
+  document.getElementById('admin-equipo-area').style.display  = tab==='equipo'  ? '' : 'none';
+  document.getElementById('admin-proxima-area').style.display = tab==='proxima' ? '' : 'none';
+  document.getElementById('admin-msg').textContent = '';
+  if (esJSON)             document.getElementById('admin-textarea').value = JSON.stringify(_datosAdmin[tab], null, 2);
+  else if (tab==='equipo')  renderFormEquipo();
+  else if (tab==='proxima') renderFormProxima();
+  actualizarBotonGuardar();
+}
+
+function actualizarBotonGuardar() {
+  const b = document.getElementById('btn-guardar-admin');
+  if (!b) return;
+  if (_tabAdmin === 'proxima') {
+    const semTarget = _semana + _semProxOffset;
+    const tieneConfig = !!_datosAdmin.excepciones?.[`semana_${semTarget}`] || !!_cache.semanas_guardadas?.[`semana_${semTarget}`];
+    b.textContent = tieneConfig ? '💾 Guardar cambios' : '📅 Generar planeador';
+  } else if (_tabAdmin === 'equipo') {
+    b.textContent = '💾 Guardar cambios';
+  } else {
+    b.textContent = '💾 Guardar';
+  }
+}
+
+// ── Formulario Equipo ─────────────────────────────────────
+function renderFormEquipo() {
+  const eq = _equipoData || EQUIPO_DEFAULT;
+  const dOpts = sel => `<option value="-1"${sel===-1||sel==null?' selected':''}>Sin descanso fijo</option>` +
+    DIAS_NOMBRES.map((n,i)=> i===0||i===6 ? '' : `<option value="${i}"${i==sel?' selected':''}>${n}</option>`).join('');
+  const rowG = (g,idx) => {
+    const esVac = !!g.vacante;
+    const dis   = esVac ? 'disabled style="opacity:.4"' : '';
+    return `<tr data-tipo="ger" data-idx="${idx}">
+    <td><input class="eq-input" data-campo="nombre" value="${esVac?'':g.nombre}" ${dis} placeholder="${esVac?'Puesto vacante':''}"></td>
+    <td><input class="eq-input eq-cargo" data-campo="cargo" value="${esVac?'':g.cargo}" ${dis}></td>
+    <td><input class="eq-input eq-short" data-campo="emp" value="${esVac?'':g.emp}" ${dis}></td>
+    <td><select class="eq-input eq-short" data-campo="descFijo" ${dis}>${dOpts(g.descFijo)}</select></td>
+    <td><input class="eq-input eq-short" data-campo="key" value="${g.key}"></td>
+    <td><label style="font-size:11px;white-space:nowrap;cursor:pointer"><input type="checkbox" data-campo="vacante" ${esVac?'checked':''} onchange="toggleVacanteGer(this)"> Vacante</label></td>
+    </tr>`;
+  };
+  const rowA = (a,idx) => `<tr data-tipo="as" data-idx="${idx}">
+    <td><input class="eq-input" data-campo="nombre" value="${a.nombre}"></td>
+    <td><input class="eq-input eq-cargo" data-campo="cargo" value="${a.cargo||'Asesor'}"></td>
+    <td><input class="eq-input eq-short" data-campo="emp" value="${a.emp}"></td>
+    <td><select class="eq-input eq-short" data-campo="descFijo">${dOpts(a.descFijo)}</select></td>
+    <td><input class="eq-input eq-short" data-campo="key" value="${a.key}"></td>
+    <td><button class="btn-quitar-as" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+  const hAp = eq.horaApertura ?? 10;
+  const hCi = eq.horaCierre   ?? 21;
+  const hOpts = (sel, min, max) => Array.from({length: max-min+1}, (_,i) => i+min)
+    .map(h => `<option value="${h}"${h===sel?' selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('');
+  document.getElementById('admin-equipo-area').innerHTML = `
+    <div class="eq-section">
+      <h4>Horario de la tienda</h4>
+      <p style="font-size:11px;color:#888;margin-bottom:8px">Los turnos de apertura y cierre se calculan automáticamente</p>
+      <div style="display:flex;gap:16px;align-items:center;">
+        <label style="font-size:12px;font-weight:600;">Apertura
+          <select class="eq-input eq-short" id="inp-hora-apertura" style="margin-left:6px;" onchange="actualizarPreviewTurnos()">${hOpts(hAp,6,14)}</select>
+        </label>
+        <label style="font-size:12px;font-weight:600;">Cierre
+          <select class="eq-input eq-short" id="inp-hora-cierre" style="margin-left:6px;" onchange="actualizarPreviewTurnos()">${hOpts(hCi,18,24)}</select>
+        </label>
+        <span id="preview-turnos" style="font-size:11px;color:#555;"></span>
+      </div>
+      <div style="margin-top:10px;">
+        <label style="font-size:12px;font-weight:600;">Rotación de turnos&nbsp;
+          <select class="eq-input eq-short" id="inp-rotacion" style="margin-left:6px;">
+            <option value="diaria"${(eq.rotacion??'diaria')==='diaria'?' selected':''}>Diaria (alterna cada día)</option>
+            <option value="semanal"${eq.rotacion==='semanal'?' selected':''}>Semanal (bloque toda la semana)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="eq-section">
+      <h4>¿Cómo entra tu equipo?</h4>
+      <p style="font-size:11px;color:#888;margin-bottom:8px">
+        Con <strong>su número de empleado</strong>, el mismo del tablero. Ya no hay
+        un PIN compartido: para quitarle el acceso a alguien, dale de baja en
+        <strong>Admin → Equipo</strong> y deja de ver el horario, sin cambiárselo
+        a los demás.
+      </p>
+    </div>
+    <div class="eq-section"><h4>Gerentes <span style="font-weight:400;color:#888">(siempre 2)</span></h4>
+      <table class="eq-table"><thead><tr><th>Nombre completo</th><th>Cargo</th><th>#Emp</th><th>Descanso fijo</th><th>ID</th></tr></thead>
+      <tbody id="tbody-ger">${eq.gerentes.map(rowG).join('')}</tbody></table></div>
+    <div class="eq-section"><h4>Asesores</h4>
+      <table class="eq-table"><thead><tr><th>Nombre completo</th><th>Cargo</th><th>#Emp</th><th>Descanso fijo</th><th>ID</th><th></th></tr></thead>
+      <tbody id="tbody-as">${eq.asesores.map(rowA).join('')}</tbody></table>
+      <button class="btn-agregar-as" onclick="agregarAsesor()">+ Agregar asesor</button></div>`;
+  actualizarPreviewTurnos();
+}
+function agregarAsesor() {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input class="eq-input" data-campo="nombre" placeholder="Nombre completo"></td>
+    <td><input class="eq-input eq-cargo" data-campo="cargo" value="Asesor"></td>
+    <td><input class="eq-input eq-short" data-campo="emp" placeholder="#Emp"></td>
+    <td><select class="eq-input eq-short" data-campo="descFijo"><option value="-1">Sin descanso fijo</option>${DIAS_NOMBRES.map((n,i)=>i===0||i===6?'':`<option value="${i}">${n}</option>`).join('')}</select></td>
+    <td><input class="eq-input eq-short" data-campo="key" placeholder="ID (ej: Carlos)"></td>
+    <td><button class="btn-quitar-as" onclick="this.closest('tr').remove()">✕</button></td>`;
+  document.getElementById('tbody-as').appendChild(tr);
+}
+function toggleVacanteGer(chk) {
+  const tr = chk.closest('tr');
+  const esVac = chk.checked;
+  tr.querySelectorAll('[data-campo]:not([data-campo="vacante"]):not([data-campo="key"])').forEach(el => {
+    el.disabled = esVac;
+    el.style.opacity = esVac ? '.4' : '';
+    if (esVac && el.dataset.campo === 'nombre') { el.value = ''; el.placeholder = 'Puesto vacante'; }
+  });
+}
+
+function actualizarPreviewTurnos() {
+  const hO = parseInt(document.getElementById('inp-hora-apertura')?.value ?? 10);
+  const hC = parseInt(document.getElementById('inp-hora-cierre')?.value   ?? 21);
+  const el = document.getElementById('preview-turnos');
+  if (!el) return;
+  el.innerHTML = `Apertura ger: <b>${fmtH(hO)}–${fmtH(hO+9)}</b> &nbsp;·&nbsp; Cierre ger: <b>${fmtH(hC-8.5)}–${fmtH(hC)}</b> &nbsp;·&nbsp; Doble: <b>${fmtH(hO)}–${fmtH(hC)}</b>`;
+}
+
+function leerEquipoForm() {
+  const horaApertura = parseInt(document.getElementById('inp-hora-apertura')?.value ?? 10);
+  const horaCierre   = parseInt(document.getElementById('inp-hora-cierre')?.value   ?? 21);
+  const leer = (id, allowVacante) => [...document.querySelectorAll(`#${id} tr`)].map(tr => {
+    const obj = {};
+    tr.querySelectorAll('[data-campo]').forEach(el => {
+      if (el.type === 'checkbox') obj[el.dataset.campo] = el.checked;
+      else obj[el.dataset.campo] = el.tagName==='SELECT' ? parseInt(el.value) : el.value.trim();
+    });
+    if (allowVacante && obj.vacante) { obj.nombre = 'Puesto vacante'; obj.cargo = ''; obj.emp = ''; }
+    return obj;
+  }).filter(o => (o.nombre && o.key) || (allowVacante && o.vacante && o.key));
+  const rotacion = document.getElementById('inp-rotacion')?.value || 'diaria';
+  // Sin `pin`: el equipo entra con su número de empleado (4-ago-2026). Si el
+  // respaldo viejo lo traía, se pierde aquí a propósito.
+  return { horaApertura, horaCierre, rotacion, gerentes: leer('tbody-ger', true), asesores: leer('tbody-as', false) };
+}
+
+// ── Formulario Próxima semana ─────────────────────────────────
+function renderFormProxima() {
+  const eq = _equipoData || EQUIPO_DEFAULT;
+  const personas = [...eq.gerentes, ...eq.asesores];
+  const semTarget = _semana + _semProxOffset;
+  const excSem = _datosAdmin.excepciones[`semana_${semTarget}`] || {};
+  const dOpts = sel => DIAS_NOMBRES.map((n,i)=>`<option value="${i}"${i==sel?' selected':''}>${n}</option>`).join('');
+  const getEspVal = (pk, d) => {
+    const e = excSem.turno_especial?.[pk];
+    if (!e) return '';
+    if (Array.isArray(e)) return e.includes(d) ? 'apertura' : '';
+    const v = e[String(d)] ?? e[d];
+    if (!v) return '';
+    return typeof v === 'string' ? v : (v.tipo || '');
+  };
+  const getCapTimes = (pk, d) => {
+    const e = excSem.turno_especial?.[pk];
+    if (!e || Array.isArray(e)) return { entrada: '09:00', salida: '14:00' };
+    const v = e[String(d)] ?? e[d];
+    return { entrada: v?.entrada || '09:00', salida: v?.salida || '14:00' };
+  };
+  const getVacDias = pk => {
+    const v = excSem.vacaciones;
+    if (!v) return [];
+    if (Array.isArray(v)) return v.includes(pk) ? [0,1,2,3,4,5,6] : [];
+    return Array.isArray(v[pk]) ? v[pk] : [];
+  };
+  const rows = personas.map(p => {
+    const esAs   = eq.asesores.some(a => a.key === p.key);
+    const vacDias = getVacDias(p.key);
+    const enVac  = vacDias.length > 0;
+    const descV  = excSem.descanso_override?.[p.key] ?? p.descFijo;
+    const espCell = `<td class="prox-esp"><div class="esp-grid">${[0,1,2,3,4,5,6].map(d => {
+      const val = getEspVal(p.key, d);
+      const cap = val === 'capacitacion' ? getCapTimes(p.key, d) : null;
+      const cls = val==='apertura'?'sel-ap':val==='cierre'?'sel-ci':val==='permiso'?'sel-pm':val==='capacitacion'?'sel-cap':'';
+      return `<div class="esp-day-wrap">
+        <span class="esp-lbl">${DIAS_NOMBRES[d].slice(0,3)}</span>
+        <select class="esp-sel ${cls}" data-persona="${p.key}" data-dia="${d}" onchange="onEspChange(this)" title="${val?({'apertura':'Forzar apertura','cierre':'Forzar cierre','permiso':'Permiso','capacitacion':'Capacitación'}[val]||''):'Sin solicitud'}">
+          <option value="">Normal</option>
+          <option value="apertura"${val==='apertura'?' selected':''}>Apertura</option>
+          <option value="cierre"${val==='cierre'?' selected':''}>Cierre</option>
+          <option value="permiso"${val==='permiso'?' selected':''}>Permiso</option>
+          <option value="capacitacion"${val==='capacitacion'?' selected':''}>Capacit.</option>
+        </select>
+        <div class="cap-times" style="${val==='capacitacion'?'':'display:none'}">
+          <input type="time" class="cap-e" data-persona="${p.key}" data-dia="${d}" value="${cap?.entrada||'09:00'}">
+          <input type="time" class="cap-s" data-persona="${p.key}" data-dia="${d}" value="${cap?.salida||'14:00'}">
+        </div>
+      </div>`;
+    }).join('')}</div></td>`;
+    return `<tr>
+      <td class="prox-nombre">${p.nombre.split(' ').slice(0,2).join(' ')}</td>
+      <td style="text-align:center">
+        <input type="checkbox" class="chk-vac" data-persona="${p.key}" ${enVac?'checked':''} onchange="toggleVacDias('${p.key}')">
+        <div id="vac-dias-${p.key}" class="vac-dias-grid" style="${enVac?'':'display:none'}">
+          <div style="font-size:9px;color:var(--gris-sub);width:100%;margin-bottom:2px">Marca los días fuera:</div>
+          ${[0,1,2,3,4,5,6].map(i=>`<label class="vac-dia-pill${vacDias.includes(i)?' activo':''}"><input type="checkbox" class="chk-vac-dia" data-persona="${p.key}" data-dia="${i}" ${vacDias.includes(i)?'checked':''} onchange="this.closest('label').classList.toggle('activo',this.checked)">${DIAS_NOMBRES[i].charAt(0)}</label>`).join('')}
+        </div>
+      </td>
+      <td><select class="eq-input eq-short chk-desc" data-persona="${p.key}">${dOpts(descV)}</select></td>
+      ${espCell}</tr>`;
+  }).join('');
+  const esFuturaProx  = semTarget > _base.semana;
+  const tieneConfig   = !!_datosAdmin.excepciones?.[`semana_${semTarget}`] || !!_cache.semanas_guardadas?.[`semana_${semTarget}`];
+  const btnReset = (esFuturaProx && tieneConfig)
+    ? `<button class="btn-sm" onclick="quitarSemanaProx()" style="background:#fff;color:#c62828;border:1.5px solid #c62828;margin-left:12px;" title="Borra la configuración de esta semana y la deja en 'sin asignar'">↩ Dejar sin asignar</button>`
+    : '';
+  document.getElementById('admin-proxima-area').innerHTML = `
+    <div class="prox-header">Semana
+      <button class="btn-sm" onclick="cambiarSemProx(-1)">◄</button>
+      <strong id="num-sem-prox">${semTarget}</strong>
+      <button class="btn-sm" onclick="cambiarSemProx(1)">►</button>
+      ${btnReset}
+    </div>
+    <table class="prox-table"><thead><tr>
+      <th>Integrante</th><th>Vacaciones</th><th>Descanso</th><th>Solicitud especial — por día</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  actualizarBotonGuardar();
+}
+function cambiarSemProx(delta) { _semProxOffset += delta; renderFormProxima(); }
+function onEspChange(sel) {
+  const p = sel.dataset.persona, d = sel.dataset.dia, v = sel.value;
+  sel.className = `esp-sel ${v==='apertura'?'sel-ap':v==='cierre'?'sel-ci':v==='permiso'?'sel-pm':v==='capacitacion'?'sel-cap':''}`;
+  const ct = sel.closest('.esp-day-wrap').querySelector('.cap-times');
+  if (ct) ct.style.display = v === 'capacitacion' ? '' : 'none';
+}
+function toggleVacDias(key) {
+  const chk = document.querySelector(`.chk-vac[data-persona="${key}"]`);
+  const div = document.getElementById(`vac-dias-${key}`);
+  if (div) div.style.display = chk.checked ? '' : 'none';
+  // Al desmarcar Vacaciones, limpiar los días elegidos.
+  // Al marcar NO se preseleccionan días: el usuario elige cuáles estará fuera.
+  if (!chk.checked) {
+    document.querySelectorAll(`.chk-vac-dia[data-persona="${key}"]`).forEach(c => {
+      c.checked = false; c.closest('label').classList.remove('activo');
+    });
+  }
+}
+function leerFormProxima() {
+  const semTarget = _semana + _semProxOffset;
+  const vacaciones = {};
+  document.querySelectorAll('.chk-vac:checked').forEach(c => {
+    const p = c.dataset.persona;
+    const dias = [...document.querySelectorAll(`.chk-vac-dia[data-persona="${p}"]:checked`)].map(d => parseInt(d.dataset.dia));
+    if (dias.length) vacaciones[p] = dias;
+  });
+  const descanso_override = {};
+  document.querySelectorAll('.chk-desc').forEach(sel => {
+    const p = sel.dataset.persona;
+    const persona = [...(_equipoData||EQUIPO_DEFAULT).gerentes,...(_equipoData||EQUIPO_DEFAULT).asesores].find(x=>x.key===p);
+    const val = parseInt(sel.value);
+    if (persona && val !== persona.descFijo) descanso_override[p] = val;
+  });
+  const turno_especial = {};
+  document.querySelectorAll('.esp-sel').forEach(sel => {
+    const p = sel.dataset.persona, d = sel.dataset.dia, v = sel.value;
+    if (!v) return;
+    if (!turno_especial[p]) turno_especial[p] = {};
+    if (v === 'capacitacion') {
+      const entrada = document.querySelector(`.cap-e[data-persona="${p}"][data-dia="${d}"]`)?.value || '09:00';
+      const salida  = document.querySelector(`.cap-s[data-persona="${p}"][data-dia="${d}"]`)?.value || '14:00';
+      turno_especial[p][d] = { tipo: 'capacitacion', entrada, salida };
+    } else {
+      turno_especial[p][d] = v;
+    }
+  });
+  return { semana: semTarget, data: { vacaciones, descanso_override, turno_especial } };
+}
+
+// ── Validar configuración de una semana (simula el motor) ──
+function validarSemana(sem, exc) {
+  const dias = generarSemana(sem, _datosAdmin.historial || _cache.historial, exc);
+  const graves = [], avisos = [];
+  for (let d = 0; d <= 6; d++) {
+    const hayGer = PERSONAS.some(p => EQUIPO[p].tipo === 'ger' &&
+      !['descanso','vacante','ausente'].includes(dias[d][p]));
+    if (!hayGer) graves.push(`🔴 ${DIAS_NOMBRES[d]}: la tienda quedaría SIN ningún gerente y no se puede cubrir (revisa vacaciones/descansos).`);
+  }
+  (dias._descMovidos || []).forEach(m => {
+    const nom = EQUIPO[m.persona].nombre.split(' ')[0];
+    if (m.a === -1) graves.push(`🟠 ${nom}: no se pudo asignar su descanso — trabajaría toda la semana para no dejar la tienda sin gerente.`);
+    else            avisos.push(`🟡 ${nom}: descanso movido de ${DIAS_NOMBRES[m.de]} a ${DIAS_NOMBRES[m.a]} para mantener cobertura.`);
+  });
+  return { graves, avisos };
+}
+
+// ── Guardar admin ─────────────────────────────────────────
+async function guardarAdmin() {
+  const msg = document.getElementById('admin-msg');
+  try {
+    if (_tabAdmin === 'equipo') {
+      const eq = leerEquipoForm();
+      if (eq.gerentes.length !== 2) { msg.textContent='⚠ Se requieren exactamente 2 gerentes.'; msg.style.color='#c62828'; return; }
+      if (eq.asesores.length === 0) { msg.textContent='⚠ Agrega al menos 1 asesor.'; msg.style.color='#c62828'; return; }
+      if (eq.horaCierre <= eq.horaApertura + 8) { msg.textContent='⚠ El cierre debe ser al menos 8 horas después de la apertura.'; msg.style.color='#c62828'; return; }
+      await guardarConfig('equipo', eq); aplicarEquipo(eq);
+      msg.textContent='✓ Equipo guardado.'; msg.style.color='#2e7d32';
+    } else if (_tabAdmin === 'proxima') {
+      // Vacaciones marcadas sin días elegidos → error (evita mandar a alguien toda o ninguna semana por accidente)
+      const vacSinDias = [...document.querySelectorAll('.chk-vac:checked')].filter(c =>
+        document.querySelectorAll(`.chk-vac-dia[data-persona="${c.dataset.persona}"]:checked`).length === 0);
+      if (vacSinDias.length) {
+        msg.textContent = '⚠ Marcaste Vacaciones sin elegir los días. Selecciona los días fuera o desmarca Vacaciones.';
+        msg.style.color = '#c62828'; return;
+      }
+      const { semana: sem, data } = leerFormProxima();
+      const exc = { ..._datosAdmin.excepciones, [`semana_${sem}`]: data };
+      const { graves, avisos } = validarSemana(sem, exc);
+      if (graves.length) {
+        const ok = confirm(`⚠ Atención antes de guardar la Semana ${sem}:\n\n${[...graves, ...avisos].join('\n')}\n\n¿Guardar de todas formas?`);
+        if (!ok) { msg.textContent='Guardado cancelado. Ajusta vacaciones o descansos.'; msg.style.color='#c62828'; return; }
+      }
+      _datosAdmin.excepciones = exc;
+      await guardarConfig('excepciones', exc);
+      msg.innerHTML = `✓ Semana ${sem} guardada.` + (avisos.length ? '<br>' + avisos.join('<br>') : '');
+      msg.style.color = avisos.length ? '#E65100' : '#2e7d32';
+    } else {
+      let parsed;
+      try { parsed = JSON.parse(document.getElementById('admin-textarea').value); }
+      catch { msg.textContent='⚠ JSON inválido.'; msg.style.color='#c62828'; return; }
+      _datosAdmin[_tabAdmin] = parsed;
+      await guardarConfig(_tabAdmin, parsed);
+      msg.textContent='✓ Guardado.'; msg.style.color='#2e7d32';
+    }
+    setTimeout(() => { cerrarAdmin(); init(); }, 1000);
+  } catch(e) { msg.textContent='⚠ Error: '+e.message; msg.style.color='#c62828'; }
+}
+
+// ── Mostrar app (vista del gerente: puede editar) ──────────
+async function mostrarApp(quienDice) {
+  if (!_tienda) return;
+  document.getElementById('overlay-login').classList.remove('activo');
+  document.getElementById('cargando').classList.remove('activo');
+  document.getElementById('barra-usuario').classList.add('activo');
+  document.getElementById('usuario-email').textContent =
+    quienDice || (await _sb.auth.getUser()).data.user?.email || '';
+  await init();
+}
+
+// ============================================================
+//  EQUIPO — inicializado con defaults (se sobreescribe en init)
+// ============================================================
+
+// Calcula las comidas escalonadas según hora de apertura + 3h
+function calcularComidas(dias) {
+  const comidas = new Array(7).fill(null).map(() => ({}));
+  for (let d = 0; d < 7; d++) {
+    const trabajadores = [];
+    PERSONAS.forEach(p => {
+      const turno = dias[d][p];
+      if (!turno || ['descanso','vacante','ausente'].includes(turno)) return;
+      const inf = TURNO_INFO[EQUIPO[p].tipo]?.[turno];
+      if (!inf || inf.entrada === null) return;
+      trabajadores.push({ p, entrada: inf.entrada, tipo: EQUIPO[p].tipo });
+    });
+    trabajadores.sort((a, b) =>
+      a.entrada !== b.entrada ? a.entrada - b.entrada :
+      a.tipo !== b.tipo ? (a.tipo === 'ger' ? -1 : 1) :
+      a.p.localeCompare(b.p)
+    );
+    const base = _H_OPEN + 3;
+    trabajadores.forEach(({ p }, i) => {
+      const h = base + i;
+      comidas[d][p] = `Com. ${fmtH(h)} a ${fmtH(h + 1)}`;
+    });
+  }
+  return comidas;
+}
+const INFO_DESCANSO = { label: 'DESCANSO', cls: 'descanso', comida: '', ls1: '', ls2: '' };
+const INFO_VACANTE  = { label: 'VACACIONES', cls: 'vacante', comida: '', ls1: '', ls2: '' };
+const INFO_AUSENTE  = { label: 'VACACIONES / AUSENTE', cls: 'ausente', comida: '', ls1: '', ls2: '' };
+
+// ============================================================
+//  CÁLCULO DE FECHA / SEMANA
+// ============================================================
+function domingoDeSemanaDe(fecha) {
+  const d = new Date(fecha);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+function semanaISO(fecha) {
+  const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const ini = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - ini) / 86400000) + 1) / 7);
+}
+function semanaDeMostrar() {
+  const hoy   = new Date();
+  const esVis = hoy.getDay() === 6 && hoy.getHours() >= 17;
+  const base  = esVis ? new Date(hoy.getTime() + 7 * 86400000) : hoy;
+  const dom   = domingoDeSemanaDe(base);
+  return { domingo: dom, semana: semanaISO(new Date(dom.getTime() + 86400000)) };
+}
+
+// Override manual (null = automático)
+const SEMANA_OVERRIDE        = null;
+const FECHA_DOMINGO_OVERRIDE = null;
+
+const _base    = semanaDeMostrar();
+let _domingo = FECHA_DOMINGO_OVERRIDE ?? _base.domingo;
+let _semana  = SEMANA_OVERRIDE        ?? _base.semana;
+let _cache        = {};
+let _diasActuales = null;
+let _espActual    = {};
+
+// ============================================================
+//  MOTOR DE ROTACIÓN (N asesores)
+// ============================================================
+function generarSemana(semana, historial, excepciones) {
+  const exc     = excepciones?.[`semana_${semana}`] || {};
+  const vacRaw  = exc.vacaciones        || {};
+  const descOvr = exc.descanso_override || {};
+  const espDia  = exc.turno_especial    || {};
+
+  const descFijo = {};
+  PERSONAS.forEach(p => { descFijo[p] = descOvr[p] ?? EQUIPO[p].descFijo; });
+
+  const enVacDia = (p, d) => {
+    if (Array.isArray(vacRaw)) return vacRaw.includes(p); // backward compat
+    return Array.isArray(vacRaw[p]) ? vacRaw[p].includes(d) : false;
+  };
+  const enVac   = p => Array.isArray(vacRaw) ? vacRaw.includes(p) : (Array.isArray(vacRaw[p]) && vacRaw[p].length > 0);
+  const trabaja = (p, d) => !EQUIPO[p].vacante && !enVacDia(p, d) && descFijo[p] !== d;
+
+  // Si un gerente no trabaja ningún día de la semana, su pareja no descansa
+  GERENTES.forEach(ger => {
+    const partner = GERENTES.find(g => g !== ger);
+    if (!partner) return;
+    const partnerTrabaja = [0,1,2,3,4,5,6].some(d => trabaja(partner, d));
+    if (!partnerTrabaja) descFijo[ger] = -1; // trabaja todos los días
+  });
+
+  // Ningún día puede quedar sin gerente. Si la única ausencia es un descanso
+  // (no vacaciones), se mueve ese descanso a otro día donde sí haya cobertura.
+  const _descMovidos = [];
+  for (let d = 0; d <= 6; d++) {
+    if (GERENTES.some(g => trabaja(g, d))) continue;          // ya hay gerente
+    const movible = GERENTES.find(g =>
+      !EQUIPO[g].vacante && !enVacDia(g, d) && descFijo[g] === d);
+    if (!movible) continue;                                    // todos en vacaciones: no se puede cubrir
+    let nuevoDesc = -1;
+    for (let nd = 0; nd <= 6; nd++) {
+      if (nd === d || enVacDia(movible, nd)) continue;
+      if (GERENTES.some(g => g !== movible && trabaja(g, nd))) { nuevoDesc = nd; break; }
+    }
+    descFijo[movible] = nuevoDesc;
+    _descMovidos.push({ persona: movible, de: d, a: nuevoDesc });
+  }
+  const abre    = t => t === 'apertura' || t === 'apertura_10';
+  const getEsp  = (p, d) => {
+    const e = espDia[p];
+    if (!e) return null;
+    if (Array.isArray(e)) return e.includes(d) ? 'apertura' : null;
+    const v = e[String(d)] ?? e[d];
+    return v ?? null;
+  };
+  const espTipo = (p, d) => { const e = getEsp(p,d); return typeof e==='string' ? e : (e?.tipo||null); };
+  const tieneEsp = (p, d) => espTipo(p,d) === 'apertura';
+
+  const histPrev = historial?.[`semana_${semana - 1}`];
+
+  function invertir(asig, dia) {
+    const todos = PERSONAS.filter(p => trabaja(p, dia));
+    const ap    = (asig?.cierre   || []).filter(p => trabaja(p, dia));
+    const ci    = (asig?.apertura || []).filter(p => trabaja(p, dia));
+    todos.forEach(p => { if (!ap.includes(p) && !ci.includes(p)) ci.push(p); });
+    return { apertura: ap, cierre: ci };
+  }
+
+  function splitDefault(dia, gerAbreIdx) {
+    const avail = PERSONAS.filter(p => trabaja(p, dia));
+    return {
+      apertura: avail.filter((_, i) => i % 2 === gerAbreIdx % 2),
+      cierre:   avail.filter((_, i) => i % 2 !== gerAbreIdx % 2),
+    };
+  }
+
+  const domAsig = histPrev?.domingo ? invertir(histPrev.domingo, 0) : splitDefault(0, 0);
+  const sabAsig = histPrev?.sabado  ? invertir(histPrev.sabado,  6) : splitDefault(6, 1);
+
+  const dias = new Array(7).fill(null).map(() => ({}));
+
+  function aplicarAsig(asig, dia) {
+    const gersDisp  = GERENTES.filter(p => trabaja(p, dia));
+    const asesDisp  = ASESORES.filter(p => trabaja(p, dia));
+
+    // Gerentes con turno forzado por solicitud especial (mantiene 1 abre / 1 cierra)
+    const gerForz = {};
+    if (gersDisp.length >= 2) {
+      const fAp = gersDisp.find(p => espTipo(p,dia) === 'apertura');
+      const fCi = gersDisp.find(p => espTipo(p,dia) === 'cierre');
+      if (fAp)      { gerForz[fAp] = 'apertura'; const o = gersDisp.find(p => p !== fAp); if (o) gerForz[o] = 'cierre'; }
+      else if (fCi) { gerForz[fCi] = 'cierre';   const o = gersDisp.find(p => p !== fCi); if (o) gerForz[o] = 'apertura'; }
+    }
+
+    PERSONAS.forEach(p => {
+      if (!trabaja(p, dia))                                        { dias[dia][p] = enVacDia(p, dia) ? 'vacante' : 'descanso'; }
+      else if (EQUIPO[p].tipo === 'ger' && gersDisp.length === 1) { dias[dia][p] = 'doble'; }
+      else if (gerForz[p])                                         { dias[dia][p] = gerForz[p]; }
+      else if (EQUIPO[p].tipo === 'as'  && espTipo(p,dia) === 'apertura') { dias[dia][p] = 'apertura_10'; }
+      else if (EQUIPO[p].tipo === 'as'  && espTipo(p,dia) === 'cierre')   { dias[dia][p] = 'cierre'; }
+      else if (EQUIPO[p].tipo === 'as'  && asesDisp.length === 1) { dias[dia][p] = 'cierre'; }
+      else if (asig.apertura.includes(p))                         { dias[dia][p] = 'apertura'; }
+      else                                                         { dias[dia][p] = 'cierre'; }
+    });
+  }
+
+  aplicarAsig(domAsig, 0);
+  aplicarAsig(sabAsig, 6);
+
+  // Garantía fin de semana: asesores no repiten turno Sáb↔Dom
+  const asesFDS = ASESORES.filter(p =>
+    !['descanso','vacante'].includes(dias[0][p]) && !['descanso','vacante'].includes(dias[6][p])
+  );
+  for (let i = 0; i < asesFDS.length - 1; i++) {
+    const [a, b] = [asesFDS[i], asesFDS[i+1]];
+    if (abre(dias[0][a]) === abre(dias[6][a])) { [dias[0][a], dias[0][b]] = [dias[0][b], dias[0][a]]; break; }
+  }
+
+  // Balance asesores desde domingo
+  const balAs = {};
+  ASESORES.forEach(p => {
+    balAs[p] = 0;
+    if (!['descanso','vacante'].includes(dias[0][p])) balAs[p] += abre(dias[0][p]) ? 1 : -1;
+  });
+
+  // Balance gerentes: cuenta domingo y sábado (ya fijos por historial) para
+  // compensar de lunes a viernes y que ninguno se quede pegado en apertura.
+  const balGer = {};
+  GERENTES.forEach(p => {
+    balGer[p] = 0;
+    [0, 6].forEach(d => {
+      const t = dias[d][p];
+      if (['descanso','vacante','doble'].includes(t)) return;
+      balGer[p] += abre(t) ? 1 : -1;
+    });
+  });
+
+  // Gerente que cerró el domingo — solo cuenta si trabaja el lunes
+  const _gerCierraDom = domAsig.cierre.find(p => EQUIPO[p]?.tipo==='ger') ?? GERENTES[0];
+  let prevGerCierra = trabaja(_gerCierraDom, 1) ? _gerCierraDom : (GERENTES.find(g => g !== _gerCierraDom && trabaja(g, 1)) ?? GERENTES[0]);
+  let prevAsesCierra = ASESORES.find(p => dias[0][p]==='cierre') ?? ASESORES[0];
+
+  for (let d = 1; d <= 5; d++) {
+    const m    = dias[d];
+    PERSONAS.filter(p => !trabaja(p,d)).forEach(p => { m[p] = enVacDia(p, d) ? 'vacante' : 'descanso'; });
+    const gers = GERENTES.filter(p => trabaja(p,d));
+    const ases = ASESORES.filter(p => trabaja(p,d));
+
+    // Gerentes
+    if (gers.length === 1) {
+      m[gers[0]] = 'doble'; prevGerCierra = gers[0];
+    } else if (gers.length >= 2) {
+      const forcedAp = gers.find(p => espTipo(p,d) === 'apertura');
+      const forcedCi = gers.find(p => espTipo(p,d) === 'cierre');
+      let gA, gC;
+      if (forcedAp)      { gA = forcedAp; gC = gers.find(p => p !== gA) ?? gers[1]; }
+      else if (forcedCi) { gC = forcedCi; gA = gers.find(p => p !== gC) ?? gers[0]; }
+      else {
+        // El que lleva MENOS aperturas abre; desempate: el que cerró ayer abre hoy.
+        const ord = gers.slice().sort((a,b) =>
+          (balGer[a] - balGer[b]) || ((b===prevGerCierra?1:0) - (a===prevGerCierra?1:0)));
+        gA = ord[0]; gC = ord.find(p => p !== gA) ?? gers[1];
+      }
+      m[gA] = 'apertura'; m[gC] = 'cierre'; prevGerCierra = gC;
+      balGer[gA]++; balGer[gC]--;
+    }
+
+    // Asesores (N personas)
+    if (ases.length === 0) continue;
+    if (ases.length === 1) {
+      m[ases[0]] = tieneEsp(ases[0],d) ? 'apertura_10' : 'cierre';
+      balAs[ases[0]] += tieneEsp(ases[0],d) ? 1 : -1;
+      prevAsesCierra = ases[0];
+      continue;
+    }
+    const scored = ases.map(p => ({
+      p, score: (espTipo(p,d)==='apertura'?-100:0) + (espTipo(p,d)==='cierre'?100:0) + (p===prevAsesCierra?-3:0) + balAs[p]
+    })).sort((a,b) => a.score - b.score);
+
+    const nAbre = Math.ceil(ases.length / 2);
+    scored.forEach(({p}, i) => {
+      const et = espTipo(p,d);
+      if      (et === 'apertura') { m[p]='apertura_10'; balAs[p]++; }
+      else if (et === 'cierre')   { m[p]='cierre';      balAs[p]--; }
+      else if (i < nAbre)         { m[p]='apertura';    balAs[p]++; }
+      else                        { m[p]='cierre';       balAs[p]--; }
+    });
+    const cierresF = scored.slice(nAbre).filter(s => !tieneEsp(s.p,d));
+    if (cierresF.length) prevAsesCierra = cierresF[cierresF.length-1].p;
+  }
+
+  // Rotación semanal por bloque
+  if ((_equipoData?.rotacion ?? 'diaria') === 'semanal') {
+    const histPrev = historial?.[`semana_${semana - 1}`];
+    // Determinar grupo de cada persona: quien cerró sab la semana pasada → abre esta semana
+    const grupoSem = p => {
+      if (!histPrev) return ASESORES.indexOf(p) % 2 === 0 ? 'apertura' : 'cierre';
+      return (histPrev.sabado?.cierre || []).includes(p) ? 'apertura' : 'cierre';
+    };
+    const grupoGer = p => {
+      if (!histPrev) return GERENTES.indexOf(p) % 2 === 0 ? 'apertura' : 'cierre';
+      return (histPrev.sabado?.cierre || []).includes(p) ? 'apertura' : 'cierre';
+    };
+    [0,1,2,3,4,5,6].forEach(d => {
+      // Asesores
+      const asesD = ASESORES.filter(p => trabaja(p, d));
+      if (asesD.length >= 2) {
+        asesD.forEach(p => { dias[d][p] = grupoSem(p) === 'apertura' ? 'apertura' : 'cierre'; });
+      }
+      // Gerentes (solo si hay 2 disponibles)
+      const gersD = GERENTES.filter(p => trabaja(p, d));
+      if (gersD.length >= 2) {
+        gersD.forEach(p => { dias[d][p] = grupoGer(p) === 'apertura' ? 'apertura' : 'cierre'; });
+      }
+    });
+  }
+
+  // Solicitudes especiales: permiso y capacitación (no afectan rotación, solo label)
+  PERSONAS.forEach(p => {
+    [0,1,2,3,4,5,6].forEach(d => {
+      if (!trabaja(p, d)) return;
+      const et = espTipo(p, d);
+      if (et === 'permiso')      dias[d][p] = 'permiso';
+      if (et === 'capacitacion') dias[d][p] = 'capacitacion';
+    });
+  });
+
+  // Compensación gerencia (solo si el partner existe y no es vacante)
+  for (const ger of GERENTES) {
+    const partner = GERENTES.find(g => g !== ger);
+    if (!partner || EQUIPO[partner].vacante) continue;
+    for (let d = 0; d <= 5; d++) {
+      if (dias[d][ger]!=='doble' || dias[d][partner]!=='descanso') continue;
+      for (let nd = d+1; nd <= 6; nd++) {
+        if (['descanso','vacante'].includes(dias[nd][ger])) continue;
+        if (dias[nd][ger] === 'doble') continue;
+        dias[nd][ger] = abre(dias[nd][ger]) ? 'comp_apertura' : 'comp_cierre';
+        break;
+      }
+    }
+  }
+
+  if (_descMovidos.length) dias._descMovidos = _descMovidos;
+  return dias;
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function infoTurno(persona, turno, dia) {
+  if (turno === 'descanso') return INFO_DESCANSO;
+  if (turno === 'vacante')  return INFO_VACANTE;
+  if (turno === 'ausente')  return INFO_AUSENTE;
+  if (turno === 'permiso')  return { label: 'PERMISO', cls: 'permiso', ls1: '', ls2: '' };
+  if (turno === 'capacitacion') {
+    const e = _espActual?.[persona];
+    const v = e ? (e[String(dia)] ?? e[dia]) : null;
+    const ent = v?.entrada || '09:00', sal = v?.salida || '14:00';
+    return { label: `CAPACITACIÓN ${ent}–${sal}`, cls: 'capacitacion', ls1: '', ls2: '' };
+  }
+  return TURNO_INFO[EQUIPO[persona].tipo]?.[turno] ?? { label: turno, cls: '', ls1: '', ls2: '' };
+}
+
+function td(v, cls) {
+  return `<td class="${cls || ''}">${v || '—'}</td>`;
+}
+
+/* ── Vista de celular ──
+   Come de los MISMOS `dias` y `comidas` que la tabla, así que no hay una segunda
+   verdad que se pueda desincronizar: si cambia el motor de turnos, cambian las
+   dos. Se dibuja siempre; el CSS decide cuál se ve según el ancho. */
+const DIAS_CORTOS = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+
+function quienSoy() {
+  // El número con el que entró, contra el `emp` de la ficha del planeador.
+  if (!_empno) return null;
+  return PERSONAS.find(p => String(EQUIPO[p].emp || '').trim() === String(_empno).trim()) || null;
+}
+
+function mvDias(persona, dias, comidas, domingo, hoyISO) {
+  let out = '';
+  for (let d = 0; d < 7; d++) {
+    const f = new Date(domingo); f.setDate(f.getDate() + d);
+    const inf = infoTurno(persona, dias[d][persona], d);
+    const com = comidas[d][persona] || '';
+    const esHoy = f.toISOString().slice(0,10) === hoyISO;
+    const extras = [];
+    if (com)     extras.push(`<span>🍽 ${com}</span>`);
+    if (inf.ls1) extras.push(`<span>🪑 ${inf.ls1}</span>`);
+    if (inf.ls2) extras.push(`<span>🪑 ${inf.ls2}</span>`);
+    out += `<div class="mv-dia${esHoy ? ' mv-hoy' : ''}">
+      <div class="mv-fecha">${DIAS_CORTOS[d]}<b>${String(f.getDate()).padStart(2,'0')}</b></div>
+      <div>
+        <div class="mv-turno ${inf.cls || ''}">${inf.label || '—'}</div>
+        ${extras.length ? `<div class="mv-extra">${extras.join('')}</div>` : ''}
+      </div>
+    </div>`;
+  }
+  return out;
+}
+
+function renderMovil(dias, comidas, domingo) {
+  const cont = document.getElementById('vista-movil');
+  if (!cont) return;
+  const hoyISO = new Date().toISOString().slice(0,10);
+  const yo = quienSoy();
+  let html = '';
+
+  if (yo) {
+    const eq = EQUIPO[yo];
+    html += `<div class="mv-card mv-yo">
+      <div class="mv-head">TU SEMANA<small>${eq.nombre} — ${eq.cargo}</small></div>
+      ${mvDias(yo, dias, comidas, domingo, hoyISO)}
+    </div>`;
+  }
+
+  /* Sin `yo` —el gerente que entró por correo— no hay a quién destacar, así que
+     el equipo entero va desplegado en vez de plegado: si no, abriría a una
+     pantalla vacía. */
+  const resto = PERSONAS.filter(p => p !== yo && !EQUIPO[p].vacante);
+  if (resto.length) {
+    html += `<div class="mv-sec">${yo ? 'El equipo' : 'Horario de la semana'}</div>`;
+    resto.forEach(p => {
+      const eq = EQUIPO[p];
+      html += `<details class="mv-det"${yo ? '' : ' open'}>
+        <summary>${eq.nombre} <small>· ${eq.cargo}</small></summary>
+        ${mvDias(p, dias, comidas, domingo, hoyISO)}
+      </details>`;
+    });
+  }
+
+  html += `<button class="mv-btn-tabla" onclick="verTablaCompleta(true)">📊 Ver tabla completa</button>`;
+  cont.innerHTML = html;
+}
+
+function verTablaCompleta(si) {
+  document.body.classList.toggle('ver-tabla', si);
+  if (si) {
+    /* La tabla no cabe en un celular: se avisa que se arrastra, y se deja cómo
+       volver. Sin esto el botón parecía romper la pantalla. */
+    const w = document.getElementById('wrapper-tabla');
+    if (w && !document.getElementById('mv-volver')) {
+      const b = document.createElement('button');
+      b.id = 'mv-volver';
+      b.className = 'mv-btn-tabla';
+      b.textContent = '← Volver a mi horario';
+      b.onclick = () => verTablaCompleta(false);
+      b.style.marginBottom = '10px';
+      w.parentNode.insertBefore(b, w);
+    }
+    const b = document.getElementById('mv-volver');
+    if (b) b.style.display = '';
+    window.scrollTo(0, 0);
+  } else {
+    const b = document.getElementById('mv-volver');
+    if (b) b.style.display = 'none';
+  }
+}
+
+function renderTabla(semana, domingo, dias, comidas) {
+  const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+
+  for (let i = 0; i < 7; i++) {
+    const f = new Date(domingo);
+    f.setDate(f.getDate() + i);
+    document.getElementById(`f${i}`).textContent = fmt(f);
+  }
+
+  let html = '';
+
+  function bloquePersGer(persona) {
+    const eq  = EQUIPO[persona];
+    html += `<tr class="fila-persona"><td colspan="8">▌ ${eq.vacante ? '⚠ PUESTO VACANTE' : `${eq.nombre} — ${eq.cargo} &nbsp;·&nbsp; #${eq.emp}`}</td></tr>`;
+    let rowH = `<tr><td class="lbl">Horario</td>`;
+    let rowC = `<tr><td class="lbl">Comida</td>`;
+    for (let d = 0; d < 7; d++) {
+      const inf = infoTurno(persona, dias[d][persona], d);
+      const com = comidas[d][persona] || '';
+      rowH += td(inf.label, inf.cls);
+      rowC += td(com, com ? 'comida' : 'vacio');
+    }
+    html += rowH + '</tr>';
+    html += rowC + '</tr>';
+  }
+
+  function bloquePersAs(persona) {
+    const eq  = EQUIPO[persona];
+    html += `<tr class="fila-persona"><td colspan="8">▌ ${eq.nombre} — ${eq.cargo} &nbsp;·&nbsp; #${eq.emp}</td></tr>`;
+    let rowH  = `<tr><td class="lbl">Horario</td>`;
+    let rowC  = `<tr><td class="lbl">Comida</td>`;
+    let rowL1 = `<tr><td class="lbl">Ley Silla — Desc.1</td>`;
+    let rowL2 = `<tr><td class="lbl">Ley Silla — Desc.2</td>`;
+    for (let d = 0; d < 7; d++) {
+      const inf = infoTurno(persona, dias[d][persona], d);
+      const com = comidas[d][persona] || '';
+      rowH  += td(inf.label, inf.cls);
+      rowC  += td(com,      com      ? 'comida'    : 'vacio');
+      rowL1 += td(inf.ls1,  inf.ls1  ? 'ley-silla' : 'vacio');
+      rowL2 += td(inf.ls2,  inf.ls2  ? 'ley-silla' : 'vacio');
+    }
+    html += rowH  + '</tr>';
+    html += rowC  + '</tr>';
+    html += rowL1 + '</tr>';
+    html += rowL2 + '</tr>';
+  }
+
+  GERENTES.forEach(bloquePersGer);
+  if (GERENTES.length && ASESORES.length) {
+    html += '<tr class="sep-rojo"><td colspan="8"></td></tr>';
+    html += '<tr class="sep-naranja"><td colspan="8"></td></tr>';
+  }
+  ASESORES.forEach(bloquePersAs);
+
+  document.getElementById('cuerpo').innerHTML = html;
+  renderMovil(dias, comidas, domingo);
+
+  const fi = domingo;
+  const ff = new Date(fi); ff.setDate(ff.getDate() + 6);
+  const esActual  = semana === _base.semana;
+  const esPasada  = semana < _base.semana;
+  const guardada  = _cache.semanas_guardadas?.[`semana_${semana}`];
+  const prefijo   = esActual ? '● Semana actual  · ' : guardada ? '📌 ' : esPasada ? '~ Reconstruida · ' : '';
+  document.getElementById('badge-semana').textContent =
+    `${prefijo}Semana ${semana}  ·  ${fi.getDate()}–${ff.getDate()} ${fi.toLocaleString('es-MX',{month:'short'})} ${fi.getFullYear()}`;
+
+  const notaPie = PERSONAS.filter(p => !EQUIPO[p].vacante).map(p => {
+    const df = EQUIPO[p].descFijo;
+    const dia = (df == null || df === -1) ? 'Variable' : (DIAS_NOMBRES[df] || 'Variable');
+    return `<strong>${EQUIPO[p].nombre.split(' ')[0]}:</strong> ${dia}`;
+  }).join(' &nbsp;·&nbsp; ');
+  let avisoMov = '';
+  if (dias._descMovidos?.length) {
+    avisoMov = '<br>' + dias._descMovidos.map(m => {
+      const nom = EQUIPO[m.persona].nombre.split(' ')[0];
+      const aTxt = m.a === -1 ? 'sin descanso (cubre toda la semana)' : DIAS_NOMBRES[m.a];
+      return `⚠ <strong>${nom}</strong>: descanso movido de ${DIAS_NOMBRES[m.de]} → ${aTxt} para no dejar la tienda sin gerente.`;
+    }).join('<br>');
+  }
+  document.getElementById('nota-pie').innerHTML = `Descansos fijos — ${notaPie}${avisoMov}`;
+  document.getElementById('pie').textContent = 'Generado: ' + new Date().toLocaleString('es-MX');
+}
+
+// ============================================================
+//  INICIALIZACIÓN
+// ============================================================
+async function init() {
+  const [equipoData, historial, excepciones, semanas_guardadas] = await Promise.all([
+    cargarConfig('equipo'),
+    cargarConfig('historial'),
+    cargarConfig('excepciones'),
+    cargarConfig('semanas_guardadas'),
+  ]);
+  aplicarEquipo(equipoData);
+  _cache = { historial, excepciones, semanas_guardadas: semanas_guardadas || {} };
+  renderSemana();
+}
+
+function renderSemana() {
+  const guardada   = _cache.semanas_guardadas?.[`semana_${_semana}`];
+  const esFutura    = _semana > _base.semana;
+  const tieneExcep  = !!_cache.excepciones?.[`semana_${_semana}`];
+  const sinAsignar  = esFutura && !guardada && !tieneExcep;
+
+  document.getElementById('sin-asignar').style.display   = sinAsignar ? '' : 'none';
+  document.getElementById('wrapper-tabla').style.display = sinAsignar ? 'none' : '';
+  document.getElementById('nota-pie').style.display      = sinAsignar ? 'none' : '';
+  document.getElementById('pie').style.display           = sinAsignar ? 'none' : '';
+  const btnG  = document.getElementById('btn-guardar-sem');
+  const btnD  = document.getElementById('btn-desbloquear-sem');
+  if (btnG) btnG.style.display = sinAsignar ? 'none' : '';
+  if (btnD) btnD.style.display = (!sinAsignar && guardada) ? '' : 'none';
+  const btnE = document.getElementById('btn-exportar');
+  if (btnE) btnE.style.display = sinAsignar ? 'none' : '';
+  if (sinAsignar) {
+    _diasActuales = null;
+    const fi = new Date(_domingo); fi.setDate(fi.getDate() + 1);
+    const ff = new Date(_domingo); ff.setDate(ff.getDate() + 6);
+    document.getElementById('badge-semana').textContent =
+      `Semana ${_semana}  ·  ${fi.getDate()}–${ff.getDate()} ${fi.toLocaleString('es-MX',{month:'short'})} ${fi.getFullYear()}`;
+    return;
+  }
+
+  const dias = guardada ? guardada.dias : generarSemana(_semana, _cache.historial, _cache.excepciones);
+  _diasActuales = dias;
+  _espActual = _cache.excepciones?.[`semana_${_semana}`]?.turno_especial ?? {};
+  const comidas = calcularComidas(dias);
+  renderTabla(_semana, _domingo, dias, comidas);
+}
+
+async function guardarSemana() {
+  const yaGuardada = !!_cache.semanas_guardadas?.[`semana_${_semana}`];
+  if (yaGuardada && !confirm(`¿Reemplazar el horario guardado de la Semana ${_semana}?`)) return;
+  // 1. Guardar Sáb/Dom en historial (base para rotación futura)
+  const extract = d => ({
+    apertura: PERSONAS.filter(p => ['apertura','apertura_10','doble','comp_apertura'].includes(_diasActuales[d][p])),
+    cierre:   PERSONAS.filter(p => ['cierre','doble','comp_cierre'].includes(_diasActuales[d][p])),
+  });
+  const historial = { ..._cache.historial, [`semana_${_semana}`]: { sabado: extract(6), domingo: extract(0) } };
+  await guardarConfig('historial', historial);
+  _cache.historial = historial;
+
+  // 2. Guardar horario completo en semanas_guardadas (máx 4 semanas)
+  const sg = { ..._cache.semanas_guardadas, [`semana_${_semana}`]: { dias: _diasActuales } };
+  const claves = Object.keys(sg).map(k => parseInt(k.replace('semana_',''))).sort((a,b) => b-a);
+  claves.slice(4).forEach(k => delete sg[`semana_${k}`]); // borrar más antiguas
+  await guardarConfig('semanas_guardadas', sg);
+  _cache.semanas_guardadas = sg;
+
+  /* Ya no hay paso 3. Hasta el 4-ago-2026 aquí se guardaba una SEGUNDA copia del
+     horario dentro de `excepciones.__publicadas`, porque el RPC que leía el
+     equipo devolvía `excepciones` pero no `semanas_guardadas`, y no había
+     permiso para cambiar ese RPC. Ahora `horario_equipo` devuelve la buena, así
+     que el equipo lee lo mismo que acaba de guardarse arriba. */
+
+  const btn = document.getElementById('btn-guardar-sem');
+  if (btn) { btn.textContent = '✓ Guardada'; setTimeout(() => { btn.textContent = '💾 Guardar semana'; }, 2000); }
+  document.getElementById('btn-desbloquear-sem').style.display = '';
+  document.getElementById('badge-semana').dataset.guardada = '1';
+}
+
+async function desbloquearSemana() {
+  if (!confirm(`¿Desbloquear Semana ${_semana}? El horario se regenerará desde el historial.`)) return;
+  const sg = { ..._cache.semanas_guardadas };
+  delete sg[`semana_${_semana}`];
+  await guardarConfig('semanas_guardadas', sg);
+  _cache.semanas_guardadas = sg;
+  /* Los respaldos de antes del 4-ago-2026 traen la copia vieja dentro de
+     `__publicadas`; si quedara, el equipo seguiría viendo la semana que se acaba
+     de desbloquear. Se limpia cuando existe. */
+  if (_cache.excepciones?.__publicadas?.[`semana_${_semana}`]) {
+    const exc = { ..._cache.excepciones };
+    exc.__publicadas = { ...exc.__publicadas };
+    delete exc.__publicadas[`semana_${_semana}`];
+    await guardarConfig('excepciones', exc);
+    _cache.excepciones = exc;
+  }
+  document.getElementById('btn-desbloquear-sem').style.display = 'none';
+  renderSemana();
+}
+
+async function quitarSemanaProx() {
+  const semTarget = _semana + _semProxOffset;
+  if (semTarget <= _base.semana) { alert('Solo se pueden revertir semanas futuras.'); return; }
+  if (!confirm(`¿Dejar la Semana ${semTarget} como "sin asignar"?\n\nSe borrará su configuración (vacaciones, descansos, solicitudes) y el horario guardado de esa semana. Esta acción no se puede deshacer.`)) return;
+  const exc = { ..._datosAdmin.excepciones };
+  delete exc[`semana_${semTarget}`];
+  if (exc.__publicadas?.[`semana_${semTarget}`]) { exc.__publicadas = { ...exc.__publicadas }; delete exc.__publicadas[`semana_${semTarget}`]; }
+  await guardarConfig('excepciones', exc);
+  _datosAdmin.excepciones = exc;
+  _cache.excepciones = exc;
+  if (_cache.semanas_guardadas?.[`semana_${semTarget}`]) {
+    const sg = { ..._cache.semanas_guardadas };
+    delete sg[`semana_${semTarget}`];
+    await guardarConfig('semanas_guardadas', sg);
+    _cache.semanas_guardadas = sg;
+  }
+  renderFormProxima();
+  const msg = document.getElementById('admin-msg');
+  msg.innerHTML = `↩ La Semana ${semTarget} quedó sin asignar y <strong>ya se guardó automáticamente</strong>.<br>No vuelvas a pulsar "📅 Generar planeador" o la crearías de nuevo. Puedes cerrar con "Cancelar".`;
+  msg.style.color = '#E65100';
+}
+
+async function exportarExcel() {
+  if (!_diasActuales) return;
+  const btn = document.getElementById('btn-exportar');
+  if (btn) { btn.textContent = '⏳ Generando…'; btn.disabled = true; }
+
+  if (!window.ExcelJS) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  // ============ FORMATO RH (idéntico al template Huawei) ============
+  const ARIAL='Arial', ORANGE='FFE46C0A', LIGHT='FFFDEADA', YELLOW='FFFFFF00';
+  const thin={ style:'thin', color:{argb:'FF000000'} };
+  const box={ top:thin,left:thin,bottom:thin,right:thin };
+  const solid=c=>({ type:'pattern', pattern:'solid', fgColor:{argb:c} });
+  const CEN={ horizontal:'center', vertical:'middle', wrapText:true };
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(`HES ${_semana}`, { views:[{ showGridLines:false }] });
+
+  // Anchos: A/B espaciadores, C nombres, D..Q días (2 col c/u), R firma
+  const W={1:2.7,2:4,3:51,18:25.4};
+  ws.columns = Array.from({length:18},(_,i)=>({ width: W[i+1] ?? 9 }));
+  const colL = n => ws.getColumn(n).letter;
+  const dayCols=[[4,5],[6,7],[8,9],[10,11],[12,13],[14,15],[16,17]];
+  const DIAS_UP=['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
+  const comidas = calcularComidas(_diasActuales);
+  const parseR = s => { const m=(s||'').match(/(\d{1,2}:\d{2}).*?(\d{1,2}:\d{2})/); return m?[m[1],m[2]]:null; };
+  const fmtD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
+  const dom = new Date(_domingo);
+  const S=(addr,val)=>{ const c=ws.getCell(addr); if(val!==undefined) c.value=val; return c; };
+
+  // ── Título + rango de fechas + logo ──
+  ws.mergeCells('C1:C5');
+  const tt=S('C1','1217-HUAWEI HES ANGELÓPOLIS'); tt.font={name:ARIAL,size:18,bold:true}; tt.alignment=CEN;
+  ws.getRow(1).height=27.8;
+  ws.mergeCells('H4:J4'); const d1=S('H4',fmtD(dom)); d1.font={name:ARIAL,size:16,bold:true}; d1.alignment=CEN;
+  const al=S('L4','AL'); al.font={name:ARIAL,size:16,bold:true}; al.alignment=CEN;
+  const fin=new Date(dom); fin.setDate(fin.getDate()+6);
+  ws.mergeCells('N4:P4'); const d2=S('N4',fmtD(fin)); d2.font={name:ARIAL,size:16,bold:true}; d2.alignment=CEN;
+  ws.getRow(4).height=20.2;
+  try {
+    const resp=await fetch('logo_huawei.jpg'); const buf=await resp.arrayBuffer();
+    const imgId=wb.addImage({ buffer:buf, extension:'jpeg' });
+    ws.addImage(imgId, { tl:{ col:15.1, row:0.15 }, ext:{ width:150, height:70 } });
+  } catch(e) {
+    // El logo es adorno: si no baja, el Excel se entrega igual y sin logo, que es
+    // mejor que dejar al gerente sin horario que imprimir. Queda en consola por si
+    // alguien nota que el archivo salió pelón.
+    console.warn('El logo Huawei no se pudo incrustar en el Excel:', e);
+  }
+
+  // ── Encabezado NOMBRE / días / FIRMA (filas 6-7) ──
+  ws.mergeCells('C6:C7'); const nH=S('C6','NOMBRE'); nH.font={name:ARIAL,size:16,bold:true}; nH.fill=solid(LIGHT); nH.alignment=CEN;
+  ws.mergeCells('R6:R7'); const fH=S('R6','FIRMA'); fH.font={name:ARIAL,size:12,bold:true}; fH.fill=solid(LIGHT); fH.alignment=CEN;
+  dayCols.forEach(([c1,c2],d)=>{
+    const L1=colL(c1), L2=colL(c2), dd=new Date(dom); dd.setDate(dd.getDate()+d);
+    ws.mergeCells(`${L1}6:${L2}6`); const dc=S(`${L1}6`,fmtD(dd)); dc.font={name:ARIAL,size:12,bold:true}; dc.fill=solid(ORANGE); dc.alignment=CEN;
+    ws.mergeCells(`${L1}7:${L2}7`); const nc=S(`${L1}7`,DIAS_UP[d]); nc.font={name:ARIAL,size:12,bold:true}; nc.fill=solid(LIGHT); nc.alignment=CEN;
+  });
+  ws.getRow(6).height=24.8; ws.getRow(7).height=20.2;
+
+  // Colores de turno (igual que la página) para las celdas de horas
+  const CLS_BG={ apertura:'FFE8D6C0', cierre:'FFFFF9C4', doble:'FFFFCCBC', comp:'FFE3F2FD', permiso:'FFE8F5E9', capacitacion:'FFFFF8E1' };
+  let r=8;
+  const barra=txt=>{ ws.mergeCells(`C${r}:R${r}`); const c=S(`C${r}`,txt); c.font={name:ARIAL,size:12,bold:true}; c.fill=solid(ORANGE); c.alignment=CEN; ws.getRow(r).height=20.2; r++; };
+  const tCell=(addr,v,bg)=>{ const c=S(addr,v); c.font={name:ARIAL,size:10,bold:true}; c.alignment=CEN; if(bg) c.fill=solid(bg); };
+
+  function bloquePersona(persona, esAs){
+    const eq=EQUIPO[persona], rowsN=esAs?4:2, rA=r, rB=r+1, rLast=r+rowsN-1;
+    ws.mergeCells(`C${rA}:C${rB}`); const nm=S(`C${rA}`, eq.vacante?'PUESTO VACANTE':eq.nombre); nm.font={name:ARIAL,size:11,bold:true}; nm.alignment=CEN;
+    ws.mergeCells(`R${rA}:R${rB}`);
+    if(esAs){
+      const l1=S(`C${r+2}`,'LEY SILLA -1er. Periodo de  descanso '); l1.font={name:ARIAL,size:11,bold:true}; l1.alignment=CEN;
+      const l2=S(`C${r+3}`,'LEY SILLA -2do. Periodo de  descanso '); l2.font={name:ARIAL,size:11,bold:true}; l2.alignment=CEN;
+    }
+    dayCols.forEach(([c1,c2],d)=>{
+      const L1=colL(c1), L2=colL(c2), turno=_diasActuales[d][persona], info=infoTurno(persona,turno,d);
+      if(['descanso','vacante','ausente'].includes(turno)){
+        ws.mergeCells(`${L1}${rA}:${L2}${rLast}`);
+        const c=S(`${L1}${rA}`, turno==='descanso'?'DESCANSO':'VACACIONES'); c.fill=solid(YELLOW); c.font={name:ARIAL,size:11,bold:true}; c.alignment=CEN;
+      } else {
+        const sh=parseR(info.label), co=parseR(comidas[d][persona]), bg=CLS_BG[info.cls];
+        if(sh&&co){ tCell(`${L1}${rA}`,sh[0],bg); tCell(`${L2}${rA}`,co[0],bg); tCell(`${L1}${rB}`,co[1],bg); tCell(`${L2}${rB}`,sh[1],bg); }
+        else if(sh){ tCell(`${L1}${rA}`,sh[0],bg); tCell(`${L2}${rB}`,sh[1],bg); }
+        else { ws.mergeCells(`${L1}${rA}:${L2}${rLast}`); const c=S(`${L1}${rA}`,info.label); c.font={name:ARIAL,size:10,bold:true}; c.alignment=CEN; }
+        if(esAs){
+          const l1=parseR(info.ls1), l2=parseR(info.ls2), lg='FFC8E6C9';
+          if(l1){ tCell(`${L1}${r+2}`,l1[0],lg); tCell(`${L2}${r+2}`,l1[1],lg); }
+          if(l2){ tCell(`${L1}${r+3}`,l2[0],lg); tCell(`${L2}${r+3}`,l2[1],lg); }
+        }
+      }
+    });
+    for(let k=0;k<rowsN;k++) ws.getRow(r+k).height=18.8;
+    r+=rowsN;
+  }
+
+  barra('GERENCIA ');
+  GERENTES.forEach(p=>bloquePersona(p,false));
+  barra('ASESORES ');
+  ASESORES.forEach(p=>bloquePersona(p,true));
+
+  // Bordes en toda la rejilla
+  for(let rr=6; rr<r; rr++) for(let cc=3; cc<=18; cc++) ws.getCell(rr,cc).border=box;
+
+  // Descargar
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `HORARIOS 1217 Semana ${_semana}.xlsx`; a.click();
+  URL.revokeObjectURL(url);
+
+  if (btn) { btn.textContent = '⬇ Excel'; btn.disabled = false; }
+}
+
+function navSemana(delta) {
+  _semana  += delta;
+  const d   = new Date(_domingo);
+  d.setDate(d.getDate() + delta * 7);
+  _domingo  = d;
+  renderSemana();
+}
+
+/* El archivo es el mismo en los dos sitios donde se publica; lo que cambia es
+   el nombre con el que se sirve. Como `horarios.html` vive dentro del tablero
+   (junto a su index.html), ahí sí hay menú al cual volver. Como
+   `horario_semanal.html` en planeador-odemas, no lo hay —su index.html es un
+   redirect a este mismo archivo y el botón dejaría al usuario en un círculo. */
+function mostrarVolverAlMenu() {
+  const dentroDelTablero = /\/horarios\.html$/.test(location.pathname);
+  if (dentroDelTablero) document.getElementById('volver-menu').style.display = 'block';
+}
+
+/* ── Arranque ──
+   Lo primero es intentar heredar la sesión del tablero: si la persona ya entró a
+   HES Red, aquí no se le pregunta nada. Solo si no hay nada que heredar se
+   enseña el login, que es el caso de la URL suelta (planeador-odemas).
+
+   El tablero deja tres cosas en localStorage al entrar: `hes_store` (la tienda),
+   `hes_role` y `hes_empleado` (quién es). Comparten origen y proyecto de
+   Supabase, así que la sesión de gerente vale tal cual. */
+function sesionDelTablero() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('hes_store') || 'null');
+    if (!cfg || !cfg.store_id) return null;
+    const emp = JSON.parse(localStorage.getItem('hes_empleado') || 'null');
+    return { cfg, emp, rol: localStorage.getItem('hes_role') };
+  } catch (e) { return null; }
+}
+
+/* El menú de acciones solo existe en el celular; en escritorio los botones
+   están siempre a la vista y este botón ni se pinta. */
+function toggleAcciones() {
+  const caja = document.getElementById('acciones-ger');
+  const btn  = document.getElementById('btn-acciones');
+  const abierto = caja.classList.toggle('abierto');
+  btn.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+  btn.textContent = abierto ? '✕ Cerrar acciones' : '⚙ Acciones';
+}
+
+function pedirLogin() {
+  document.getElementById('cargando').classList.remove('activo');
+  document.getElementById('overlay-login').classList.add('activo');
+}
+
+async function arrancar() {
+  const heredada = sesionDelTablero();
+
+  // 1 · Gerente o subgerente: su sesión de Supabase ya lo autoriza a editar.
+  const { data: { session } } = await _sb.auth.getSession();
+  if (session) {
+    let tienda = heredada ? heredada.cfg
+      : (await _sb.from('tiendas').select(COLS_TIENDA).eq('user_id', session.user.id).maybeSingle()).data;
+    if (tienda && tienda.store_id) {
+      fijarSesion(tienda, { puedeEditar: true });
+      return mostrarApp(session.user.email);
+    }
+  }
+
+  // 2 · Alguien del equipo que ya entró al tablero con su número.
+  if (heredada && heredada.emp && heredada.emp.empno) {
+    fijarSesion(heredada.cfg, { empno: heredada.emp.empno });
+    const datos = (await _sb.rpc('horario_equipo', {
+      p_store_id: heredada.cfg.store_id, p_empno: heredada.emp.empno })).data;
+    if (datos) return mostrarHorarioEquipo(datos);
+    /* Sin horario todavía: se le dice, en vez de mandarlo a un login que no
+       resuelve nada —él ya se identificó. */
+    document.getElementById('cargando').classList.remove('activo');
+    document.getElementById('sin-asignar').style.display = '';
+    return;
+  }
+
+  // 3 · URL suelta: el login de siempre.
+  pedirLogin();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  mostrarVolverAlMenu();
+  /* Si algo revienta o la red no contesta, lo peor sería dejar el spinner
+     girando para siempre. En cualquiera de los dos casos se cae al login, que
+     al menos es una salida. */
+  const red = setTimeout(() => {
+    if (document.getElementById('cargando').classList.contains('activo')) {
+      console.warn('El arranque tardó demasiado; se muestra el login.');
+      pedirLogin();
+    }
+  }, 8000);
+  arrancar()
+    .catch(e => { console.warn('Falló el arranque:', e); pedirLogin(); })
+    .finally(() => clearTimeout(red));
+});
+</script>
+</body>
+</html>

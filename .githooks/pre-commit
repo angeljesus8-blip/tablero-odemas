@@ -1,0 +1,10 @@
+#!/bin/sh
+# Revisa el tablero antes de dejar hacer commit.
+# Instalar (una vez):  git config core.hooksPath .githooks
+# Saltar a proposito:  git commit --no-verify
+echo "Verificando el tablero..."
+python verificar.py --staged || {
+  echo ""
+  echo "Commit detenido. Arregla lo de arriba, o usa --no-verify si sabes lo que haces."
+  exit 1
+}

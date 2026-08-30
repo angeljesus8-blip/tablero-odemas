@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#D12026">
+<title>HES Red · Odemás</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="HES Red">
+<style>
+  /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
+     de la tienda fallando, el CDN caído dibujaba la app con la letra del
+     sistema y todo se descuadraba sin avisar. Ver tablero.html. */
+  @font-face{
+    font-family:'Montserrat';
+    src:url('./fuentes/Montserrat.woff2') format('woff2');
+    font-weight:400 800; font-display:swap;
+  }
+</style>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  :root { --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e; --bg:#f6f6f7; }
+  body { font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; min-height:100vh;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); }
+
+  /* ── Pantallas de acceso ── */
+  .sc { position:fixed; inset:0; background:#fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:28px 22px; z-index:100; overflow-y:auto; }
+  .sc.hide { display:none; }
+
+  .auth-logo { height:40px; margin-bottom:20px; }
+  .auth-title { font-size:20px; font-weight:800; letter-spacing:-.3px; text-align:center; margin-bottom:4px; }
+  .auth-sub { font-size:12.5px; color:#888; text-align:center; margin-bottom:28px; }
+
+  /* PIN (asesores) */
+  .pin-dots { display:flex; gap:14px; margin:20px 0 8px; }
+  .pin-dot { width:14px; height:14px; border-radius:50%; border:2px solid #ddd; transition:.15s; }
+  .pin-dot.on { background:var(--rojo); border-color:var(--rojo); }
+  .pin-err { font-size:12px; color:var(--rojo); font-weight:700; min-height:16px; text-align:center; margin-bottom:14px; }
+  .numpad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:240px; margin-bottom:24px; }
+  .numpad button { height:58px; border-radius:14px; border:1.5px solid #e5e5e5; background:#fff;
+    font-family:'Montserrat',sans-serif; font-size:22px; font-weight:700; cursor:pointer; color:#1a1a1a; }
+  .numpad button:active { background:#f5f5f5; transform:scale(.96); }
+  .num-del { font-size:17px !important; color:#888 !important; }
+
+  /* Formularios (gerente) */
+  .auth-form { width:100%; max-width:320px; display:flex; flex-direction:column; gap:11px; }
+  .auth-inp { width:100%; font-family:'Montserrat',sans-serif; font-size:15px; padding:13px 14px;
+    border:1.5px solid #e0e0e0; border-radius:12px; outline:none; background:#fafafa; color:#1a1a1a; }
+  .auth-inp:focus { border-color:var(--rojo); background:#fff; }
+  .auth-btn { width:100%; padding:14px; font-family:'Montserrat',sans-serif; font-size:15px; font-weight:800;
+    background:var(--rojo); color:#fff; border:none; border-radius:12px; cursor:pointer; }
+  .auth-btn:active { opacity:.88; }
+  .auth-btn:disabled { background:#ccc; cursor:default; }
+  .auth-btn.sec { background:#f0f0f0; color:#555; }
+  .auth-err { font-size:12px; color:var(--rojo); font-weight:600; padding:8px 12px; background:#fdeaea; border-radius:8px; display:none; }
+  .auth-err.show { display:block; }
+  .auth-ok { font-size:12px; color:var(--verde); font-weight:600; padding:8px 12px; background:#eafaf1; border-radius:8px; display:none; }
+  .auth-ok.show { display:block; }
+  .auth-link { text-align:center; font-size:13px; color:var(--azul); font-weight:600; cursor:pointer; }
+  .auth-back { background:none; border:none; font-family:'Montserrat',sans-serif; font-size:13px; font-weight:700;
+    color:var(--rojo); cursor:pointer; padding:0; align-self:flex-start; margin-bottom:4px; }
+  .auth-hint { font-size:11px; color:#aaa; text-align:center; line-height:1.5; }
+  .auth-row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .auth-sep { text-align:center; font-size:11px; color:#ccc; font-weight:700; letter-spacing:.5px; }
+  .auth-div { width:100%; max-width:240px; display:flex; align-items:center; gap:10px; margin:4px 0; }
+  .auth-div::before,.auth-div::after { content:''; flex:1; height:1px; background:#eee; }
+  .auth-div span { font-size:11px; color:#ccc; font-weight:700; white-space:nowrap; }
+  .auth-loading { font-size:13px; color:#bbb; margin-top:8px; }
+
+  /* ── Menú principal ── */
+  #mainMenu { display:none; }
+  header { background:#fff; border-bottom:3px solid var(--rojo); padding:16px; display:flex; align-items:center; gap:12px; }
+  header img { height:38px; width:auto; }
+  .h-txt h1 { font-size:16px; font-weight:800; letter-spacing:-.2px; }
+  .h-txt p { font-size:11px; color:#888; margin-top:2px; }
+  .role-badge { font-size:10px; font-weight:800; padding:3px 8px; border-radius:20px; flex-shrink:0; }
+  .role-gerente { background:#fdeaea; color:var(--rojo); }
+  .role-asesor  { background:#eef3fb; color:var(--azul); }
+  .btn-logout { margin-left:auto; background:none; border:1.5px solid #eee; border-radius:8px; padding:6px 12px;
+    font-family:'Montserrat',sans-serif; font-size:11px; font-weight:700; color:#aaa; cursor:pointer; flex-shrink:0; }
+  .btn-logout:active { background:#f5f5f5; }
+
+  main { padding:20px 16px 40px; max-width:560px; margin:0 auto; }
+  .saludo { font-size:13px; color:#888; font-weight:600; margin:4px 4px 16px; }
+
+  .card { display:flex; align-items:center; gap:16px; background:#fff; border:1px solid #ececec;
+    border-left-width:5px; border-radius:14px; padding:18px; margin-bottom:14px;
+    text-decoration:none; color:inherit; transition:transform .08s; }
+  .card:active { transform:scale(.985); }
+  .card .ic { width:52px; height:52px; border-radius:13px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .card h2 { font-size:16px; font-weight:700; }
+  .card p  { font-size:12.5px; color:#888; margin-top:3px; line-height:1.35; }
+  .card .arrow { margin-left:auto; color:#ccc; font-size:22px; flex-shrink:0; }
+  .card .ext { font-size:9px; font-weight:700; color:#bbb; text-transform:uppercase; letter-spacing:.5px; }
+
+  .c1 { border-left-color:var(--rojo); }      .c1 .ic { background:#fdeaea; }
+  .c2 { border-left-color:var(--azul); }       .c2 .ic { background:#eef3fb; }
+  .c3 { border-left-color:var(--naranja); }    .c3 .ic { background:#fff5ee; }
+  .c4 { border-left-color:var(--verde); }      .c4 .ic { background:#edfaf3; }
+  .c5 { border-left-color:#7c3aed; }           .c5 .ic { background:#f1ecfd; }
+  .c6 { border-left-color:#0e9594; }           .c6 .ic { background:#e6f7f7; }
+  .c-admin { border-left-color:#888; }          .c-admin .ic { background:#f5f5f5; }
+
+  footer { text-align:center; font-size:10px; color:#ccc; margin-top:18px; }
+  @media(max-width:400px){
+    .card { padding:15px 14px; gap:12px; }
+    .card .ic { width:44px; height:44px; font-size:22px; }
+    .card h2 { font-size:14px; }
+  }
+</style>
+</head>
+<body>
+<script src="./continuidad.js"></script>
+
+
+<!-- ── CARGANDO ── -->
+<div id="scLoad" class="sc hide">
+  <img class="auth-logo" src="logo_odemas.png" alt="Odemás">
+  <p class="auth-loading">Iniciando…</p>
+</div>
+
+<!-- ── ASESOR · PIN ── -->
+<div id="scPin" class="sc">
+  <img class="auth-logo" src="logo_odemas.png" alt="Odemás">
+  <h1 class="auth-title">Bienvenido</h1>
+  <p class="auth-sub">Ingresa tu número de empleado<br><span style="font-size:11px;color:#bbb">o el PIN de la tienda y luego ✓</span></p>
+  <div class="pin-dots">
+    <div class="pin-dot" id="pd0"></div>
+    <div class="pin-dot" id="pd1"></div>
+    <div class="pin-dot" id="pd2"></div>
+    <div class="pin-dot" id="pd3"></div>
+    <div class="pin-dot" id="pd4"></div>
+    <div class="pin-dot" id="pd5"></div>
+  </div>
+  <div class="pin-err" id="pinErr"></div>
+  <div class="numpad">
+    <button onclick="pinKey('1')">1</button>
+    <button onclick="pinKey('2')">2</button>
+    <button onclick="pinKey('3')">3</button>
+    <button onclick="pinKey('4')">4</button>
+    <button onclick="pinKey('5')">5</button>
+    <button onclick="pinKey('6')">6</button>
+    <button onclick="pinKey('7')">7</button>
+    <button onclick="pinKey('8')">8</button>
+    <button onclick="pinKey('9')">9</button>
+    <button onclick="pinDel()" class="num-del">⌫</button>
+    <button onclick="pinKey('0')">0</button>
+    <button onclick="pinCheck()">✓</button>
+  </div>
+  <div class="auth-div"><span>soy gerente</span></div>
+  <span class="auth-link" onclick="showScreen('login')">Iniciar sesión con correo →</span>
+</div>
+
+<!-- ── GERENTE · LOGIN ── -->
+<div id="scLogin" class="sc hide">
+  <div class="auth-form">
+    <button class="auth-back" onclick="showScreen('pin')">← Volver</button>
+    <img class="auth-logo" src="logo_odemas.png" alt="Odemás" style="margin:4px auto 0;display:block">
+    <h1 class="auth-title" style="margin-bottom:0">Gerente</h1>
+    <p class="auth-sub" style="margin-bottom:12px">Acceso con correo de tienda</p>
+    <div class="auth-err" id="loginErr"></div>
+    <input class="auth-inp" id="loginEmail" type="email" placeholder="Correo de la tienda" autocomplete="email">
+    <input class="auth-inp" id="loginPass" type="password" placeholder="Contraseña" autocomplete="current-password">
+    <button class="auth-btn" id="btnLogin" onclick="doLogin()">Iniciar sesión</button>
+    <span class="auth-link" onclick="showScreen('register')">¿Primera vez? Registra tu tienda →</span>
+  </div>
+</div>
+
+<!-- ── GERENTE · REGISTRO ── -->
+<div id="scRegister" class="sc hide">
+  <div class="auth-form" style="max-width:340px">
+    <button class="auth-back" onclick="showScreen('login')">← Volver</button>
+    <img class="auth-logo" src="logo_odemas.png" alt="Odemás" style="margin:4px auto 0;display:block">
+    <h1 class="auth-title" id="regTitulo" style="margin-bottom:0">Registrar tienda</h1>
+    <p class="auth-sub" id="regSub" style="margin-bottom:12px">Crea la cuenta de gerente de tu tienda</p>
+    <div class="auth-err" id="regErr"></div>
+    <div class="auth-ok"  id="regOk"></div>
+    <input class="auth-inp" id="regEmail"  type="email"    placeholder="Correo de la tienda">
+    <input class="auth-inp" id="regPass"   type="password" placeholder="Contraseña (mín. 6 caracteres)">
+    <input class="auth-inp" id="regPass2"  type="password" placeholder="Confirmar contraseña">
+    <div id="regDatosTienda">
+      <p class="auth-sep">— datos de la tienda —</p>
+      <div class="auth-row2">
+        <input class="auth-inp" id="regId"     type="text" placeholder="ID · ej: 1218" inputmode="numeric" maxlength="6">
+        <input class="auth-inp" id="regCiudad" type="text" placeholder="Ciudad">
+      </div>
+      <input class="auth-inp" id="regNombre" type="text" placeholder="Nombre · ej: Angelópolis">
+    </div>
+    <button class="auth-btn" id="btnReg" onclick="doRegister()">Crear cuenta</button>
+    <p class="auth-hint" id="regHint">Recibirás un correo de confirmación antes de poder iniciar sesión.</p>
+    <span class="auth-link" id="regCambiar" onclick="cambiarModoRegistro()">Ya trabajo en una tienda registrada →</span>
+  </div>
+</div>
+
+<!-- ── MENÚ ── -->
+<div id="mainMenu">
+  <!-- Solo aparece si la sesión entró coja aun después de pedir el número. Dice
+       QUÉ falta, para que la foto que me manden ya traiga el diagnóstico. -->
+  <div id="diagSesion" style="display:none;background:#fff5ee;color:#b4531a;font-size:12px;
+       font-weight:700;padding:10px 14px;text-align:center;line-height:1.4"></div>
+  <header>
+    <img src="logo_odemas.png" alt="Odemás">
+    <div class="h-txt">
+      <h1 id="storeLabel">HES ----</h1>
+      <p id="storeSub">---</p>
+    </div>
+    <span class="role-badge" id="roleBadge"></span>
+    <button class="btn-logout" onclick="doLogout()">Salir</button>
+  </header>
+  <main>
+    <p class="saludo">Elige una herramienta 👇</p>
+    <div id="menuCards"></div>
+    <footer id="footerTxt">Odemás · Grupo Gigante — uso interno HES</footer>
+  </main>
+</div>
+
+<script>
+const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
+const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+let sb = null;
+function initSB() {
+  try {
+    if (!window.supabase) return false;
+    const { createClient } = window.supabase;
+    sb = createClient(SB_URL, SB_KEY);
+    return true;
+  } catch(e) { console.warn('Supabase init error:', e); return false; }
+}
+
+const CARDS = [
+  // Sin "resurtir" en la descripción: esa sección es de gerente y subgerente
+  // (9-ago-2026), y anunciarla en el menú a todo el equipo sería ofrecer una
+  // pantalla que la mayoría no va a encontrar al entrar.
+  { label:'Tablero / Inventario',       icon:'📊', href:'tablero.html',     cls:'c1', desc:'Existencias, precios, promos, apartados y EOL al 50%.' },
+  { label:'Comisiones y Extracoberturas', icon:'💰', href:'comisiones.html', cls:'c6', desc:'Venta por vendedor y avance de extracobertura, desde Sonar.' },
+  { label:'Captura de Series',           icon:'📷', href:'captura_series.html', cls:'c2', desc:'Escanea el N° de serie y registra la venta.' },
+  { label:'Sales Arena',   icon:'🎯', href:'https://sales-arena-app.vercel.app', cls:'c5', desc:'Entrena tu venta por voz con un cliente IA.', ext:true },
+  // Vive también en el repo planeador-odemas (multi-tienda), pero aquí se sirve
+  // una copia propia: dentro del scope de la PWA se abre sin salir de la app.
+  // La copia se sincroniza desde 02_Equipo — ver la regla "copia" de verificar.py.
+  { label:'Horarios',      icon:'🗓️', href:'horarios.html', cls:'c3', desc:'Planeador semanal del equipo.' },
+  { label:'Promos Huawei', icon:'📡', href:'https://angeljesus8-blip.github.io/huawei-promos/', cls:'c4', desc:'Precios, descuentos y regalos vigentes en huawei.com/mx.', ext:true },
+  { label:'Admin', icon:'⚙️', href:'admin.html', cls:'c-admin', desc:'Actualiza catálogo, promos CEA, bundles y EOL.', soloGerente:true },
+];
+
+function renderMenuCards(role) {
+  // La tarjeta de Admin la ven el gerente (con su correo) y quien tenga el
+  // permiso marcado en la base — hoy Ángel y Miguel, el subgerente.
+  let emp = null;
+  // Ficha ilegible: se sigue sin nombre; el login la vuelve a guardar.
+  try { emp = JSON.parse(localStorage.getItem('hes_empleado')||'null'); } catch(e) {}
+  const puedeAdmin = role === 'gerente' || !!(emp && emp.admin);
+  const html = CARDS
+    .filter(c => !c.soloGerente || puedeAdmin)
+    .map(c => `<a class="card ${c.cls}" href="${c.href}"${c.ext?' target="_blank" rel="noopener"':''}>
+      <div class="ic">${c.icon}</div>
+      <div><h2>${c.label}${c.ext?'<span class="ext"> ↗ abre fuera</span>':''}</h2><p>${c.desc}</p></div>
+      <div class="arrow">›</div>
+    </a>`).join('');
+  document.getElementById('menuCards').innerHTML = html;
+}
+
+function applyStoreConfig(cfg, role) {
+  document.getElementById('storeLabel').textContent = 'HES ' + cfg.store_id + ' · ' + cfg.nombre;
+  // Si entró con su número de empleado, se le saluda por su nombre
+  let emp = null;
+  // Ficha ilegible: se sigue sin nombre; el login la vuelve a guardar.
+  try { emp = JSON.parse(localStorage.getItem('hes_empleado')||'null'); } catch(e) {}
+  // Dos palabras, pero sin cortar en una partícula ("Ángel de Jesús" -> "Ángel",
+  // no "Ángel de").
+  const PARTICULAS = ['de','del','la','las','los','y'];
+  let primerNombre = '';
+  if (emp && emp.nombre) {
+    const p = emp.nombre.trim().split(/\s+/);
+    primerNombre = (p[1] && PARTICULAS.indexOf(p[1].toLowerCase()) < 0) ? p[0]+' '+p[1] : p[0];
+  }
+  document.getElementById('storeSub').textContent = primerNombre
+    ? ('Hola, ' + primerNombre)
+    : ((cfg.ciudad || 'Odemás') + ' · Menú del equipo');
+  document.getElementById('footerTxt').textContent = 'Odemás · Grupo Gigante — uso interno HES ' + cfg.store_id;
+  const badge = document.getElementById('roleBadge');
+  badge.textContent = role === 'gerente' ? 'Gerente' : 'Asesor';
+  badge.className = 'role-badge ' + (role === 'gerente' ? 'role-gerente' : 'role-asesor');
+  renderMenuCards(role);
+}
+
+function sc(name) {
+  document.getElementById('scLoad').classList.toggle('hide', name !== 'load');
+  document.getElementById('scPin').classList.toggle('hide', name !== 'pin');
+  document.getElementById('scLogin').classList.toggle('hide', name !== 'login');
+  document.getElementById('scRegister').classList.toggle('hide', name !== 'register');
+  document.getElementById('mainMenu').style.display = name === 'menu' ? 'block' : 'none';
+}
+function showScreen(name){ sc(name); }
+
+function showErr(id, msg) { const el=document.getElementById(id); el.textContent=msg; el.classList.add('show'); }
+function hideErr(id) { document.getElementById(id).classList.remove('show'); }
+
+/* ── PIN (asesores) ──
+   Cada quien entra con SU número de empleado (6 dígitos). El PIN de la tienda
+   (4 dígitos) sigue aceptándose como respaldo mientras se termina de registrar
+   a todo el equipo: con 4 dígitos hay que darle al ✓, con 6 entra solo. */
+const PIN_LARGO = 6;
+let pinVal = '';
+function pinLimpiar() {
+  pinVal = '';
+  for (let i=0;i<PIN_LARGO;i++) {
+    const d = document.getElementById('pd'+i);
+    if (d) d.classList.remove('on');
+  }
+}
+/* Los números no miden todos igual: los de la tienda son de 6 dígitos y el de
+   Laura es de 5. Así que se intenta solo al completar 6, y también cuando lleva
+   5 o más y deja de teclear un momento. Ese intento automático es SILENCIOSO si
+   falla: si estaba a medias de escribir un número más largo, no le borra lo que
+   ya puso ni le grita "número incorrecto". */
+let _pinTimer = null;
+function pinKey(d) {
+  if (pinVal.length >= PIN_LARGO) return;
+  pinVal += d;
+  document.getElementById('pd'+(pinVal.length-1)).classList.add('on');
+  document.getElementById('pinErr').textContent = '';
+  clearTimeout(_pinTimer);
+  if (pinVal.length === PIN_LARGO) { pinCheck(); return; }
+  if (pinVal.length >= 5) _pinTimer = setTimeout(()=>pinCheck(true), 1200);
+}
+function pinDel() {
+  if (!pinVal.length) return;
+  pinVal = pinVal.slice(0, -1);
+  document.getElementById('pd'+pinVal.length).classList.remove('on');
+}
+// auto=true → intento en segundo plano mientras teclea: si falla, no molesta
+async function pinCheck(auto) {
+  const pin = pinVal;
+  clearTimeout(_pinTimer);
+  document.getElementById('pinErr').textContent = '';
+  if (pin.length < 4) { if(!auto) document.getElementById('pinErr').textContent = 'Escribe tu número de empleado'; return; }
+  if (!sb) { if(!auto){ document.getElementById('pinErr').textContent = 'Sin conexión. Intenta de nuevo.'; pinLimpiar(); } return; }
+  /* El PIN se valida EN EL SERVIDOR (función login_asesor), que devuelve solo
+     lo que la app del asesor necesita. Antes se hacía un select('*') sobre
+     `tiendas`, que bajaba al teléfono el admin_pin y las URLs de la hoja.
+     Si la función todavía no está creada en Supabase, se usa el camino viejo
+     para no dejar al equipo sin entrar (ver supabase_acceso.sql). */
+  /* Primero se prueba como número de empleado (identifica a la persona) y luego
+     como PIN de tienda. Todo se valida EN EL SERVIDOR: antes se hacía un
+     select('*') sobre `tiendas` y el teléfono se llevaba el admin_pin. */
+  const uno = r => (Array.isArray(r) ? r[0] : r) || null;
+  let data = null, quien = null;
+
+  const porEmp = await sb.rpc('login_empleado', { p_pin: pin });
+  if (!porEmp.error) {
+    const e = uno(porEmp.data);
+    if (e) {
+      data = e;
+      // emp_admin: quién puede abrir Admin (el gerente y el subgerente). Es una
+      // pista para pintar el menú; Admin lo vuelve a preguntar al servidor.
+      quien = { empno:e.emp_no, nombre:e.emp_nombre, puesto:e.emp_puesto||'', admin: e.emp_admin === true };
+    }
+  } else {
+    console.warn('login_empleado no disponible todavía:', porEmp.error.message);
+  }
+
+  if (!data) {
+    const porTienda = await sb.rpc('login_asesor', { p_pin: pin });
+    if (porTienda.error) {
+      console.warn('login_asesor no disponible, usando el modo anterior:', porTienda.error.message);
+      const vieja = await sb.from('tiendas').select('store_id,nombre,ciudad,gas_url,gas_token,vendedores,sku_reparacion').eq('store_id', pin).eq('activo', true).maybeSingle();
+      data = vieja.data;
+    } else {
+      data = uno(porTienda.data);
+    }
+  }
+
+  if (!data) {
+    // Si fue el intento automático, se queda callado: puede que siga escribiendo
+    if (auto) return;
+    document.getElementById('pinErr').textContent = 'No reconozco ese número, intenta de nuevo';
+    pinLimpiar();
+    return;
+  }
+  // gas_token: sin esto el Apps Script rechaza cada llamada del tablero. Lo
+  // devuelven login_asesor y login_empleado; se arma el objeto campo por campo,
+  // asi que hay que nombrarlo o se pierde en silencio.
+  const cfg = { store_id:data.store_id, nombre:data.nombre, ciudad:data.ciudad||'', gas_url:data.gas_url||'', gas_token:data.gas_token||'', hoja_auth:data.hoja_auth||'', sheet_url:data.sheet_url||'', vendedores:Array.isArray(data.vendedores)?data.vendedores:[], sku_reparacion:data.sku_reparacion||'' };
+  localStorage.setItem('hes_store', JSON.stringify(cfg));
+  localStorage.setItem('hes_role', 'asesor');
+  // Quién entró: lo usan el tablero y Captura de Series para no preguntar el nombre
+  if (quien) localStorage.setItem('hes_empleado', JSON.stringify(quien));
+  else localStorage.removeItem('hes_empleado');
+  applyStoreConfig(cfg, 'asesor');
+  sc('menu');
+}
+
+/* ── Gerente login ── */
+async function doLogin() {
+  hideErr('loginErr');
+  if (!sb) { showErr('loginErr', 'Sin conexión con el servidor. Intenta de nuevo.'); return; }
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  if (!email || !pass) { showErr('loginErr', 'Llena correo y contraseña'); return; }
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.textContent = 'Ingresando…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'Iniciar sesión';
+  if (error) { showErr('loginErr', error.message.includes('Invalid') ? 'Correo o contraseña incorrectos' : error.message); return; }
+  /* Dos clases de cuenta: la dueña de la tienda (el correo de tienda) y la de
+     alguien del equipo con su propio correo —el subgerente—. La segunda no
+     aparece en `tiendas`, así que se busca su ficha por correo y se vincula. */
+  // `sku_reparacion` viaja aqui desde el 24-ago-2026: es lo que deja a Captura
+  // de Series distinguir sola una reparacion de un accesorio al leer el ticket.
+  // Sin el en esta lista llega vacio al telefono del asesor, la deteccion se
+  // apaga y el asesor vuelve a elegir a mano — sin que nada diga por que.
+  const COLS = 'store_id,nombre,ciudad,gas_url,gas_token,sheet_url,hoja_auth,vendedores,sku_reparacion';
+  let tienda = (await sb.from('tiendas').select(COLS).eq('user_id', data.user.id).maybeSingle()).data;
+  let ficha = null;
+
+  if (!tienda) {
+    const v = await sb.rpc('vincular_mi_cuenta');
+    const r = v.data;
+    if (r && r.ok) {
+      ficha = r;
+      tienda = (await sb.from('tiendas').select(COLS).eq('store_id', r.store_id).maybeSingle()).data;
+    } else if (v.error) {
+      console.warn('vincular_mi_cuenta no disponible:', v.error.message);
+    }
+  }
+  if (!tienda) {
+    showErr('loginErr', ficha
+      ? 'Tu cuenta quedó vinculada pero no pude leer la tienda. Avisa al gerente.'
+      : 'Este correo no está dado de alta en ninguna tienda. Pide al gerente que registre tu correo en Admin → Equipo.');
+    return;
+  }
+  const cfg = { store_id:tienda.store_id, nombre:tienda.nombre, ciudad:tienda.ciudad||'', gas_url:tienda.gas_url||'', gas_token:tienda.gas_token||'', sheet_url:tienda.sheet_url||'', hoja_auth:tienda.hoja_auth||'', vendedores:Array.isArray(tienda.vendedores)?tienda.vendedores:[], sku_reparacion:tienda.sku_reparacion||'' };
+  // Quien entra por su ficha se identifica igual que si hubiera usado su número
+  const rol = (!ficha || ficha.admin) ? 'gerente' : 'asesor';
+  localStorage.setItem('hes_store', JSON.stringify(cfg));
+  localStorage.setItem('hes_role', rol);
+  /* El puesto viaja igual que por el otro login (9-ago-2026). El tablero decide
+     con él quién ve la sección de Resurtir, así que dejarlo en '' hacía que la
+     MISMA persona viera cosas distintas según entrara con su correo o con su
+     número — sin ningún error a la vista, que es lo que costó dos días con
+     `hoja_auth` (MAPA, cadena 1). Si `vincular_mi_cuenta` todavía no lo
+     devuelve, llega vacío y el tablero se apoya en el rol; no se queda nadie
+     fuera mientras tanto. */
+  if (ficha) localStorage.setItem('hes_empleado', JSON.stringify({ empno:ficha.empno, nombre:ficha.nombre, puesto:ficha.puesto||'', admin: ficha.admin === true }));
+  else localStorage.removeItem('hes_empleado');
+  applyStoreConfig(cfg, rol);
+  sc('menu');
+}
+
+/* ── Registro ──
+   Dos casos: quien registra una tienda nueva (crea la fila en `tiendas`) y
+   quien ya trabaja en una registrada —el subgerente— y solo necesita su cuenta:
+   su ficha ya existe, el gerente puso su correo en Admin → Equipo, y al entrar
+   se vincula sola. */
+let _modoEquipo = false;
+function cambiarModoRegistro() {
+  _modoEquipo = !_modoEquipo;
+  document.getElementById('regTitulo').textContent = _modoEquipo ? 'Crear mi cuenta' : 'Registrar tienda';
+  document.getElementById('regSub').textContent = _modoEquipo
+    ? 'Para quien ya trabaja en una tienda registrada'
+    : 'Crea la cuenta de gerente de tu tienda';
+  document.getElementById('regEmail').placeholder = _modoEquipo ? 'Tu correo' : 'Correo de la tienda';
+  document.getElementById('regDatosTienda').style.display = _modoEquipo ? 'none' : '';
+  document.getElementById('regHint').textContent = _modoEquipo
+    ? 'Usa el mismo correo que el gerente registró en tu ficha. Recibirás un correo de confirmación.'
+    : 'Recibirás un correo de confirmación antes de poder iniciar sesión.';
+  document.getElementById('regCambiar').textContent = _modoEquipo
+    ? '← Quiero registrar una tienda nueva'
+    : 'Ya trabajo en una tienda registrada →';
+  hideErr('regErr');
+  document.getElementById('regOk').classList.remove('show');
+}
+
+async function doRegister() {
+  hideErr('regErr');
+  document.getElementById('regOk').classList.remove('show');
+  const email  = document.getElementById('regEmail').value.trim();
+  const pass   = document.getElementById('regPass').value;
+  const pass2  = document.getElementById('regPass2').value;
+  const storeId= document.getElementById('regId').value.trim();
+  const nombre = document.getElementById('regNombre').value.trim();
+  const ciudad = document.getElementById('regCiudad').value.trim();
+  if (!email || !pass || (!_modoEquipo && (!storeId || !nombre))) { showErr('regErr','Llena todos los campos obligatorios'); return; }
+  if (pass !== pass2) { showErr('regErr','Las contraseñas no coinciden'); return; }
+  if (pass.length < 6) { showErr('regErr','La contraseña debe tener mínimo 6 caracteres'); return; }
+  const btn = document.getElementById('btnReg');
+  btn.disabled = true; btn.textContent = 'Registrando…';
+  const { data, error } = await sb.auth.signUp({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'Crear cuenta';
+  if (error) { showErr('regErr', error.message.includes('already')?'Este correo ya está registrado. Inicia sesión.':error.message); return; }
+  if (data.user && !_modoEquipo) {
+    const { error:eT } = await sb.from('tiendas').insert({ user_id:data.user.id, store_id:storeId, nombre, ciudad, gas_url:'', vendedores:[], admin_pin:storeId });
+    if (eT && eT.code==='23505') { showErr('regErr','El ID de tienda '+storeId+' ya está registrado.'); return; }
+  }
+  const ok = document.getElementById('regOk');
+  ok.textContent = _modoEquipo
+    ? '¡Cuenta creada! Confirma tu correo y luego inicia sesión: tu tienda se reconoce sola.'
+    : '¡Cuenta creada! Revisa tu correo para confirmar y luego inicia sesión.';
+  ok.classList.add('show');
+}
+
+async function doLogout() {
+  const role = localStorage.getItem('hes_role');
+  if (role === 'gerente' && sb) await sb.auth.signOut();
+  localStorage.removeItem('hes_store');
+  localStorage.removeItem('hes_role');
+  localStorage.removeItem('hes_empleado');
+  pinLimpiar();
+  sc('pin');
+}
+
+/* ¿Hay que volver a pedir el número de empleado? (9-ago-2026)
+
+   La sesión se escribe UNA vez, al entrar, y nunca se refresca. Las que se
+   guardaron antes de que existieran `hes_empleado` y la lista del equipo se
+   quedaron sin ellos para siempre, porque la app recuerda al usuario y ya no
+   vuelve a pasar por el login.
+
+   Costó dos días: los asesores abrían Captura de Series y se topaban con un
+   «¿Quién eres?» sin un solo nombre, sin poder capturar. La base devolvía sus
+   datos perfectamente — nadie se los estaba pidiendo.
+
+   Con volver a teclear su número se arregla, así que se pide una vez y en
+   cuanto entren queda al día. El gerente entra con su correo y su sesión la
+   valida Supabase, así que a él no se le pregunta.
+
+   Vive fuera de `init` para poder probarla sin montar media app: es la clase
+   de regla que se rompe en silencio y deja a alguien sin trabajar.
+
+   Devuelve QUÉ falta, no un sí/no: cuando esto se tuerce, saber cuál de las dos
+   piezas es lo que separa arreglarlo en un minuto de estar dos días a ciegas. */
+function queFaltaEnLaSesion(cfg, role, empGuardado) {
+  if (role === 'gerente') return '';
+  let emp = null;
+  try { emp = JSON.parse(empGuardado || 'null'); } catch(e) { emp = null; }
+  const sinQuien = !emp || !emp.nombre;
+  const sinLista = !cfg || !Array.isArray(cfg.vendedores) || !cfg.vendedores.length;
+  if (sinQuien && sinLista) return 'quién entró y la lista del equipo';
+  if (sinQuien) return 'quién entró';
+  if (sinLista) return 'la lista del equipo';
+  return '';
+}
+// El nombre viejo sigue existiendo: lo usan las pruebas y se lee mejor en un if
+function sesionIncompleta(cfg, role, empGuardado) {
+  return !!queFaltaEnLaSesion(cfg, role, empGuardado);
+}
+
+async function init() {
+  try {
+    initSB();
+    const stored = localStorage.getItem('hes_store');
+    const role   = localStorage.getItem('hes_role');
+    if (!stored || !role) { sc('pin'); return; }
+    let cfg;
+    try { cfg = JSON.parse(stored); } catch(e) { cfg = null; }
+    if (!cfg || !cfg.store_id) { localStorage.removeItem('hes_store'); localStorage.removeItem('hes_role'); sc('pin'); return; }
+    if (role === 'gerente' && sb) {
+      const { data } = await sb.auth.getSession();
+      if (!data || !data.session) { localStorage.removeItem('hes_store'); localStorage.removeItem('hes_role'); sc('pin'); return; }
+    }
+
+    /* ── Una sesión guardada a medias se vuelve a pedir (9-ago-2026) ──
+       La sesión se escribe UNA vez, al entrar, y nunca se refresca. Las que
+       se guardaron antes de que existieran `hes_empleado` y la lista del
+       equipo se quedaron sin ellos para siempre, porque la app recuerda al
+       usuario y ya no vuelve a pasar por aquí.
+
+       Costó dos días: los asesores abrían Captura de Series y se topaban con
+       un «¿Quién eres?» sin un solo nombre, sin poder capturar. La base
+       devolvía sus datos perfectamente — nadie se los estaba pidiendo.
+
+       Con volver a teclear su número se arregla, así que se pide una vez y
+       en cuanto entren queda al día. Solo se comprueba para asesor: el
+       gerente entra con su correo y su sesión la valida Supabase arriba. */
+    const falta = queFaltaEnLaSesion(cfg, role, localStorage.getItem('hes_empleado'));
+    /* Se pide UNA vez por arranque de la app. Si después de identificarse la
+       sesión sigue coja —porque la base respondió a medias, por ejemplo— pedirlo
+       otra vez sería un bucle en la pantalla del teclado, sin manera de entrar.
+       Más vale pasar con una sesión imperfecta y que la app lo diga, que dejar
+       a alguien fuera. */
+    let yaSePidio = false;
+    // sin sessionStorage no hay memoria de haberlo pedido: se pide, que es lo seguro
+    try { yaSePidio = sessionStorage.getItem('hes_pedi_num') === '1'; } catch(e){}
+    if (falta && !yaSePidio) {
+      try { sessionStorage.setItem('hes_pedi_num', '1'); } catch(e){}   // sin esto se pide cada vez, pero se entra igual
+      const aviso = document.getElementById('pinErr');
+      if (aviso) {
+        // Gris, no rojo: no se equivocaron en nada, solo hay que ponerse al día
+        aviso.style.color = '#888';
+        aviso.textContent = 'Teclea tu número de empleado para ponerte al día';
+      }
+      sc('pin');
+      return;
+    }
+    /* Si se pidió y AÚN falta algo, se entra igual pero queda dicho en el menú.
+       Sin esto el equipo ve que algo va mal y no tiene nada que contarme. */
+    if (falta) {
+      const d = document.getElementById('diagSesion');
+      if (d) { d.style.display = ''; d.textContent = 'Sesión incompleta: falta ' + falta +
+                                                     ' · enséñale esto a Ángel'; }
+    }
+
+    applyStoreConfig(cfg, role);
+    sc('menu');
+  } catch(e) {
+    console.error('init error:', e);
+    sc('pin');
+  }
+}
+
+window.addEventListener('load', init);
+</script>
+
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+if('serviceWorker' in navigator){
+  // updateViaCache:'none' hace que el navegador pida sw.js siempre a la red, sin
+  // pasar por su caché HTTP (GitHub Pages no deja tocar el Cache-Control). Antes
+  // eso se lograba con ?v=NN, que había que subir a mano en las cinco páginas.
+  navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(()=>{});
+}
+</script>
+</body>
+</html>

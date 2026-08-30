@@ -1,0 +1,16 @@
+{
+  "name": "HES 1217 · Equipo",
+  "short_name": "HES 1217",
+  "description": "Tablero, inventario, captura de series y horarios — Odemás Angelópolis 1217",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#D12026",
+  "orientation": "portrait-primary",
+  "lang": "es-MX",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

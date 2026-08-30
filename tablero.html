@@ -1,0 +1,3236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#D12026">
+<title>Tablero del Equipo · HES 1217</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="HES 1217">
+<style>
+  /* Montserrat desde el propio repo, NO del CDN de Google (8-ago-2026).
+     En la tienda la señal falla, y con el CDN caído el tablero se dibujaba con
+     la letra por defecto del sistema: los precios cambiaban de ancho, las
+     tarjetas se descuadraban y nadie sabía por qué. Es la misma razón por la
+     que spec-cards la lleva dentro desde julio.
+     `swap` y no `block`: aquí importa más ver el precio ya —aunque sea un
+     instante con otra letra— que esperar a que cargue. */
+  @font-face{
+    font-family:'Montserrat';
+    src:url('./fuentes/Montserrat.woff2') format('woff2');
+    font-weight:400 800; font-display:swap;
+  }
+</style>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e;
+    --gris:#777; --linea:#ececec; --bg:#f6f6f7;
+
+    /* ---- Sistema visual (8-ago-2026) ----
+       Antes había 20 tamaños de letra distintos (de 8 a 15 px) y 8 radios de
+       esquina conviviendo. Con todo pesando casi lo mismo, nada destacaba: el
+       precio se leía igual que la fecha de vigencia. Estos tokens son la escala;
+       lo nuevo se construye con ellos. */
+    --t-xs:10.5px;   /* referencias, SKU al pie */
+    --t-sm:11.5px;   /* etiquetas y botones secundarios */
+    --t-md:13px;     /* texto normal */
+    --t-lg:14px;     /* título de producto */
+    --t-xl:19px;     /* número de piezas */
+    --t-2xl:27px;    /* precio */
+
+    --r-sm:9px;      /* pastillas y botones */
+    --r-md:14px;     /* tarjetas */
+    --r-pill:999px;
+
+    /* Dos sombras y ninguna más. La suave da relieve al contenido; la marcada
+       es solo para lo que flota sobre la página. */
+    --sombra:0 1px 2px rgba(34,27,26,.04), 0 3px 10px rgba(34,27,26,.05);
+    --sombra-alta:0 8px 28px rgba(34,27,26,.14);
+
+    --mono:ui-monospace,SFMono-Regular,Menlo,'Cascadia Mono',monospace;
+
+    /* Colores por ESTADO de existencia. Son semánticos: no decoran, dicen qué
+       se puede hacer con el producto. El azul de "se trae de otra tienda" es
+       deliberado — no es una alarma, es una acción; en rojo competiría con el
+       precio y se leería "problema" donde hay una venta que se cierra igual. */
+    --e-hay:#137a43;      --e-hay-bg:#eafaf1;
+    --e-piso:#c2600f;     --e-piso-bg:#fff5ee;
+    --e-50:#b01c22;       --e-50-bg:#fdeaea;
+    --e-traer:#2b5c9c;    --e-traer-bg:#eef3fb;
+    --e-no:#8a827f;       --e-no-bg:#f4f2f1;
+  }
+  body { font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; padding-bottom:40px; }
+
+  /* ---------- Header ---------- */
+  header {
+    background:#fff; border-bottom:3px solid var(--rojo);
+    padding:14px 16px; display:flex; align-items:center; gap:12px;
+    position:sticky; top:0; z-index:30;
+  }
+  header .back { text-decoration:none; color:var(--rojo); font-size:30px; font-weight:700;
+    line-height:1; padding:0 6px 4px 0; display:flex; align-items:center; }
+  header img { height:34px; width:auto; }
+  .h-txt h1 { font-size:15px; font-weight:800; letter-spacing:-.2px; }
+  .h-txt p { font-size:11px; color:var(--gris); margin-top:1px; }
+  .updated { margin-left:auto; font-size:10px; color:#aaa; text-align:right; line-height:1.3; }
+  .updated b { color:var(--verde); display:block; font-size:11px; }
+  #liveWarning { display:none; align-items:flex-start; gap:10px; background:#fff5ee;
+    border-left:4px solid var(--naranja); margin:0 16px 8px; border-radius:10px;
+    padding:12px 14px; font-size:12px; line-height:1.5; }
+  #liveWarning.visible { display:flex; }
+  #liveWarning .lw-icon { font-size:20px; flex-shrink:0; margin-top:1px; }
+  /* Solo el título va en bloque: los <b> dentro del mensaje deben quedar en línea */
+  #liveWarningTitulo { font-size:13px; font-weight:800; color:var(--rojo); display:block; margin-bottom:2px; }
+  #liveWarning p { color:#7a4a00; font-weight:600; margin:0; }
+  #liveWarning.err { background:#fdeaea; border-color:var(--rojo); }
+  #liveWarning.err p { color:var(--rojo); }
+
+  /* ---------- Buscador ---------- */
+  .search-wrap { position:sticky; top:64px; z-index:25; background:var(--bg); padding:12px 16px 6px; }
+  .search { display:flex; align-items:center; gap:8px; background:#fff; border:1.5px solid var(--linea);
+    border-radius:12px; padding:11px 14px; }
+  .search:focus-within { border-color:var(--rojo); }
+  .search input { border:none; outline:none; flex:1; font-family:inherit; font-size:15px; background:transparent; }
+  .search svg { flex-shrink:0; }
+
+  /* ---------- Filtros (chips) ---------- */
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:8px 16px 4px; -ms-overflow-style:none; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip {
+    flex-shrink:0; border:1.5px solid var(--linea); background:#fff; color:#555;
+    font-family:inherit; font-size:13px; font-weight:600; padding:8px 14px; border-radius:20px;
+    cursor:pointer; white-space:nowrap; transition:.12s;
+  }
+  .chip .n { font-size:11px; opacity:.6; margin-left:3px; }
+  .chip.active { background:var(--rojo); color:#fff; border-color:var(--rojo); }
+
+  /* ---------- Contenido ---------- */
+  main { padding:8px 16px 0; max-width:560px; margin:0 auto; }
+  .grupo-titulo { font-size:11px; font-weight:700; color:#999; text-transform:uppercase;
+    letter-spacing:1px; margin:18px 4px 8px; }
+
+  .card { background:#fff; border:1px solid var(--linea); border-left-width:4px;
+    border-radius:12px; padding:13px 15px; margin-bottom:10px; }
+  .card.alta { box-shadow:0 2px 10px rgba(209,32,38,.07); }
+  .card.t-promo  { border-left-color:var(--naranja); }
+  .card.t-bundle { border-left-color:var(--verde); }
+  .card.t-eol   { border-left-color:var(--rojo); }
+  .card.t-nov   { border-left-color:var(--azul); }
+  .card.t-aviso { border-left-color:var(--verde); }
+  .card.t-trans { border-left-color:#7c3aed; }
+
+  .card .top { display:flex; align-items:flex-start; gap:8px; }
+  .card h3 { font-size:14.5px; font-weight:700; line-height:1.3; flex:1; }
+  /* Título de las tarjetas de promo y precio regular: va solo, sin la fila
+     .top, porque el peso visual ahora lo carga el precio de abajo. */
+  .card h3.t-titulo { flex:none; margin:0 0 7px; font-size:13.5px; }
+  .badge.b-promo { background:#fdecec; color:var(--rojo); }
+  .tag { font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;
+    padding:3px 7px; border-radius:6px; flex-shrink:0; }
+  .tag.promo  { background:#fff5ee; color:var(--naranja); }
+  .tag.bundle { background:#edfaf3; color:var(--verde); }
+  .tag.eol   { background:#fdeaea; color:var(--rojo); }
+  .tag.nov   { background:#eef3fb; color:var(--azul); }
+  .tag.aviso { background:#eafaf1; color:var(--verde); }
+  .tag.trans { background:#f3effe; color:#7c3aed; }
+  .card p.det { font-size:12.5px; color:#555; line-height:1.45; margin-top:6px; }
+  .card p.warn { font-size:11px; color:var(--rojo); line-height:1.4; margin-top:8px;
+    background:#fdeaea; padding:6px 9px; border-radius:7px; font-weight:600; }
+
+  .meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:9px; }
+  .precio { font-size:16px; font-weight:800; color:var(--rojo); }
+  .precio .antes { font-size:12px; color:#bbb; text-decoration:line-through; font-weight:600; margin-right:6px; }
+  .badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; background:#f2f2f2; color:#666; }
+  .badge.urge { background:#fdeaea; color:var(--rojo); }
+  /* Tramo intermedio de vigencia: queda esta quincena, no esta semana. */
+  .badge.pronto { background:var(--e-piso-bg); color:var(--e-piso); }
+  .badge.ok { background:#eafaf1; color:var(--verde); }
+  /* Existencias dentro de la tarjeta de promo: verde hay, ámbar quedan pocas,
+     rojo no hay. Va primero en la fila de badges para que se vea antes que el
+     precio — de nada sirve la promo si no queda pieza. */
+  .badge.stock-b.hay  { background:#eafaf1; color:var(--verde); }
+  .badge.stock-b.poco { background:#fff5ee; color:var(--naranja); }
+  .badge.stock-b.sin  { background:#fdeaea; color:var(--rojo); }
+  /* Agotado en tienda pero vendible: se pide a otra sucursal. Morado para que
+     no se confunda con "no hay" ni con "quedan pocas". */
+  .badge.stock-b.traer{ background:#f3effe; color:#6d3fd4; }
+
+  /* ---------- Inventario ---------- */
+  .inv-row { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--linea);
+    border-radius:10px; padding:11px 14px; margin-bottom:8px; }
+  .inv-info { flex:1; min-width:0; }
+  .inv-info h4 { font-size:13.5px; font-weight:700; }
+  .inv-info span { font-size:11px; color:#aaa; }
+  .stock { text-align:center; flex-shrink:0; }
+  .stock .num { font-size:20px; font-weight:800; line-height:1; }
+  .stock .lbl { font-size:9px; color:#aaa; text-transform:uppercase; letter-spacing:.5px; }
+  .stock .lbl.lbl2 { font-size:8px; }
+  .stock.ok .num { color:var(--verde); }
+  .stock.bajo .num { color:var(--naranja); }
+  .stock.cero .num { color:var(--rojo); }
+  .exh { font-size:10px; font-weight:700; color:var(--azul); background:#eef3fb;
+    padding:4px 8px; border-radius:7px; flex-shrink:0; white-space:nowrap; }
+  .exh.eol-ready { background:#eafaf1; color:var(--verde); }
+  .exh.eol-pend { background:#fff5ee; color:var(--naranja); }
+  .exh.trans-b { background:#f3effe; color:#7c3aed; }
+  /* Precio de promoción dentro de la fila de inventario: el asesor ve las
+     piezas y a cuánto se vende sin cambiar de pestaña. */
+  .exh.promo-b { background:#fdecec; color:var(--rojo); }
+  .card.t-eol.listo { border-left-color:var(--verde); background:#f7fdfa; box-shadow:0 2px 10px rgba(26,140,78,.10); }
+  .eol-status { font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding:3px 7px; border-radius:6px; flex-shrink:0; }
+  .eol-status.pend { background:#fff5ee; color:var(--naranja); }
+  .eol-status.agot { background:#f2f2f2; color:#888; }
+  .dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .dot.ok{background:var(--verde);} .dot.bajo{background:var(--naranja);} .dot.cero{background:var(--rojo);}
+  /* ---- Selector seguro + MSI ---- */
+  .seg-sel { margin-top:8px; }
+  .seg-chips { display:flex; gap:6px; flex-wrap:wrap; margin:9px 0 0; }
+  /* Datos de referencia (SKU, exhibición, meses): presentes pero en voz baja,
+     para que el precio y las piezas se lean primero. */
+  .t-ref { font-size:10.5px; color:#a8a2a2; line-height:1.5; margin-top:7px; }
+  .t-ref b { color:#8a8484; font-weight:700; }
+  .seg-chip { border:1.5px solid var(--linea); background:#fff; color:#555;
+    font-family:inherit; font-size:12px; font-weight:700; padding:6px 13px;
+    border-radius:20px; cursor:pointer; transition:.12s; }
+  .seg-chip.active { background:var(--azul); color:#fff; border-color:var(--azul); }
+  .seg-desglose { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px; margin-bottom:0; }
+  .seg-precio-total { font-size:25px; font-weight:800; color:var(--rojo); line-height:1.15;
+    font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  /* Precio regular tachado, junto al de promo: el ahorro se ve sin buscarlo. */
+  .precio-reg { font-size:13px; font-weight:700; color:#bfb9b9; text-decoration:line-through;
+    font-variant-numeric:tabular-nums; }
+  .precio-linea { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .seg-prod { font-size:16px; font-weight:700; color:#999; }
+  .seg-op { font-size:13px; color:#aaa; font-weight:600; white-space:nowrap; }
+  .seg-msi { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+  /* Los MSI son argumento de venta, no letra pequeña: el cliente pregunta
+     "¿en cuánto me sale al mes?" antes que el precio de contado. Suben de 11 px
+     al paso `md` de la escala y ganan aire. (8-ago-2026) */
+  .msi-badge { display:inline-block; font-size:var(--t-md); font-weight:700;
+    padding:6px 11px; border-radius:var(--r-sm); line-height:1.35; }
+  /* La cuota mensual, que es el dato que se dice en voz alta, un punto más. */
+  .msi-badge b { font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .msi-6  { background:#eafaf1; color:var(--verde); }
+  .msi-12 { background:#eef3fb; color:var(--azul); }
+  .msi-18 { background:#fff5ee; color:var(--naranja); }
+
+  .empty { text-align:center; color:#bbb; font-size:13px; padding:40px 20px; }
+  footer { text-align:center; font-size:10px; color:#ccc; margin-top:24px; padding:0 16px; }
+  .promo-toolbar { display:flex; align-items:center; justify-content:space-between; padding:8px 16px 4px; }
+  .promo-toolbar span { font-size:12px; color:#aaa; font-weight:600; }
+  .promo-toolbar button { font-family:'Montserrat',sans-serif; font-size:12px; font-weight:700;
+    background:var(--rojo); color:#fff; border:none; border-radius:8px; padding:6px 13px; cursor:pointer; }
+  .promo-toolbar button:disabled { background:#ccc; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .promo-toolbar button.girando { animation:spin .7s linear infinite; }
+  .btn-apartar { width:100%; margin-top:10px; border:none; border-radius:var(--r-sm);
+    padding:9px; font-family:inherit; font-size:var(--t-sm); font-weight:800;
+    background:var(--e-traer-bg); color:var(--e-traer); cursor:pointer; }
+
+  /* ---- Tarjeta de producto (8-ago-2026) ----
+     Blanca a propósito: el color vive en la pastilla de estado y en el precio.
+     Con 79 tarjetas seguidas, teñir cada una convierte la lista en un mosaico y
+     entonces el color deja de significar algo. */
+  .card.prod { border-left-width:1px; border-radius:var(--r-md); padding:14px 15px;
+    box-shadow:var(--sombra); border-color:#ece8e7; }
+  .prod-top { display:flex; justify-content:space-between; align-items:flex-start; gap:11px; }
+  .prod-nom { flex:1; min-width:0; }
+  .prod-nom h3 { font-size:var(--t-lg); font-weight:700; line-height:1.3; letter-spacing:-.005em; }
+
+  /* El SKU: arriba, monoespaciado y tocable para copiar */
+  /* SKU y sello de promo en la misma línea, encima del nombre */
+  .prod-eyebrow { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:3px; }
+  .prod-eyebrow .badge { padding:2px 7px; }
+  .sku-eyebrow { font-family:var(--mono); font-size:11px; font-weight:600; color:#6b6360;
+    letter-spacing:.02em; background:#f4f2f1; border:none; padding:2px 7px; border-radius:5px;
+    cursor:pointer; font-feature-settings:'tnum'; }
+  .sku-eyebrow:active { background:#e6e1e0; }
+  .sku-eyebrow.copiado { background:var(--e-hay-bg); color:var(--e-hay); }
+  .sku-eyebrow.copiado::after { content:' ✓'; font-family:'Montserrat',sans-serif; font-weight:800; }
+
+  /* Pastilla de estado: el número grande es lo segundo que se mira tras el precio */
+  .pastilla { border-radius:11px; padding:7px 11px; text-align:center; flex-shrink:0;
+    min-width:66px; display:block; }
+  .pastilla b { display:block; font-size:var(--t-xl); font-weight:800; line-height:1.05;
+    font-variant-numeric:tabular-nums; }
+  .pastilla span { display:block; font-size:8.5px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.05em; margin-top:1px; }
+  .pastilla.p-hay   { background:var(--e-hay-bg);   color:var(--e-hay); }
+  .pastilla.p-piso  { background:var(--e-piso-bg);  color:var(--e-piso); }
+  .pastilla.p-50    { background:var(--e-50-bg);    color:var(--e-50); }
+  .pastilla.p-traer { background:var(--e-traer-bg); color:var(--e-traer); }
+  .pastilla.p-no    { background:var(--e-no-bg);    color:var(--e-no); }
+
+  /* El porcentaje de ahorro, junto al precio que pinta segSelector */
+  .ah { font-size:11px; font-weight:800; color:var(--e-hay);
+    background:var(--e-hay-bg); padding:2px 7px; border-radius:5px; white-space:nowrap; }
+
+  /* Los tres chips de seguro caben en UNA fila. Antes se envolvían a dos
+     —"+ 2 años" se caía solo abajo— y la tarjeta crecía sin motivo: con 79
+     seguidas, esa línea de más son dos pantallas extra de scroll. */
+  .card.prod .seg-chips { flex-wrap:nowrap; gap:6px; }
+  .card.prod .seg-chip { flex:1; padding:7px 4px; font-size:var(--t-sm);
+    border-radius:var(--r-sm); white-space:nowrap; line-height:1.25; }
+  /* El costo del seguro, dentro del chip y en su propia línea: cabe en móvil y
+     deja el nombre del plazo legible. */
+  .card.prod .seg-chip i { display:block; font-style:normal; font-size:10.5px;
+    font-weight:800; opacity:.75; font-variant-numeric:tabular-nums; }
+
+  /* Compartir vuelve al pie, a la derecha del estado, en vez de ocupar todo el
+     ancho: es una acción secundaria y estaba pesando como la principal. */
+  .card.prod .btn-wa { width:auto; margin:0; padding:6px 12px; font-size:var(--t-sm);
+    border-radius:var(--r-sm); flex-shrink:0; }
+  .prod-pie { display:flex; justify-content:space-between; align-items:center; gap:8px;
+    margin-top:11px; padding-top:10px; border-top:1px solid #f3efee;
+    font-size:var(--t-xs); color:#a09895; }
+
+  /* Aviso único de vigencia, cuando todas las promos vencen el mismo día */
+  .vig-barra { padding:0 16px 6px; }
+  .vig-todas { display:inline-block; font-size:12px; font-weight:700; color:#8a827f;
+    background:var(--e-no-bg); padding:5px 11px; border-radius:var(--r-sm); }
+  .vig-todas.pronto { background:var(--e-piso-bg); color:var(--e-piso); }
+  .vig-todas.urge { background:#fdeaea; color:var(--rojo); }
+
+  /* ---- Cabecera de sección (sustituye a la barra de chips, 8-ago-2026) ---- */
+  .sec-bar { display:flex; align-items:center; gap:6px; padding:10px 16px 4px; }
+  .sec-volver { background:none; border:none; color:var(--rojo); font-size:26px; line-height:1;
+    font-weight:700; cursor:pointer; padding:0 8px 3px 0; }
+  .sec-tit { font-size:15px; font-weight:800; }
+
+  /* ---- Tarjetas de Inicio ---- */
+  .ir-grid { display:flex; flex-direction:column; gap:10px; margin-bottom:4px; }
+  .ir-card { display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    background:#fff; border:1px solid var(--linea); border-radius:14px; padding:14px 15px;
+    font-family:inherit; cursor:pointer; }
+  .ir-card:active { transform:scale(.995); }
+  .ir-ico { width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
+    font-size:18px; flex-shrink:0; }
+  .ir-txt { flex:1; min-width:0; }
+  .ir-txt b { display:block; font-size:14px; font-weight:800; }
+  .ir-txt span { font-size:11.5px; color:#999; font-weight:600; }
+  .ir-n { font-size:20px; font-weight:800; flex-shrink:0; font-variant-numeric:tabular-nums; }
+
+  /* ---- Franja de avisos en Inicio ---- */
+  .aviso-franja { background:#fff5ee; border:1.5px solid #f7c9a6; border-radius:12px;
+    padding:12px 14px; margin-bottom:12px; }
+  .aviso-franja h4 { font-size:12.5px; font-weight:800; color:var(--naranja);
+    text-transform:uppercase; letter-spacing:.4px; margin-bottom:7px; }
+  .aviso-franja .af-item { font-size:13px; font-weight:700; line-height:1.4; }
+  .aviso-franja .af-item + .af-item { margin-top:7px; padding-top:7px; border-top:1px dashed #f7c9a6; }
+  .aviso-franja .af-det { display:block; font-size:11.5px; color:#8a6a45; font-weight:600; margin-top:2px; }
+
+  /* ---- Buscador global ---- */
+  .g-head { padding:10px 16px 2px; font-size:12px; color:#999; font-weight:600; }
+  .g-head b { color:var(--tinta,#1a1a1a); }
+  .g-vacio { text-align:center; color:#bbb; font-size:13px; padding:26px 20px; }
+
+  /* ---- Dashboard ---- */
+  .att-card { padding:16px 18px 14px; }
+  .att-header { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; font-size:13px; font-weight:700; color:#555; }
+  /* De dónde salen las ventas, en la cabecera y en pequeño. Antes eran dos
+     renglones sueltos a media tarjeta; es una referencia, no un dato. */
+  .att-fuente { font-size:10px; font-weight:600; color:#bbb; text-align:right; line-height:1.35; }
+  /* El número y su explicación, en la MISMA línea. Apilados dejaban una franja
+     vacía a la derecha del 29% que no decía nada. */
+  .att-cifra { display:flex; align-items:baseline; gap:11px; margin-bottom:11px; }
+  .att-rate { font-size:44px; font-weight:800; line-height:1; letter-spacing:-1.5px; }
+  .att-sub { font-size:12px; color:#888; font-weight:600; line-height:1.35; }
+  /* ── Barra de meta ── */
+  .att-prog { margin:0 0 12px; }
+  .att-prog-track { position:relative; height:9px; background:#f0f0f0; border-radius:10px; overflow:hidden; }
+  .att-prog-fill { height:100%; border-radius:10px; transition:.4s; }
+  .att-prog-goal { position:absolute; top:0; bottom:0; left:25%; width:2.5px; background:var(--verde); opacity:.5; }
+  .att-prog-lbl { display:flex; justify-content:space-between; font-size:10px; color:#bbb; font-weight:600; margin-top:3px; }
+  .att-prog-lbl .meta { color:var(--verde); }
+  /* ── Equipo, dentro de la misma tarjeta y plegado ──
+     Se abre con un toque y el tablero recuerda cómo lo dejaste. Plegado por
+     defecto: el % del día se mira cien veces, la lista del equipo dos. */
+  .att-equipo { display:flex; align-items:center; gap:7px; width:100%; background:none;
+    border:none; border-top:1px solid var(--linea); margin-top:2px; padding:11px 0 3px;
+    font-family:'Montserrat',sans-serif; font-size:11.5px; font-weight:700; color:#9b9490;
+    cursor:pointer; text-align:left; }
+  .att-equipo .flecha { transition:transform .18s; display:inline-block; font-size:10px; }
+  .att-equipo[aria-expanded="true"] .flecha { transform:rotate(180deg); }
+  .att-equipo .cuantos { margin-left:auto; font-weight:800; color:#b4aeab; }
+  @media (prefers-reduced-motion:reduce){ .att-equipo .flecha { transition:none; } }
+  /* ── Filas del equipo ──
+     `.lead-card`, `.lead-head` y `.lead-fuente` se fueron con la tarjeta aparte
+     (v151): el equipo vive dentro de la del Assurant y la fuente subió a la
+     cabecera. Estas tres siguen porque son la fila en sí. */
+  .lead-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--linea); }
+  .lead-row:last-of-type { border-bottom:none; }
+  .lead-name { flex:1; font-size:13px; font-weight:700; }
+  .lead-ventas { font-size:11px; color:#aaa; font-weight:700; white-space:nowrap; min-width:52px; text-align:center; }
+  .lead-att { font-size:12px; font-weight:800; white-space:nowrap; min-width:80px; text-align:right; }
+  .lw-btn { background:#fff; border:1.5px solid var(--naranja); color:var(--naranja); border-radius:8px;
+    padding:5px 11px; font-family:'Montserrat',sans-serif; font-size:11px; font-weight:800; cursor:pointer; margin-top:7px; }
+  #liveWarning.err .lw-btn { border-color:var(--rojo); color:var(--rojo); }
+  /* Los botones ✓ Con seguro / ✗ Sin seguro se retiraron en v151 junto con el
+     ajuste manual que alimentaban. Ver el comentario de `attTotal`. */
+  .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 16px 16px; }
+  .dash-stat { background:#fff; border-radius:14px; padding:16px 12px; text-align:center; border:1px solid #ececec; cursor:pointer; active:opacity:.8; }
+  .dash-n { font-size:34px; font-weight:800; line-height:1; color:#1a1a1a; }
+  .dash-lbl { font-size:11px; color:#888; font-weight:700; margin-top:5px; }
+  /* ---- WhatsApp share ---- */
+  .btn-wa { display:flex; align-items:center; justify-content:center; gap:6px; background:#eafaf1; color:#128C7E; border:none; border-radius:10px; padding:9px 14px; font-family:'Montserrat',sans-serif; font-size:12px; font-weight:700; cursor:pointer; margin-top:10px; width:100%; }
+
+  .eol-bundle-tip { margin-top:10px; padding:9px 11px; border-radius:9px; background:#fff8ec; border:1px solid #ffe6bd; }
+  .eol-bundle-tip .tip-lbl { font-size:10.5px; font-weight:800; color:var(--naranja); text-transform:uppercase; letter-spacing:.4px; }
+  .eol-bundle-tip .tip-nom { font-size:12.5px; font-weight:700; margin-top:2px; }
+  .eol-bundle-tip .precio { font-size:15px; }
+
+  .combo-group { margin-bottom:16px; }
+  .combo-group-lbl { font-size:11.5px; font-weight:800; color:var(--naranja); margin:0 2px 8px; display:flex; align-items:center; gap:5px; }
+  .combo-carousel { display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:0 2px 6px; margin:0 -2px; }
+  .combo-carousel::-webkit-scrollbar { display:none; }
+  .combo-slide { flex:0 0 88%; width:88%; min-width:0; scroll-snap-align:start; }
+  .combo-slide .card { margin-bottom:0; height:100%; }
+  .combo-dots { display:flex; justify-content:center; gap:6px; margin-top:2px; }
+  .combo-dots span { width:5px; height:5px; border-radius:50%; background:#e0d5c5; }
+
+  .bundle-desglose { margin-top:10px; }
+  .dg-row { display:flex; justify-content:space-between; gap:12px; font-size:12px; padding:3px 0; color:#555; align-items:baseline; }
+  .dg-row > span { line-height:1.3; }
+  .dg-row b { font-weight:700; color:#333; white-space:nowrap; }
+  .dg-row em { color:#aaa; font-style:normal; font-size:10px; font-weight:600; }
+  .dg-sub { border-top:1px solid var(--linea); margin-top:4px; padding-top:6px; color:#888; font-weight:600; }
+  .dg-seg span, .dg-seg b { color:var(--verde); }
+  .dg-regalo span { color:var(--naranja); font-weight:600; }
+  .dg-regalo b { color:var(--naranja); font-weight:700; font-size:11px; }
+  .dg-total { border-top:2px solid var(--rojo); margin-top:5px; padding-top:6px; font-size:14px; }
+  .dg-total span { font-weight:700; color:#333; }
+  .dg-total b { color:var(--rojo); font-size:16px; }
+
+  /* ---- Preventa ---- */
+  .card.t-preventa { border-left-color:#7c3aed; }
+  .card.t-preventa.pv-agot { opacity:.55; }
+  .pv-banner { background:linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; border-radius:14px; padding:14px 16px; margin-bottom:14px; }
+  .pv-banner-t { font-size:16px; font-weight:800; }
+  .pv-banner-s { font-size:11.5px; opacity:.92; margin-top:3px; line-height:1.4; }
+  .pv-banner-n { font-size:12px; font-weight:700; margin-top:8px; background:rgba(255,255,255,.18); display:inline-block; padding:4px 10px; border-radius:8px; }
+  .pv-cupo { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; padding:3px 8px; border-radius:6px; flex-shrink:0; white-space:nowrap; }
+  .pv-cupo.ok { background:#edfaf3; color:var(--verde); }
+  .pv-cupo.pocas { background:#fff5ee; color:var(--naranja); }
+  .pv-cupo.ultima { background:#fdeaea; color:var(--rojo); }
+  .pv-cupo.agot { background:#f2f2f2; color:#999; }
+  .pv-meta { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .pv-reg { font-size:11px; color:#bbb; text-decoration:line-through; font-weight:600; }
+  .pv-msi { font-size:11px; color:var(--azul); font-weight:700; }
+  .pv-seg { font-size:12px; color:var(--verde); margin-top:6px; }
+  .pv-btns { display:flex; gap:8px; margin-top:10px; }
+  .btn-apartar { flex:1; background:#7c3aed; color:#fff; border:none; border-radius:10px; padding:10px; font-family:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .btn-apartar:disabled { background:#ddd; color:#999; cursor:default; }
+  .btn-wa.pv-wa { width:auto; margin-top:0; padding:9px 14px; flex-shrink:0; }
+  .ap-card { border-left-width:4px; }
+  .ap-card.t-pre  { border-left-color:#7c3aed; }
+  .ap-card.t-tras { border-left-color:var(--azul); }
+  .ap-card.t-tarde{ border-left-color:var(--rojo); background:#fffafa; }
+  .ap-traspaso { font-size:10.5px; color:#8a827f; font-weight:600; margin-top:3px; }
+  .ap-traspaso .tarde { color:var(--rojo); font-weight:800; }
+  .ap-row { display:flex; align-items:center; gap:10px; padding:11px 14px; }
+  .ap-est { font-size:10px; font-weight:800; text-transform:uppercase; padding:3px 8px; border-radius:6px; background:#f3effe; color:#7c3aed; flex-shrink:0; }
+  .ap-est.asg { background:#fff4e5; color:#c2700a; }
+  .ap-est.ent { background:#eafaf1; color:var(--verde); }
+  .ap-est.can { background:#f4f4f4; color:#aaa; }
+  /* La serie en monoespaciada: se lee contra la etiqueta de la caja dígito a
+     dígito, y en tipografía proporcional el 0/O y el 1/I se confunden. */
+  .ap-serie { font-size:11px; font-weight:700; color:#444; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+              background:#f6f6f8; border-radius:5px; padding:2px 6px; display:inline-block; margin-top:4px; letter-spacing:.3px; }
+  .ap-acc { display:flex; gap:7px; margin-top:9px; }
+  .btn-ap { flex:1; border:none; border-radius:9px; padding:9px; font-family:inherit; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .btn-ap.asignar { background:#fff4e5; color:#c2700a; }
+  .btn-ap.entregar { background:var(--verde); color:#fff; }
+  .btn-ap.gris { background:#f2f2f4; color:#888; flex:0 0 auto; padding:9px 12px; }
+  .btn-ap:disabled { background:#f2f2f4; color:#bbb; cursor:default; }
+
+  /* ---- Modal apartado ---- */
+  .ap-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; align-items:flex-end; justify-content:center; }
+  .ap-modal.show { display:flex; }
+  .ap-box { background:#fff; width:100%; max-width:480px; border-radius:18px 18px 0 0; padding:18px 18px 24px; max-height:92vh; overflow-y:auto; }
+  .ap-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:14px; }
+  .ap-title { font-size:16px; font-weight:800; line-height:1.25; }
+  .ap-sub { font-size:12px; color:#888; font-weight:600; margin-top:2px; }
+  .ap-close { background:none; border:none; font-size:20px; color:#aaa; cursor:pointer; line-height:1; }
+  .ap-lbl { display:block; font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.4px; margin:10px 2px 5px; }
+  .ap-inp { width:100%; border:1.5px solid var(--linea); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:15px; outline:none; }
+  .ap-inp:focus { border-color:#7c3aed; }
+  /* Quién aparta: se muestra, no se edita */
+  .ap-quien { border:1.5px solid var(--linea); border-radius:11px; padding:12px 14px;
+    font-size:15px; font-weight:700; background:#faf8f8; color:#555; }
+  .ap-toggle { display:flex; align-items:center; gap:9px; font-size:13.5px; margin:16px 2px 4px; cursor:pointer; }
+  .ap-toggle input { width:20px; height:20px; accent-color:var(--verde); }
+  .ap-guardar { width:100%; background:#7c3aed; color:#fff; border:none; border-radius:12px; padding:14px; font-family:inherit; font-size:15px; font-weight:800; cursor:pointer; margin-top:18px; }
+  .ap-guardar:disabled { background:#c9b6f0; }
+</style>
+</head>
+<body>
+<script src="./continuidad.js"></script>
+
+<header>
+  <a href="index.html" class="back" title="Menú">‹</a>
+  <img src="logo_odemas.png" alt="Odemás">
+  <div class="h-txt">
+    <h1>Tablero del Equipo</h1>
+    <p id="headerStoreSub">HES · ---</p>
+  </div>
+  <div class="updated">Actualizado<b id="updated">—</b></div>
+  <button id="btnBell" onclick="activarNotifs()" title="Activar avisos push" style="background:none;border:none;cursor:pointer;padding:4px 4px;font-size:22px;line-height:1;color:#ddd;margin-left:2px;flex-shrink:0" aria-label="Notificaciones">🔔</button>
+</header>
+
+<div class="search-wrap">
+  <div class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="q" type="search" placeholder="Buscar producto, SKU, promo…" autocomplete="off">
+  </div>
+</div>
+
+<div id="secBar"></div>
+
+<div id="liveWarning">
+  <span class="lw-icon">⚠️</span>
+  <div>
+    <b id="liveWarningTitulo">Inventario sin confirmar</b>
+    <p id="liveWarningMsg">Conectando… no cotices piezas al cliente hasta ver <b style="color:var(--verde)">● en vivo</b> arriba</p>
+  </div>
+</div>
+
+<main id="app"></main>
+
+<footer id="tbFooter">Odemás · Grupo Gigante — uso interno HES</footer>
+
+<div id="apModal" class="ap-modal">
+  <div class="ap-box">
+    <div class="ap-head">
+      <div><div class="ap-title" id="apModalTitle">Apartar</div><div class="ap-sub" id="apModalSub"></div></div>
+      <button class="ap-close" onclick="cerrarApartado()">✕</button>
+    </div>
+    <label class="ap-lbl">Cliente</label>
+    <input id="apCliente" class="ap-inp" type="text" placeholder="Nombre del cliente" autocomplete="off">
+    <label class="ap-lbl">Teléfono</label>
+    <input id="apTel" class="ap-inp" type="tel" inputmode="numeric" placeholder="10 dígitos" autocomplete="off">
+    <!-- Último recurso: solo si el precio no está ni en el catálogo ni en las
+         promociones. Sin esto el apartado se guardaría en blanco y la etiqueta
+         de la caja saldría sin importe. -->
+    <div id="apPrecioBox" style="display:none">
+      <label class="ap-lbl">¿En cuánto se lo vendiste?</label>
+      <input id="apPrecio" class="ap-inp" type="text" inputmode="decimal" placeholder="$ del ticket" autocomplete="off">
+    </div>
+    <div id="apTraspaso">
+      <label class="ap-lbl">¿De qué tienda viene?</label>
+      <input id="apOrigen" class="ap-inp" type="text" placeholder="Ej. Parque Puebla" autocomplete="off">
+      <label class="ap-lbl">¿Para cuándo se lo prometiste?</label>
+      <input id="apPromesa" class="ap-inp" type="date">
+    </div>
+    <label class="ap-lbl">Lo aparta</label>
+    <div id="apVend" class="ap-quien"></div>
+    <label class="ap-lbl">N° de transacción</label>
+    <input id="apTransaccion" class="ap-inp" type="text" inputmode="numeric" placeholder="Folio del ticket de pago" autocomplete="off">
+    <label class="ap-toggle"><input id="apSeguro" type="checkbox"> 🛡️ El cliente se llevó <b>Seguro</b></label>
+    <button id="apGuardar" class="ap-guardar" onclick="guardarApartado()">Guardar apartado</button>
+  </div>
+</div>
+
+<script src="datos.js"></script>
+<script>
+const D = window.DATOS || {};
+const _cfg = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+
+/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
+   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
+   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
+   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
+(function(){
+  var _c = _cfg;
+  if(!_c || !_c.store_id || _c.gas_token) return;
+  function _pintar(){
+    var b = document.createElement('div');
+    b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
+      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
+      + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
+    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
+      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
+      + ' — no se pierde nada de lo que tengas capturado.';
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
+  else _pintar();
+})();
+
+const CLOUD_URL = (_cfg && _cfg.gas_url) ? _cfg.gas_url : 'https://script.google.com/macros/s/AKfycbwbZFsiDqZrNitPKNLqr4r6xOFu3VKprtXJacScftIJmcQdAl_yytjxK8BymWvy8I1gjA/exec';
+// Token del Apps Script. Llega desde login_asesor/login_empleado — nunca se
+// escribe aquí: este archivo es público y eso anularía el candado.
+// Si falta, las llamadas salen sin token y el script las rechazará en cuanto
+// GAS_ESTRICTO esté en true (ver GAS_guardian.gs).
+const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
+const TIENDA_ID     = (_cfg && _cfg.store_id) || '1217';
+const TIENDA_NOMBRE = (_cfg && _cfg.nombre)   || 'Angelópolis';
+const ROLE          = localStorage.getItem('hes_role') || 'asesor';
+/* Quién entró. Desde que se retiró el PIN de tienda, cada quien accede con su
+   número de empleado, así que esto SIEMPRE existe y el tablero no tiene que
+   preguntar quién es. Antes el vendedor de un apartado se tecleaba a mano y el
+   mismo asesor salía como dos personas: el nombre suelto y el completo. */
+const YO = (function(){ try{ return JSON.parse(localStorage.getItem('hes_empleado')||'null'); }
+                        catch(e){ return null; } })();
+
+/* ── Quién ve Resurtir ──────────────────────────────────────────────────
+   Por PUESTO, no por el permiso de Admin (decidido el 9-ago-2026). Pedirle
+   mercancía al CD es trabajo de quien lleva la tienda: gerente y subgerente.
+   Un asesor con el cliente enfrente necesita saber si puede vender algo o
+   traerlo de otra tienda, y eso lo sigue viendo entero en Precios y en el
+   buscador; la lista de pedidos no es su decisión.
+
+   Se elige el puesto y no `admin` a propósito: son dos preguntas distintas
+   —"qué haces en la tienda" y "puedes tocar la configuración"— y hoy coinciden
+   por casualidad, con las mismas dos personas. El día que se separen, atarlas
+   habría dado el permiso equivocado sin que nadie lo notara.
+
+   Se compara por el PRINCIPIO de la palabra porque el mismo puesto se escribe
+   de dos formas: la ficha dice "Subgerente de Tienda" y el reporte de Sonar
+   "SUBGERENTE TIENDA RS". Exigir el texto exacto dejaría fuera a quien se dé
+   de alta desde el otro lado. Ojo al orden de las letras: "subgerente" no
+   empieza por "gerente", así que ninguno de los dos se cuela en el otro. */
+const SIN_ACENTOS = new RegExp('[\\u0300-\\u036f]', 'g');
+const PUESTOS_GESTION = ['gerente', 'subgerente'];
+function esPuestoDeGestion_(puesto){
+  // Los acentos se quitan con el rango escapado, no con los caracteres
+  // combinantes escritos tal cual: invisibles en el editor, un guardado en otra
+  // codificación los rompe y el filtro dejaría de quitar nada, en silencio.
+  const p = String(puesto || '').toLowerCase()
+              .normalize('NFD').replace(SIN_ACENTOS, '').trim();
+  return PUESTOS_GESTION.some(function(x){ return p.indexOf(x) === 0; });
+}
+
+/* Sin puesto se cae en el rol, y eso NO es un agujero: es el gerente dueño de
+   la tienda, que entra con el correo de la tienda y por eso no tiene ficha de
+   empleado de la que sacar un puesto. Un asesor nunca llega aquí con rol de
+   gerente, así que el respaldo no le abre nada.
+
+   Es `let` porque el servidor puede desmentirlo: ver confirmarPuesto(). */
+let PUEDE_GESTIONAR = (YO && YO.puesto)
+  ? esPuestoDeGestion_(YO.puesto)
+  : ROLE === 'gerente';
+
+/* Un solo portero para "¿esta sección existe para quien está mirando?". Lo
+   preguntan las tarjetas de Inicio, el render, el buscador y la URL: si cada
+   uno lo decidiera por su cuenta, bastaría olvidar uno para que la sección
+   siguiera alcanzable por ahí. */
+function seccionVisible_(id){
+  return id !== 'resurtir' || PUEDE_GESTIONAR;
+}
+
+document.getElementById('updated').innerHTML = '<span style="color:var(--naranja);font-weight:700">Sin confirmar</span>';
+document.getElementById('liveWarning').classList.add('visible');
+(function(){
+  const el=document.getElementById('headerStoreSub'); if(el) el.textContent='HES '+TIENDA_ID+' · '+TIENDA_NOMBRE;
+  const ft=document.getElementById('tbFooter');
+  if(ft) ft.textContent='Odemás · Grupo Gigante — uso interno HES '+TIENDA_ID;
+
+  /* La versión, en el pie. Se le PREGUNTA al service worker en vez de escribirla
+     aquí: sw.js dice que es el único sitio donde vive el número, y repetirlo
+     crearía dos que se separan —que es exactamente el problema que se quiso
+     evitar—. Si el SW no contesta (primera carga, o navegador sin soporte) el
+     pie se queda como está: es un dato de diagnóstico, no puede estorbar.
+
+     Hace falta porque sin ella un "no me aparece el botón" es una adivinanza:
+     no hay forma de saber si el código está mal o si ese teléfono se quedó con
+     una copia vieja. Pasó el 7-ago-2026 con los botones de asignar serie. */
+  if(!ft || !('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.addEventListener('message', function(ev){
+    if(ev.data && ev.data.version) ft.textContent += ' · ' + ev.data.version;
+  });
+  navigator.serviceWorker.ready.then(function(reg){
+    const sw = navigator.serviceWorker.controller || reg.active;
+    if(sw) sw.postMessage('version');
+  }).catch(function(){
+    /* Callar es correcto aquí: `ready` no resuelve nunca si la página se abrió
+       sin service worker (file://, modo incógnito, o la primera visita antes de
+       registrarlo). El pie se queda sin el número y no pasa nada más — avisar
+       de esto sería alarmar por no poder mostrar un dato de diagnóstico. */
+  });
+})();
+
+/* ---- El día, en vivo ----
+   La app queda abierta como PWA días enteros en el celular del asesor, así que
+   la fecha NO se puede fijar al cargar: tocarDia() la vuelve a leer y avisa
+   cuando ya cambió el día.
+   Siempre fecha LOCAL: toISOString() devuelve UTC y en México (UTC-6) a partir
+   de las 6 pm ya es "mañana" — las promos que vencían ese mismo día se caían
+   del tablero justo en la hora pico. */
+let HOY = new Date();
+function hoyISO(d){
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+let HOY_ISO = hoyISO(HOY);
+/* Vigencia por fechas d1/d2 (ambas inclusive). EXIGE fecha de fin.
+   Hasta el 1-ago-2026 la regla era "sin fecha = siempre vigente", y así 132 de
+   las 141 promos de la hoja —cargadas sin vigencia— se mostraban para siempre:
+   el equipo seguía viendo promociones terminadas en julio. Los 20 combos
+   activos sí traen fecha, así que no les afecta.
+   Si algo debe verse sin caducar, se le pone una fecha lejana; no se deja vacía. */
+const vigenteHoy = x => !!x.d2 && (!x.d1 || HOY_ISO >= x.d1) && HOY_ISO <= x.d2;
+// Relee el reloj. true = ya es otro día (hay que re-filtrar vigencias).
+function tocarDia(){
+  HOY = new Date();
+  const iso = hoyISO(HOY);
+  if(iso === HOY_ISO) return false;
+  HOY_ISO = iso;
+  return true;
+}
+
+/* La pestaña 📊 Inventario se retiró el 1-ago-2026: sus dos slides ya viven
+   dentro de 🔥 Promos y precios — "Promos" (con existencias) y "Precio regular"
+   (el resto del inventario, también con existencias). Tener las dos obligaba a
+   saltar entre pestañas para saber si de una promo quedaban piezas.
+   El código de la sección 'inv' se conserva por si hay que devolverla: basta
+   volver a agregar su renglón aquí. */
+/* Los bundles (paquetes) se retiraron el 4-ago-2026: la tienda dejó de
+   manejarlos. Se quitan de la vista del equipo y de Admin, pero NO se borra
+   nada del servidor: la hoja `Bundles`, la tabla de Supabase y los 20 combos
+   históricos siguen ahí. Si algún día vuelven, se reactiva devolviendo este
+   filtro, su línea en `seccionTieneItems`, la de `cuenta()` y la de `render()`.
+   `seccionBundles` y `aplicarBundles` se quedan sin usar a propósito, por lo
+   mismo. */
+/* Las secciones del tablero. `nov` (Novedades) y `transito` (En tránsito) se
+   BORRARON el 8-ago-2026: salían de `datos.js`, vacío a propósito desde agosto,
+   y no había nada que las llenara —ni un modo del Apps Script ni una tabla en
+   Supabase—. Nunca llegaron a aparecer en pantalla, y aun así había que
+   mantener su filtro, su contador, su tarjeta y su rama del render.
+   Si algún día hacen falta, se reconstruyen sabiendo de dónde salen los datos. */
+const FILTROS = [
+  { id:'promo',    label:'💰 Precios y promos', icono:'🔥', color:'var(--naranja)',
+    sub:'Lo que se puede vender hoy y a qué precio' },
+  { id:'apartados', label:'📋 Apartados', icono:'📋', color:'#7c3aed',
+    sub:'Pagados y pendientes de entregar' },
+  { id:'eol',      label:'🏷️ Vender al 50%', icono:'🏷️', color:'var(--verde)',
+    sub:'Piezas de exhibición que ya se pueden rematar' },
+  { id:'resurtir', label:'🔄 Resurtir', icono:'🔄', color:'var(--azul)',
+    sub:'Sin existencia — hay que pedir' },
+];
+/* La pestaña se puede fijar desde fuera con #preventa. Lo usa Captura de Series
+   para devolver al asesor justo donde estaba después de escanear una serie: sin
+   esto vuelve al Inicio y tiene que buscar otra vez al cliente en la lista. */
+/* `inicio` ya no es una sección más de FILTROS: es la pantalla de partida y el
+   único camino entre secciones (8-ago-2026). Se puede fijar desde fuera con
+   #preventa — lo usa Captura de Series para devolver al asesor donde estaba. */
+/* La sección Y la búsqueda viven en la URL desde v152: `#promo` o
+   `#promo/mate 11`. Antes el hash solo se LEÍA —para que Captura de Series
+   pudiera devolver al asesor a su sección— pero nunca se escribía, así que al
+   recargar siempre se caía en Inicio.
+
+   Ahora que se escribe, volver de WhatsApp devuelve la pantalla completa: la
+   sección donde estabas y lo que habías tecleado. Ver continuidad.js. */
+function _deLaUrl(){
+  const h = decodeURIComponent((location.hash||'').replace(/^#/,''));
+  const corte = h.indexOf('/');
+  const id = corte >= 0 ? h.slice(0, corte) : h;
+  // La sección tiene que existir Y ser de quien está mirando: el hash se
+  // teclea, se comparte por WhatsApp y lo restaura continuidad.js, así que sin
+  // esto un `#resurtir` pegado a mano abriría la sección igual.
+  return { id: (FILTROS.some(f=>f.id===id) && seccionVisible_(id)) ? id : 'inicio',
+           q:  corte >= 0 ? h.slice(corte+1) : '' };
+}
+let filtroActivo = _deLaUrl().id;
+let busqueda = _deLaUrl().q;
+
+/* Escribe el estado en la URL sin ensuciar el historial: con pushState, cada
+   letra tecleada en el buscador dejaría una entrada y el botón «atrás» del
+   teléfono tardaría veinte toques en salir de la app. */
+function _urlAlDia(){
+  const h = filtroActivo + (busqueda ? '/' + busqueda : '');
+  const nueva = '#' + encodeURIComponent(h).replace(/%2F/g,'/');
+  if(location.hash !== nueva){
+    try{ history.replaceState(null, '', nueva); }
+    catch(e){ location.hash = nueva; }   // navegador sin History API: se nota el salto, pero funciona
+  }
+}
+
+let APARTADOS = [];
+/* El total decía "de 36" escrito a mano. Al habilitar una pieza más en Orange
+   Ocean (5-ago-2026) el banner habría dicho "quedan 1 de 36" con 37 repartidas:
+   se suma de los cupos para que no vuelva a mentir. */
+
+function diasRestantes(fecha){
+  const f = new Date(fecha+'T00:00:00');
+  // Contra la MEDIANOCHE de hoy, no contra la hora actual: comparando con el
+  // instante, una promo que vence hoy salía "Vencida" a partir del mediodía
+  // (Math.round de -0.5 días).
+  const base = new Date(HOY.getFullYear(), HOY.getMonth(), HOY.getDate());
+  return Math.round((f - base)/86400000);
+}
+const _MESES_CORTO = ['ene','feb','mar','abr','may','jun',
+                     'jul','ago','sep','oct','nov','dic'];
+const _MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio',
+                      'agosto','septiembre','octubre','noviembre','diciembre'];
+
+/* La vigencia se dice con FECHA y solo cuando queda poco (8-ago-2026).
+
+   Antes salía en todas las promos como "⏳ 23 días" y solo se ponía en rojo con
+   2 días o menos. O sea que entre 23 días y 3 días se veía exactamente igual,
+   cuando la decisión de qué empujar es la contraria. Y con 77 promos, 77 badges
+   que casi nunca dicen nada accionable acaban sin mirarse.
+
+   Ahora: por encima de 15 días no aparece —si está, es que corre prisa— y dice
+   la fecha, que es lo que se le repite al cliente ("la promo va hasta el 31"),
+   no una cuenta mental de días. El color separa "esta quincena" de "esta
+   semana". Sin reloj de arena: con el color diciendo la urgencia, el emoji solo
+   robaba ancho a un badge estrecho. */
+const VIGENCIA_AVISAR_DESDE = 15;   // días
+
+/* Cuando TODAS las promos vigentes vencen el mismo día, el badge por tarjeta no
+   distingue nada: repetiría la misma fecha 117 veces para decir algo que es
+   igual en toda la pantalla. En ese caso se calla aquí y el aviso sale una sola
+   vez arriba, en la barra.
+
+   Pero no siempre es así —el CEA de agosto trae todo al 31 y otros meses mezcla
+   fechas—, así que no se puede decidir de antemano: se mira en cada render.
+   Lo pone `vigenciaComun()` justo antes de pintar la sección. */
+let _vigUnica = null;
+
+/* Devuelve la fecha si TODAS las promos con existencia vencen el mismo día;
+   null si hay mezcla. Solo mira las que se están mostrando: si el buscador
+   filtró a tres y las tres coinciden, el aviso único también vale. */
+function vigenciaComun(promos){
+  const fechas = new Set(promos.map(p => p.d2).filter(Boolean));
+  if(fechas.size !== 1) return null;
+  // Si alguna no tiene fecha, no se puede afirmar que todas venzan igual.
+  if(promos.some(p => !p.d2)) return null;
+  return [...fechas][0];
+}
+
+function avisoVigencia(fecha){
+  const d = diasRestantes(fecha);
+  const f = new Date(fecha+'T00:00:00');
+  const cuando = f.getDate() + ' de ' + _MESES_LARGO[f.getMonth()];
+  const cls = d <= 5 ? 'urge' : d <= VIGENCIA_AVISAR_DESDE ? 'pronto' : '';
+  const cola = d < 0 ? 'vencidas' : d === 0 ? 'hoy es el último día'
+             : d === 1 ? 'mañana es el último día' : `quedan ${d} días`;
+  return `<span class="vig-todas ${cls}">Promos hasta el ${cuando} · ${cola}</span>`;
+}
+
+function badgeVigencia(fecha){
+  const d = diasRestantes(fecha);
+  if(_vigUnica) return '';                        // ya lo dice la barra de arriba
+  if(d > VIGENCIA_AVISAR_DESDE) return '';        // aún queda mucho: no estorba
+  const f = new Date(fecha+'T00:00:00');
+  const cuando = f.getDate() + ' ' + _MESES_CORTO[f.getMonth()];
+  const txt = d < 0  ? 'Vencida'
+            : d === 0 ? 'Último día'
+            : d === 1 ? 'Hasta mañana'
+            : `Hasta el ${cuando}`;
+  // ≤5 días es "esta semana": rojo. El resto del tramo, ámbar.
+  const cls = d <= 5 ? 'urge' : 'pronto';
+  return `<span class="badge ${cls}">${txt}</span>`;
+}
+function coincide(...campos){
+  if(!busqueda) return true;
+  return campos.join(' ').toLowerCase().includes(busqueda);
+}
+
+/* Inventario guardado de la última vez que respondió la nube.
+   Va aquí a propósito: invBySku y eolSkuSet (abajo) se construyen una sola vez
+   al cargar, así que el caché tiene que estar puesto ANTES o quedan vacíos.
+
+   El inventario ya no viaja en datos.js — era público en GitHub Pages con 105
+   SKUs, su stock y los EOL con precio. Ahora solo vive en el celular de quien
+   entró, y solo mientras sirva: un stock de hace una semana hace prometer
+   piezas que no hay, y eso es peor que no tener dato. */
+const INV_KEY       = 'hes1217_inv_cache';
+const INV_HORAS_OK  = 24;   // hasta aquí se muestra sin peros
+const INV_HORAS_MAX = 72;   // pasado esto se descarta
+let _invEdadHoras = null;
+(function(){
+  try{
+    const c = JSON.parse(localStorage.getItem(INV_KEY)||'null');
+    if(!c || !c.guardado || !Array.isArray(c.inventario) || !c.inventario.length) return;
+    const horas = (Date.now() - c.guardado) / 36e5;
+    if(horas > INV_HORAS_MAX){ localStorage.removeItem(INV_KEY); return; }
+    _invEdadHoras = horas;
+    D.inventario = c.inventario;
+    if(Array.isArray(c.eol) && c.eol.length) D.eol = c.eol;
+  }catch(e){}   // cache ilegible: se arranca sin inventario y la nube lo trae
+})();
+
+const invBySku = {};
+(D.inventario||[]).forEach(x=>{ invBySku[x.sku]=x; });
+/* Nombres y teléfonos de clientes se pintan con innerHTML. Son texto libre que
+   teclea el asesor, así que un apellido con `&` o un `<` cualquiera rompía la
+   tarjeta —y una serie es un dato que hay que poder leer entero—. */
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money = n => '$'+Number(n||0).toLocaleString('es-MX');
+const money2 = n => '$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2, maximumFractionDigits:2});
+const eolSkuSet = new Set((D.eol||[]).map(e=>e.sku));
+
+// SKUs EOL pausados por indicacion del area comercial — no mostrar como vendibles
+// aunque el sistema ya los marque "listo" (ver [[project_hes_ang...]] combos EOL)
+const EOL_PAUSADOS = new Set(['100280724']); // MatePad 11.5" VD+TCL — pendiente autorizacion comercial
+
+// Variables recalculables cuando llegan datos de la nube
+let EOL = [], eolMap = {}, RESURTIR = [], AGOTADOS = [];
+const PROMOS_KEY   = 'hes1217_promos_cache';
+const BUNDLES_KEY  = 'hes1217_bundles_cache';
+let PROMOS = [];
+let BUNDLES = [];
+
+// Cache de bundles
+(function(){
+  try{
+    const c=JSON.parse(localStorage.getItem(BUNDLES_KEY)||'null');
+    if(Array.isArray(c)) BUNDLES=c.filter(vigenteHoy);
+  }catch(e){}   // sin cache de combos se muestran cuando responda la nube
+})();   // promociones vigentes — se cargan de la nube y se cachean en localStorage
+
+// Carga cache guardado para mostrar promos al instante aunque no haya red
+(function(){
+  try{
+    const c = JSON.parse(localStorage.getItem(PROMOS_KEY)||'null');
+    if(Array.isArray(c) && c.length) PROMOS = c.filter(vigenteHoy);
+  }catch(e){}   // sin cache de promos se muestran cuando responda la nube
+})();
+
+
+// Si hay inventario guardado, decirlo desde el arranque en vez de dejar
+// "Sin confirmar" hasta que responda la nube.
+// El try es por si el DOM aun no tiene el nodo; el aviso se repinta al llegar la nube.
+if(_invEdadHoras != null) setTimeout(function(){ try{ pintarUpdated(); }catch(e){} }, 0);
+
+function guardarInvCache(){
+  // Nunca guardar vacío: una corrida fallida borraría el inventario bueno que
+  // el asesor todavía puede necesitar sin señal.
+  if(!D.inventario || !D.inventario.length) return;
+  try{
+    localStorage.setItem(INV_KEY, JSON.stringify({
+      guardado: Date.now(),
+      inventario: D.inventario,
+      eol: D.eol || []
+    }));
+    _invEdadHoras = 0;
+  }catch(e){}   // cuota llena: seguimos con lo que hay en memoria
+}
+
+// Tabla Assurant "Lista de precios EC total 2025" — Reemplazo (<$5k) y Reparación ($5k+)
+const SEGUROS = [
+  { d:250,   h:499.99,  p1:109,  p2:149,  s1:'100183730', s2:'100184003' },
+  { d:500,   h:749.99,  p1:159,  p2:229,  s1:'100183748', s2:'100184011' },
+  { d:750,   h:999.99,  p1:229,  p2:309,  s1:'100183756', s2:'100184020' },
+  { d:1000,  h:1249.99, p1:259,  p2:389,  s1:'100183764', s2:'100184038' },
+  { d:1250,  h:1499.99, p1:319,  p2:459,  s1:'100183772', s2:'100184046' },
+  { d:1500,  h:1749.99, p1:369,  p2:529,  s1:'100183781', s2:'100184054' },
+  { d:1750,  h:1999.99, p1:429,  p2:609,  s1:'100183799', s2:'100184062' },
+  { d:2000,  h:2249.99, p1:559,  p2:679,  s1:'100183801', s2:'100184071' },
+  { d:2250,  h:2499.99, p1:629,  p2:919,  s1:'100183810', s2:'100184089' },
+  { d:2500,  h:2999.99, p1:709,  p2:1059, s1:'100183828', s2:'100184097' },
+  { d:3000,  h:3499.99, p1:809,  p2:1249, s1:'100183836', s2:'100184100' },
+  { d:3500,  h:3999.99, p1:999,  p2:1469, s1:'100183844', s2:'100184118' },
+  { d:4000,  h:4499.99, p1:1249, p2:1539, s1:'100183852', s2:'100184126' },
+  { d:4500,  h:4999.99, p1:1549, p2:1679, s1:'100183861', s2:'100184134' },
+  { d:5000,  h:5999.99,  p1:1349, p2:1769, s1:'100183879', s2:'100184142' },
+  { d:6000,  h:6999.99,  p1:1519, p2:1909, s1:'100183887', s2:'100184151' },
+  { d:7000,  h:7999.99,  p1:1609, p2:1929, s1:'100183895', s2:'100184169' },
+  { d:8000,  h:9999.99,  p1:1679, p2:2159, s1:'100183908', s2:'100184177' },
+  { d:10000, h:11999.99, p1:1839, p2:2199, s1:'100183916', s2:'100184185' },
+  { d:12000, h:14999.99, p1:2079, p2:2469, s1:'100183924', s2:'100184193' },
+  { d:15000, h:16999.99, p1:2169, p2:2839, s1:'100183932', s2:'100184206' },
+  { d:17000, h:22999.99, p1:3289, p2:3879, s1:'100183941', s2:'100184214' },
+  { d:23000, h:34499.99, p1:3469, p2:4199, s1:'100183959', s2:'100184222' },
+  { d:34500, h:45999.99, p1:3609, p2:4899, s1:'100183967', s2:'100184231' },
+  { d:46000, h:57499.99, p1:4089, p2:5379, s1:'100183975', s2:'100184249' },
+  { d:57500, h:74999.99, p1:4489, p2:6619, s1:'100183983', s2:'100184257' },
+  { d:75000, h:99999.99, p1:5129, p2:7769, s1:'100183991', s2:'100184265' },
+];
+// Excepciones por SKU: productos cuyo precio en inventario no coincide con el rango Assurant real
+const SEGURO_POR_SKU = {
+  '100304263': { p1:1549, p2:1679, s1:'100183861', s2:'100184134' }, // WATCH KIDS X1 AZ
+  '100304271': { p1:1549, p2:1679, s1:'100183861', s2:'100184134' }, // WATCH KIDS X1 ROSA
+};
+function seguroPara(precio, sku) {
+  if (sku && SEGURO_POR_SKU[sku]) return SEGURO_POR_SKU[sku];
+  const n = parseFloat(String(precio||0).replace(/[^0-9.]/g,''));
+  return SEGUROS.find(r => n >= r.d && n <= r.h) || null;
+}
+/* Los 6 y 12 MSI ya no dicen "todas las tarjetas" (8-ago-2026). Es lo normal,
+   así que decirlo en cada plazo no informa: solo alarga el badge y le quita
+   fuerza a la única condición que SÍ hay que avisar, la de 18 meses.
+
+   Si un día algún plazo deja de ser universal, se le pone su banco igual que a
+   los 18 — la regla es "se nombra el banco solo cuando restringe". */
+// Abreviados a propósito: el badge va en una tarjeta estrecha y
+// "American Express" completo la partía en dos líneas.
+const MSI_18_BANCOS = 'Citibanamex y Amex';
+
+function msiInfo(total) {
+  // La cuota va en <b>: es el número que el asesor dice en voz alta.
+  const cuota = m => `<b>${money(Math.ceil(total/m))}</b>`;
+  if (total >= 20000) return `<span class="msi-badge msi-18">18 MSI · ${cuota(18)}/mes — ${MSI_18_BANCOS}</span> <span class="msi-badge msi-12">12 MSI · ${cuota(12)}/mes</span>`;
+  if (total >= 10000) return `<span class="msi-badge msi-12">12 MSI · ${cuota(12)}/mes</span> <span class="msi-badge msi-6">6 MSI · ${cuota(6)}/mes</span>`;
+  if (total >= 1500)  return `<span class="msi-badge msi-6">6 MSI · ${cuota(6)}/mes</span>`;
+  return '';
+}
+/* Solo el total, grande. El desglose "2.690 + 299 seguro = 2.989" se retiró el
+   8-ago-2026: ahora el chip dice lo que cuesta el seguro, así que la suma en
+   gris repetía el dato y le robaba tamaño al número que de verdad se cobra.
+   `p0` y `segCosto` se conservan en la firma porque selSeg los pasa y puede
+   volver a hacer falta el desglose si algún día se cobra el seguro aparte. */
+function desgloseHtml(p0, total, segCosto) {
+  return `<span class="seg-precio-total">${money(total)}</span>`;
+}
+/* El precio va PRIMERO y los meses al final, en gris (rediseño del 1-ago-2026):
+   la tarjeta mostraba once bloques con el mismo peso y no había dónde caer
+   primero. `enMedio` deja insertar los badges entre el precio y los chips sin
+   sacarlos del contenedor #id — selSeg busca .seg-desglose y .seg-msi ahí
+   dentro, así que todo lo dinámico tiene que seguir colgando de él. */
+/* `dto` es el porcentaje de ahorro. Se pinta AQUÍ y no en la tarjeta porque
+   este es el único sitio donde vive el precio: al añadirlo fuera salían dos
+   precios, uno encima del otro. (8-ago-2026, visto en piso.) */
+function segSelector(sku, precioBase, precioVenta, enMedio, regularTachado, dto) {
+  const s = seguroPara(precioBase, sku);
+  const p0 = parseFloat(String(precioVenta||0).replace(/[^0-9.]/g,'')) || 0;
+  const p1 = s ? p0 + s.p1 : null;
+  const p2 = s ? p0 + s.p2 : null;
+  const i1 = s ? s.p1 : 0;
+  const i2 = s ? s.p2 : 0;
+  const id = 'sg_' + String(sku).replace(/\D/g,'');
+  /* El costo del seguro va DENTRO del chip (8-ago-2026). Antes solo aparecía al
+     tocarlo, en el desglose gris de arriba: el asesor tenía que seleccionarlo
+     para poder decir cuánto costaba, y con el cliente delante eso es tantear.
+     Aquí se lee antes: "por 299 más te llevas un año". */
+  const chip1 = s ? `<button class="seg-chip" onclick="selSeg('${id}',1,${p0},${p1},${p2},${i1},${i2})">1 año <i>+${money(i1)}</i></button>` : '';
+  const chip2 = s ? `<button class="seg-chip" onclick="selSeg('${id}',2,${p0},${p1},${p2},${i1},${i2})">2 años <i>+${money(i2)}</i></button>` : '';
+  // El tachado va FUERA de .seg-desglose: selSeg reescribe ese nodo completo al
+  // cambiar de seguro, y si estuviera dentro se borraría en el primer toque.
+  const tach = regularTachado ? `<span class="precio-reg">${money(regularTachado)}</span>` : '';
+  const badgeDto = dto ? `<span class="ah">−${dto}%</span>` : '';
+  return `<div class="seg-sel" id="${id}">
+    <div class="precio-linea">
+      <div class="seg-desglose">${desgloseHtml(p0, p0, 0)}</div>${tach}${badgeDto}
+    </div>
+    ${enMedio || ''}
+    <div class="seg-chips">
+      <button class="seg-chip active" onclick="selSeg('${id}',0,${p0},${p1||p0},${p2||p0},${i1},${i2})">Sin seguro</button>
+      ${chip1}${chip2}
+    </div>
+    <div class="seg-msi">${msiInfo(p0)}</div>
+  </div>`;
+}
+function selSeg(id, idx, p0, p1, p2, i1, i2) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  wrap.querySelectorAll('.seg-chip').forEach((c,i) => c.classList.toggle('active', i===idx));
+  const total = idx===0 ? p0 : idx===1 ? p1 : p2;
+  const segCosto = idx===1 ? i1 : idx===2 ? i2 : 0;
+  wrap.querySelector('.seg-desglose').innerHTML = desgloseHtml(p0, total, segCosto);
+  wrap.querySelector('.seg-msi').innerHTML = msiInfo(total);
+
+  /* El precio regular tachado y el % de ahorro SOLO valen sin seguro
+     (8-ago-2026). Con "+1 año" el precio de arriba ya es producto + seguro, y
+     dejar tachado el regular del producto insinúa un ahorro que no existe:
+     $2.690 + seguro comparado con $2.790 no es una rebaja, son dos cosas
+     distintas.
+
+     Se ocultan en vez de borrarse porque hay que poder volver a "Sin seguro" y
+     recuperarlos. Y viven fuera de `.seg-desglose` porque esa línea se reescribe
+     entera en cada toque: dentro, se perderían al primero. */
+  const conSeguro = idx !== 0;
+  wrap.querySelectorAll('.precio-reg, .ah').forEach(el => {
+    el.style.display = conSeguro ? 'none' : '';
+  });
+}
+/* slidePromo y onPromoSliderScroll se retiraron el 7-ago-2026 junto con las dos
+   pestañas deslizables de promos: ahora es una sola lista con encabezados.
+   Se borran en vez de dejarlas "por si acaso" — código que nadie llama es
+   código que nadie mantiene, y el CSS del slider se fue con ellas. */
+/* ---- Assurant attach rate ----
+   El attach se DERIVA de las ventas capturadas en Captura de Series, que ya
+   guarda cada venta como {vend, fecha, seguro:true/false}. Antes esta tarjeta
+   y el leaderboard leían 'attv_<vendedor>_<fecha>', una clave que ninguna app
+   escribía nunca: el equipo aparecía siempre en "—" y el resumen de WhatsApp
+   salía sin renglones por vendedor.
+   Los botones ✓/✗ siguen existiendo, pero solo como AJUSTE MANUAL para ventas
+   que no pasaron por la app (por eso se suman aparte y se pueden reiniciar). */
+const SERIES_KEY = 'hes1217_series_v1';   // misma clave que escribe captura_series.html
+let VENTAS_NUBE = null;        // {vendedor:{c,s}} de TODA la tienda; null = no disponible
+let VENTAS_NUBE_HORA = '';
+
+/* Los botones ✓/✗ de ajuste manual se retiraron el 8-ago-2026 (v151).
+   No fue por espacio. Sumaban un conteo guardado en el localStorage de UN
+   celular al total que viene de Supabase, que es de TODA la tienda. Con eso:
+
+     · el Assurant del día salía distinto en cada teléfono, y ninguno era el
+       bueno — el mismo KPI que se le reporta a Demetrio
+     · una venta ajustada a mano y capturada después contaba DOS veces en ese
+       aparato
+     · el % grande no cuadraba con las filas del equipo: las filas venían de la
+       nube, el porcentaje llevaba los manuales encima
+
+   Ahora el número es exactamente lo que dice Supabase, igual en todos lados.
+   Si una venta falta, se captura en la app —que es donde vive la serie— en vez
+   de parchear el número en una pantalla. Y desde v150 los apartados entran
+   solos el día que se cobran, que era el hueco de verdad. */
+
+// Ventas capturadas HOY en este dispositivo
+function ventasHoyLocal(){
+  try{
+    const items = JSON.parse(localStorage.getItem(SERIES_KEY)||'[]');
+    const hoy = new Date().toLocaleDateString('es-MX');
+    return items.filter(i=>i.fecha===hoy);
+  }catch(e){ return []; }
+}
+// {vendedor:{c,s}} — de la nube si el GAS ya expone modo=ventas_hoy (toda la
+// tienda); si no, de las capturas de este equipo.
+function attPorVendedor(){
+  if(VENTAS_NUBE) return VENTAS_NUBE;
+  const acc = {};
+  ventasHoyLocal().forEach(v=>{
+    const n = v.vend || '(sin nombre)';
+    if(!acc[n]) acc[n] = {c:0,s:0};
+    if(v.seguro===true) acc[n].c++; else acc[n].s++;
+  });
+  return acc;
+}
+function attCapturado(){
+  const por = attPorVendedor(); const t = {c:0,s:0};
+  Object.keys(por).forEach(n=>{ t.c += por[n].c||0; t.s += por[n].s||0; });
+  return t;
+}
+// El total es lo capturado y nada más. Se conserva la función porque la llaman
+// el resumen de WhatsApp y la tarjeta; que sea un alias hoy no la hace inútil.
+function attTotal(){ return attCapturado(); }
+
+/* ---- Leaderboard & Resumen WA ---- */
+// Los nombres vienen de la config de tienda (Supabase). Sin sesión la lista va
+// vacía a propósito: este archivo es público y no debe traer nombres del equipo.
+const VENDEDORES_TB = (_cfg && Array.isArray(_cfg.vendedores) && _cfg.vendedores.length)
+  ? _cfg.vendedores
+  : [];
+function nombreCorto(n){ const p=n.split(' '); return p[0]+(p[1]?' '+p[1][0]+'.':''); }
+// Vendedores configurados + cualquiera que haya vendido hoy, ordenados por attach
+function filasLeaderboard(){
+  const por = attPorVendedor();
+  const nombres = Array.from(new Set(VENDEDORES_TB.concat(Object.keys(por))));
+  return nombres.map(v=>{
+    const a = por[v] || {c:0,s:0};
+    const t = a.c + a.s;
+    return { vend:v, c:a.c, s:a.s, total:t, pct: t>0 ? Math.round(a.c/t*100) : null };
+  }).sort((a,b)=>{
+    if(a.pct===null && b.pct===null) return a.vend.localeCompare(b.vend);
+    if(a.pct===null) return 1;
+    if(b.pct===null) return -1;
+    return b.pct - a.pct || b.total - a.total;
+  });
+}
+/* El equipo va PLEGADO dentro de la tarjeta del Assurant (v151). Eran dos
+   tarjetas apiladas que se comían pantalla y media antes de llegar a Precios, y
+   la mitad de sus renglones eran guiones de gente que aún no vendía.
+
+   Se recuerda abierto o cerrado entre recargas: quien lo abre suele quererlo
+   abierto todo el día, y el tablero se repinta solo cada pocos minutos. */
+let EQUIPO_ABIERTO = (function(){
+  try{ return localStorage.getItem('hes_equipo_abierto') === '1'; }catch(e){ return false; }
+})();
+function toggleEquipo(){
+  EQUIPO_ABIERTO = !EQUIPO_ABIERTO;
+  // sin cuota de almacenamiento se abre igual, solo no lo recuerda al recargar
+  try{ localStorage.setItem('hes_equipo_abierto', EQUIPO_ABIERTO ? '1' : '0'); }catch(e){}
+  render();
+}
+function equipoHtml(){
+  const filas = filasLeaderboard();
+  const conVenta = filas.filter(f => f.total > 0).length;
+  const rows = filas.map(f=>{
+    const ev = f.pct===null?'':f.pct>=25?'✅':f.pct>=15?'⚠️':'🔴';
+    const col= f.pct===null?'#aaa':f.pct>=25?'var(--verde)':f.pct>=15?'var(--naranja)':'var(--rojo)';
+    return `<div class="lead-row">
+      <span class="lead-name">${nombreCorto(f.vend)}</span>
+      <span class="lead-ventas">${f.total?f.total+' vta'+(f.total!==1?'s':''):'—'}</span>
+      <span class="lead-att" style="color:${col}">${f.pct!==null?f.pct+'% '+ev:'—'}</span>
+    </div>`;
+  }).join('');
+  // Sin nadie en la lista no hay nada que plegar, y un desplegable vacío deja
+  // al gerente tocando un botón que no hace nada.
+  if(!filas.length) return '';
+  return `<button class="att-equipo" aria-expanded="${EQUIPO_ABIERTO}" onclick="toggleEquipo()">
+      <span class="flecha">▾</span> 👥 Equipo hoy
+      <span class="cuantos">${conVenta} de ${filas.length} con venta</span>
+    </button>
+    ${EQUIPO_ABIERTO ? rows : ''}`;
+}
+function resumenWA(){
+  const att=attTotal(); const total=att.c+att.s;
+  const pct=total>0?Math.round(att.c/total*100):0;
+  const emoji=pct>=25?'✅':pct>=15?'⚠️':'🔴';
+  const hoy=new Date().toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'});
+  const promoAct=PROMOS.filter(x=>tieneExistencia_(x.sku)).length;
+  const eolList=EOL.filter(e=>e.estado==='listo').length;
+  const avisosAct=(D.avisos||[]).filter(a=>!a.d2||a.d2>=HOY_ISO).length;
+  let msg=`📊 *Resumen HES ${TIENDA_ID} · ${hoy}*\n\n`;
+  msg+=`🛡️ *Assurant: ${total>0?pct+'% '+emoji:'sin registros'}* (${att.c}/${total})\n`;
+  filasLeaderboard().forEach(f=>{
+    if(!f.total) return;
+    msg+=`  · ${nombreCorto(f.vend)} → ${f.c}/${f.total} = ${f.pct}% ${f.pct>=25?'✅':f.pct>=15?'⚠️':'🔴'}\n`;
+  });
+  if(promoAct) msg+=`\n🔥 Promos vigentes: ${promoAct}`;
+  if(eolList)  msg+=`\n🏷️ EOL al 50%: ${eolList}`;
+  if(avisosAct)msg+=`\n📢 Avisos activos: ${avisosAct}`;
+  msg+=`\n\n_HES ${TIENDA_NOMBRE} · Odemás Grupo Gigante_`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg.trim()),'_blank');
+}
+/* ---- WhatsApp share ---- */
+function compartirWA(prodEnc,sku,pv,pb,sinSeguro,incluyeEnc){
+  const producto=decodeURIComponent(prodEnc);
+  let msg='*'+producto+'*';
+  if(incluyeEnc){ msg+='\n'+decodeURIComponent(incluyeEnc); }
+  msg+='\n💰 '+money(pv);
+  // Los bundles ya traen el seguro incluido dentro de su precio — ofrecerlo
+  // aparte aquí sería cobrarlo dos veces (ver sinSeguro=true en cardBundle).
+  if(!sinSeguro){
+    const s=seguroPara(pb||pv);
+    if(s){
+      msg+='\n\n🛡️ Seguro:\n  +1 año: '+money(pv+s.p1)+'\n  +2 años: '+money(pv+s.p2);
+      // Relojes de $8,000+ con seguro: regalo de cuerda digital de saltar
+      const esReloj = /WATCH/i.test(producto) && !/BAND/i.test(producto);
+      if(esReloj && (pb||pv) >= 8000){
+        msg += '\n\n🎁 ¡Agrega el seguro y llévate una cuerda digital de saltar de regalo!';
+      }
+    }
+  }
+  const msi=[];
+  if(pv>=1500) msi.push('6 MSI');
+  if(pv>=10000) msi.push('12 MSI');
+  if(pv>=20000) msi.push('18 MSI*');
+  if(msi.length) msg+='\n\n💳 '+msi.join(' · ')+' disponibles';
+  msg+='\n\n_HES Angelópolis Puebla_';
+  window.open('https://wa.me/?text='+encodeURIComponent(msg.trim()),'_blank');
+}
+
+/* ¿Se le puede vender HOY a un cliente que está enfrente?
+   No es lo mismo que "existe una pieza". La de exhibición de un producto ACTIVO
+   no se vende: se queda en el aparador hasta que llegue caja del CD. Solo se
+   vende la de piso cuando el producto está EOL, y entonces va al 50 %.
+
+   Corregido el 8-ago-2026. Antes esto devolvía true con solo tener exhibición, y
+   por eso 17 SKU sin una sola pieza vendible se contaban como "con existencia",
+   salían arriba en Precios y no ofrecían apartar. El asesor leía "1 de piso",
+   creía que tenía qué entregar, y el cliente se iba con las manos vacías. */
+function tieneExistencia_(sku){
+  const k = estadoSku(sku).k;
+  return k === 'hay' || k === '50';
+}
+
+// Calcula el stock cerrado y la exhibición restante desde los datos crudos de
+// la nube. Corre dentro de calcDerivados (no al cargar) para que respete el
+// estado EOL aunque los datos de EOL lleguen después del inventario.
+function finalizarStock(item){
+  if(!item || item._onhand === undefined) return;   // sin datos de nube: conserva lo estático
+  const o = item._onhand||0, e = item._exhibeRaw||0, v = item._vendido||0, ev = item._ev||0;
+  item.stock = Math.max(0, o - v);                   // stock cerrado (almacén), sin exhibición
+  /* La exhibición solo la venden los productos EOL. `ev` (exh_vendida) usa su
+     propio corte, que NO se reinicia con el ON HAND diario, para que una pieza
+     vendida no reaparezca al día siguiente.
+
+     SE RESTA TAL CUAL desde el 17-ago-2026 (v175). Antes aquí había un
+     `Math.max(0, ev - o)`: el cliente calculaba por su cuenta cuántas ventas
+     habían excedido el almacén, porque el servidor solo mandaba el total. Desde
+     v174 `exh_vendida` YA trae esa cuenta hecha —más las ventas marcadas como
+     pieza de exhibición—, así que restarlo otra vez lo anulaba:
+
+         e=1, ev=1, onhand=5  ->  1 - max(0, 1-5) = 1   ✗ decía "1 en exhibición"
+                                  1 - 1           = 0   ✓
+
+     Visto en piso el mismo día: el aparador seguía marcando una pieza que ya se
+     había vendido. Cambiar lo que significa un campo del servidor obliga a
+     mirar quién lo consume — el campo llegaba bien, la cuenta era la vieja. */
+  item.exhibe = eolSkuSet.has(item.sku) ? Math.max(0, e - ev) : e;
+}
+function calcDerivados(){
+  (D.inventario||[]).forEach(finalizarStock);
+  Object.keys(invBySku).forEach(function(sku){ finalizarStock(invBySku[sku]); });
+  EOL = (D.eol||[]).map(e=>{
+    const inv = invBySku[e.sku] || {};
+    const stock = inv.stock||0, exhibe = inv.exhibe||0;
+    const estado = (stock===0 && exhibe>0) ? 'listo' : (stock>0 ? 'pendiente' : 'agotado');
+    const precio = e.precio || inv.precio || 0;
+    return { sku:e.sku, producto:e.producto||inv.producto||('SKU '+e.sku),
+      precio:precio, precio50:precio?precio/2:null, stock, exhibe, estado };
+  }).filter(e=>e.exhibe>0 && !EOL_PAUSADOS.has(e.sku));
+  eolMap = {}; EOL.forEach(e=>{ eolMap[e.sku]=e.estado; });
+  RESURTIR = (D.inventario||[]).filter(x=>x.stock===0 && x.exhibe>0 && !eolSkuSet.has(x.sku))
+              .sort((a,b)=> a.producto.localeCompare(b.producto));
+  AGOTADOS = (D.inventario||[]).filter(x=>(x.stock||0)===0 && (x.exhibe||0)===0 && !eolSkuSet.has(x.sku))
+              .sort((a,b)=> a.producto.localeCompare(b.producto));
+
+  /* Y los que están en promoción pero NUNCA han tenido fila de inventario.
+     Detectado el 8-ago-2026 con el MatePad P-Max 13.2": sale en el folleto, en
+     Precios aparece con su botón de apartar... y en la lista de resurtir no
+     estaba, porque las dos listas de arriba se arman desde `D.inventario` y ese
+     SKU no tiene fila ahí. Nadie lo iba a pedir nunca.
+
+     Es el caso más urgente de los tres, no el más raro: producto en promoción
+     vigente del que la tienda no tiene ni la de exhibición. */
+  const _conFila = new Set((D.inventario||[]).map(x=>x.sku));
+  PROMOS.forEach(p=>{
+    if(!p.sku || _conFila.has(p.sku) || eolSkuSet.has(p.sku)) return;
+    _conFila.add(p.sku);   // una promo repetida no lo pide dos veces
+    AGOTADOS.push({ sku:p.sku, producto:p.producto||('SKU '+p.sku),
+                    stock:0, exhibe:0, precio:p.pr||p.pp||0, nuncaLlego:true });
+  });
+  AGOTADOS.sort((a,b)=> a.producto.localeCompare(b.producto));
+}
+calcDerivados();
+
+function cuenta(id){
+  if(id==='inicio') return '';
+  if(id==='promo') return PROMOS.filter(x=>coincide(x.producto,x.sku) && tieneExistencia_(x.sku)).length;
+  // Lo que cuenta es lo que hay que ENTREGAR, no lo que se puede apartar: el
+  // número de la tarjeta es trabajo pendiente, no inventario disponible.
+  if(id==='apartados') return APARTADOS.filter(a=>{
+    const e=String(a.estatus||'').toLowerCase(); return e!=='cancelado' && e!=='entregado'; }).length;
+  if(id==='eol')   return EOL.filter(e=>coincide(e.producto,e.sku) && e.estado==='listo').length;
+  if(id==='inv')   return (D.inventario||[]).filter(x=>coincide(x.producto,x.sku)&&((x.stock||0)>0||(x.exhibe||0)>0)).length;
+  if(id==='resurtir') return [...AGOTADOS,...RESURTIR].filter(x=>coincide(x.producto,x.sku)).length;
+  return 0;
+}
+
+// ¿la sección tiene algún dato? (ignora el buscador, para que las pestañas no salten al escribir)
+function seccionTieneItems(id){
+  if(id==='promo')    return PROMOS.length>0;
+  if(id==='apartados') return APARTADOS.length>0;
+  if(id==='eol')      return EOL.length>0;
+  if(id==='inv')      return (D.inventario||[]).length>0;
+  if(id==='resurtir') return RESURTIR.length>0 || AGOTADOS.length>0;
+  return false;
+}
+
+/* La barra de chips se retiró el 8-ago-2026. Se navega desde Inicio y se vuelve
+   con la flecha; para encontrar un producto concreto está el buscador, que desde
+   hoy mira en TODO el tablero y no solo en la sección abierta.
+
+   Los chips tenían un problema que no se veía: obligaban a saber en qué pestaña
+   estaba cada cosa ANTES de buscarla. Con cinco secciones y 227 SKU, eso es
+   pedirle al asesor que recuerde el mapa mientras el cliente espera. */
+function irA(id){ filtroActivo = id; busqueda = ''; const q = document.getElementById('q');
+  if(q) q.value = ''; window.scrollTo(0,0); _urlAlDia(); render(); }
+
+/* ── Criterios de "qué se puede vender / traer" ──────────────────────────
+   Viven aquí sueltos porque los usan TRES sitios: la sección de precios, las
+   tarjetas de Inicio y el buscador global. Cuando estaban escritos dentro del
+   render, cada nuevo consumidor los copiaba, y el día que cambió el criterio
+   —excluir los EOL agotados, 7-ago— hubo que perseguirlo por varios sitios. */
+/* ── Estado de existencia de un SKU ─────────────────────────────────────
+   UNA sola función decide en qué estado está un producto, y todas las tarjetas
+   la usan. Antes cada tarjeta lo deducía por su cuenta con sus propios if, y
+   por eso "solo exhibición" significaba cosas distintas según dónde se mirara:
+   en la lista de resurtir era "pedir caja" y en promos salía como "sin piezas".
+
+   Son CINCO estados, no tres. El que más se confunde es el tercero: quedarse
+   solo con la pieza de piso significa "no hay nada que vender" si el producto
+   sigue vivo, y "rematar al 50%" si está descontinuado. Es la misma existencia
+   y dos acciones opuestas.
+
+   Y de esos cinco, SOLO DOS se pueden vender hoy: 'hay' y '50'. La exhibición
+   de un producto activo no se toca — se pide caja al CD, o se le trae al
+   cliente de otra tienda. Por eso 'piso' muestra 0 para vender y no el número
+   de piezas del aparador: es lo que se puede entregar, no lo que se ve. */
+function estadoSku(sku){
+  const inv = invBySku[sku] || {};
+  const st = inv.stock || 0, ex = inv.exhibe || 0;
+  const esEol = eolSkuSet.has(sku);
+  if(st > 0)              return { k:'hay',   n:st, txt: st===1?'pieza':'piezas', pie:ex?`${ex} en exhibición`:'' };
+  if(ex > 0 && esEol)     return { k:'50',    n:'50%', txt:'última', pie:'Última pieza de piso' };
+  if(ex > 0)              return { k:'piso',  n:0,  txt:'para vender', pie:`${ex} en piso, no se vende` };
+  if(esEol)               return { k:'no',    n:'—', txt:'ya no',  pie:'Descontinuado' };
+  return                         { k:'traer', n:0,   txt:'se trae', pie:'De otra tienda' };
+}
+
+// La pastilla que pinta ese estado. El número va grande a propósito: después
+// del precio, "cuántas hay" es lo que más se mira.
+/* Botón de apartar: en lo que NO se puede vender hoy pero SÍ se puede conseguir.
+   Son dos casos y hasta hoy solo se cubría uno:
+     · 'traer' — cero piezas por todos lados
+     · 'piso'  — solo queda la de exhibición, que de un producto activo no se
+                 vende. Para el cliente es exactamente lo mismo que cero.
+   Queda fuera 'no' (descontinuado y agotado): apartarlo sería cobrarle a alguien
+   algo que no va a llegar nunca. Por eso se apoya en `estadoSku` y no en
+   "¿tiene cero piezas?". */
+/* EXCEPCIONES, una por una y con su motivo escrito.
+   No son una regla nueva: los descontinuados siguen SIN poder apartarse. Cada
+   SKU de aquí es un caso cerrado, no un permiso general — si algún día son
+   muchos, entonces la regla está mal y hay que cambiarla, no alargar la lista.
+
+   · 100274990 · Watch GT6 1.32" AMLD MO · 8-ago-2026
+     La pieza se vendió a promesa de entrega ANTES de que la línea GT6 pasara a
+     EOL. La venta ya está hecha y el equipo viene de otra tienda; falta
+     registrar el apartado para que aparezca en la lista de entregas y se le
+     pueda ligar la serie. Sin esto no hay forma de meterlo por la app. */
+const APARTAR_EXCEPCION = new Set(['100274990']);
+
+function botonApartar(sku, producto, precio){
+  const k = estadoSku(sku).k;
+  if(k !== 'traer' && k !== 'piso' && !APARTAR_EXCEPCION.has(sku)) return '';
+  return `<button class="btn-apartar" onclick="abrirApartado('${sku}','${encodeURIComponent(producto||'')}',${Number(precio)||0})">📋 Apartar para un cliente</button>`;
+}
+
+function pastillaEstado(sku){
+  const e = estadoSku(sku);
+  return `<span class="pastilla p-${e.k}"><b>${e.n}</b><span>${e.txt}</span></span>`;
+}
+
+/* El SKU va ARRIBA y en monoespaciada (8-ago-2026). Estaba al pie en 10,5 px
+   gris claro —lo de menos contraste de la tarjeta— y resulta que se usa para
+   pedir a otra tienda y para buscar en el POS. Monoespaciada por lo mismo que
+   las series de la preventa: se teclea dígito a dígito y en tipografía normal
+   el 0 y la O se confunden con prisa.
+   Se toca y se copia: nueve dígitos transcritos a mano se equivocan. */
+function eyebrowSku(sku){
+  return `<button class="sku-eyebrow" onclick="copiarSku(event,'${sku}')"
+           title="Tocar para copiar">${sku}</button>`;
+}
+
+function copiarSku(ev, sku){
+  ev.stopPropagation();
+  const btn = ev.currentTarget;
+  const listo = () => { btn.classList.add('copiado');
+    setTimeout(()=>btn.classList.remove('copiado'), 1100); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(sku).then(listo).catch(()=>copiarSkuViejo(sku, listo));
+  } else copiarSkuViejo(sku, listo);
+}
+// Respaldo para los navegadores del piso que no tienen clipboard en http o en
+// vistas embebidas. Sin esto, tocar el SKU no haría nada y no se sabría por qué.
+function copiarSkuViejo(sku, listo){
+  try{
+    const t = document.createElement('textarea');
+    t.value = sku; t.style.position='fixed'; t.style.opacity='0';
+    document.body.appendChild(t); t.select();
+    document.execCommand('copy'); t.remove(); listo();
+  }catch(e){ /* si tampoco se puede, el SKU está a la vista para teclearlo */ }
+}
+
+// Misma pregunta que `tieneExistencia_`, con el objeto en vez del SKU. Una sola
+// regla para las dos: tener pieza y poder venderla no son lo mismo.
+function conPiezas_(x){ return tieneExistencia_(x.sku); }
+// Con piezas se muestra siempre. Sin piezas, solo si NO es EOL: ése sí se
+// puede pedir a otra tienda; un EOL agotado no se trae de ningún lado.
+function seConsigue_(x){ return conPiezas_(x) || !eolSkuSet.has(x.sku); }
+
+function inventarioSinPromo(){
+  const conPromo = new Set(PROMOS.map(p=>p.sku));
+  return (D.inventario||[]).filter(x => !conPromo.has(x.sku) && eolMap[x.sku] !== 'listo');
+}
+function sinPromoConPiezasN(){ return inventarioSinPromo().filter(conPiezas_).length; }
+
+/* ── Buscador global (8-ago-2026) ───────────────────────────────────────
+   Antes el buscador filtraba SOLO dentro de la sección abierta. Un producto
+   podía existir, coincidir con lo escrito y no aparecer — sin ninguna señal de
+   que había que mirar en otra pestaña. Con el cliente enfrente eso se traduce
+   en "no lo tenemos", que es la peor respuesta posible cuando sí lo hay.
+
+   Ahora busca en todo y agrupa por origen, porque de dónde sale cada resultado
+   es justo lo que cambia el precio que se cobra. */
+function buscarEnTodo(){
+  const bloques = [];
+  const push = (titulo, items, fn, nota) => {
+    if(!items.length) return;
+    bloques.push({ titulo, n:items.length, html:items.map(fn).join(''), nota,
+                   skus:items.map(i=>i.sku) });
+  };
+
+  const promosCoinc = PROMOS.filter(x=>coincide(x.producto,x.sku));
+  push('🔥 Con promoción', promosCoinc.filter(x=>tieneExistencia_(x.sku)), cardPromo);
+
+  const sinPromo = inventarioSinPromo().filter(x=>coincide(x.producto,x.sku));
+  push('💰 Precio regular', sinPromo.filter(conPiezas_), cardPrecioReg);
+
+  push('🏷️ Vender al 50%', EOL.filter(e=>coincide(e.producto,e.sku) && e.estado==='listo'), cardEol);
+
+  /* Los apartados también se buscan: "¿lo de Mayra ya llegó?" es una pregunta
+     de todos los días, y antes había que ir a la sección a mirar la lista. */
+  const aps = APARTADOS.filter(a => coincide(a.cliente, a.sku, a.color, a.serie));
+  push('📋 Apartados de clientes', aps, cardApartado);
+
+  /* La lista de pedidos solo para quien pide (9-ago-2026). El producto NO
+     desaparece del buscador para nadie: los agotados y los que solo conservan
+     la pieza de piso siguen saliendo abajo, en «se traen de otra tienda», que
+     es la respuesta que el asesor necesita con el cliente enfrente. Lo que se
+     le quita es el encabezado de "hay que pedir esto", no el resultado.
+     Comprobado en las pruebas: sin este bloque, ninguno se queda sin bloque. */
+  /* Por el portero, no por la bandera (17-ago-2026). Hoy `seccionVisible_`
+     devuelve exactamente `PUEDE_GESTIONAR`, así que no cambia nada — pero el
+     día que la sección se esconda por otro motivo, este sitio se habría quedado
+     con la regla vieja. Es el cuarto consultante que menciona la cadena 1-bis. */
+  if(seccionVisible_('resurtir'))
+    push('🔄 Hay que resurtir', [...AGOTADOS,...RESURTIR].filter(x=>coincide(x.producto,x.sku)), rowResurtir);
+
+  // Se traen de otra tienda: agotados que NO son EOL, con y sin promo.
+  const traibles = [...promosCoinc.filter(x=>!tieneExistencia_(x.sku) && !eolSkuSet.has(x.sku)).map(x=>({__promo:x})),
+                    ...sinPromo.filter(x=>!conPiezas_(x) && seConsigue_(x)).map(x=>({__reg:x}))];
+  if(traibles.length){
+    bloques.push({ titulo:'📭 Se traen de otra tienda', n:traibles.length,
+      html: traibles.map(t => t.__promo ? cardPromo(t.__promo) : cardPrecioReg(t.__reg)).join(''),
+      skus: traibles.map(t => (t.__promo||t.__reg).sku) });
+  }
+
+  /* Lo que coincide pero NO salió en ningún bloque de arriba. Son sobre todo los
+     descontinuados ya agotados: no se venden, no se resurten y no se traen, así
+     que ninguna sección los lista — y sin este bloque, buscarlos daría "nada
+     coincide" sobre un producto que el tablero sí conoce y del que sabe el
+     precio. El cliente pregunta por él justamente porque ya no está.
+
+     OJO al construir `mostrados`: tiene que llevar lo que DE VERDAD se pintó,
+     no lo que se consideró. La primera versión metía aquí `sinPromo` entero
+     —incluidos los agotados que el bloque de precio regular filtra— y entonces
+     estos productos no salían por ningún lado y este bloque nunca aparecía.
+     Un candado que se cierra sobre sí mismo. */
+  const mostrados = new Set();
+  bloques.forEach(b => (b.skus||[]).forEach(k => mostrados.add(k)));
+  const soloCatalogo = (D.inventario||[]).filter(x =>
+    coincide(x.producto,x.sku) && !mostrados.has(x.sku));
+  if(soloCatalogo.length){
+    bloques.push({ titulo:'📚 Ya no se maneja en la tienda', n:soloCatalogo.length,
+      nota:'Descontinuados y sin piezas. Se puede consultar el precio, pero no se pueden pedir.',
+      html: soloCatalogo.slice(0,25).map(cardPrecioReg).join('') });
+  }
+
+  const total = bloques.reduce((a,b)=>a+b.n, 0);
+  if(!total) return `<div class="g-vacio">Nada coincide con «${esc(busqueda)}».<br>Prueba con menos letras o con el SKU.</div>`;
+
+  return `<div class="g-head"><b>${total}</b> resultado${total!==1?'s':''} en todo el tablero</div>`
+       + bloques.map(b => `<div class="grupo-titulo" style="margin-top:14px">${b.titulo} (${b.n})</div>`
+           + (b.nota?`<div class="g-head" style="padding-top:0">${b.nota}</div>`:'')
+           + b.html).join('');
+}
+
+function renderCabeceraSeccion(){
+  const barra = document.getElementById('secBar');
+  if(!barra) return;
+  if(filtroActivo === 'inicio' || busqueda){ barra.className = ''; barra.innerHTML = ''; return; }
+  const f = FILTROS.find(x => x.id === filtroActivo);
+  barra.className = 'sec-bar';
+  barra.innerHTML = `<button class="sec-volver" onclick="irA('inicio')" aria-label="Volver al inicio">‹</button>
+    <span class="sec-tit">${f ? f.label : ''}</span>`;
+}
+
+// Precio de venta de un artículo DENTRO de un combo:
+// EOL última pieza → 50% del regular; con promoción → precio promo; si no → regular.
+function _promoDe(sku){ return PROMOS.find(p=>p.sku===sku); }
+function _eolDe(sku){ return EOL.find(e=>e.sku===sku); }
+function _eolRaw(sku){ return (D.eol||[]).find(e=>e.sku===sku); }
+// Un EOL solo se vende al 50% cuando está "listo" (stock cerrado en 0 y con
+// pieza de exhibición). Un EOL que todavía tiene stock (pendiente, ej. Pura 80)
+// se vende a su precio NORMAL de promoción, NO al 50%.
+function esVentaAl50(sku){
+  const er=_eolRaw(sku);
+  if(!er || !parseFloat(er.precio)) return false;
+  const ea=(typeof EOL!=='undefined')?EOL.find(x=>x.sku===sku):null;
+  if(ea) return ea.estado==='listo';
+  // No está en el array calculado (exhibición 0 en datos locales): se considera
+  // venta al 50% solo si ya no tiene stock cerrado NI promoción vigente.
+  const inv=invBySku[sku]||{};
+  return (inv.stock||0)===0 && !_promoDe(sku);
+}
+function precioVentaEnCombo(sku){
+  const er=_eolRaw(sku);
+  if(esVentaAl50(sku)) return {precio:(parseFloat(er.precio)||0)/2, nota:'−50% última pieza'};
+  const p=_promoDe(sku);
+  if(p){
+    const v=parseFloat(String(p.pp||p.pr||0).replace(/[^0-9.]/g,''));
+    if(v) return {precio:v, nota:(p.pp&&p.pr&&String(p.pp)!==String(p.pr))?'promo':''};
+  }
+  const inv=invBySku[sku];
+  if(inv && inv.precio) return {precio:parseFloat(inv.precio)||0, nota:''};
+  if(er && parseFloat(er.precio)) return {precio:parseFloat(er.precio)||0, nota:''};
+  return {precio:0, nota:'sin precio'};
+}
+// Desglose completo del combo: cada artículo con su precio, mica, seguro y total.
+function desgloseBundle(x){
+  const skuArr=(x.skus||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const total=Number(x.precio)||0;
+  let sub=0;
+  const rows=skuArr.map(s=>{
+    const {precio,nota}=precioVentaEnCombo(s);
+    sub+=precio;
+    const nombre=invBySku[s]?invBySku[s].producto:('SKU '+s);
+    return `<div class="dg-row"><span>${nombre}${nota?` <em>${nota}</em>`:''}</span><b>${money2(precio)}</b></div>`;
+  }).join('');
+  let extras=total-sub;
+  const tieneMica=/mica/i.test(x.nombre||'');
+  let micaRow='';
+  if(tieneMica){ micaRow=`<div class="dg-row"><span>Mica de hidrogel</span><b>${money2(149)}</b></div>`; extras-=149; }
+  const segRow= extras>0.5 ? `<div class="dg-row dg-seg"><span>🛡️ Seguro incluido</span><b>${money2(extras)}</b></div>` : '';
+  const rg=(x.nombre||'').match(/regalo:\s*([^)·]+)/i);
+  const regaloLine= rg ? `<div class="dg-row dg-regalo"><span>🎁 Regalo: ${rg[1].trim()}</span><b>Incluido</b></div>` : '';
+  return `<div class="bundle-desglose">
+    ${rows}
+    <div class="dg-row dg-sub"><span>Subtotal productos</span><b>${money2(sub)}</b></div>
+    ${micaRow}
+    ${segRow}
+    ${regaloLine}
+    <div class="dg-row dg-total"><span>Total combo</span><b>${money2(total)}</b></div>
+  </div>`;
+}
+/* ===================== PREVENTA ===================== */
+function cardApartado(a){
+  /* El producto sale de `a.color`, que desde el 4-ago guarda el nombre entero
+     ("Pura 90S Pro Max 12/512GB · Graphite Black"). Antes se sacaba de la lista
+     fija de la Pura 90S, y con traspasos de cualquier SKU esa lista ya no
+     existe. Si faltara, se cae al catálogo por SKU. */
+  const inv = invBySku[a.sku] || {};
+  const nombre = a.color || inv.producto || ('SKU '+a.sku);
+  const est = String(a.estatus||'Apartado');
+  const e   = est.toLowerCase();
+  const cls = e==='entregado' ? ' ent' : e==='asignado' ? ' asg' : e==='cancelado' ? ' can' : '';
+  const vivo = e!=='cancelado' && e!=='entregado';
+  /* Las acciones solo se pintan mientras el apartado siga vivo. Un entregado se
+     queda como registro de consulta: su serie ya no se toca porque el equipo
+     salió de la tienda y hay una venta apuntando a ella. */
+  const acciones = !vivo ? '' : `<div class="ap-acc">
+      <button class="btn-ap asignar" onclick="asignarSerie('${a.id}')">${a.serie?'🔁 Cambiar serie':'📷 Asignar serie'}</button>
+      <button class="btn-ap entregar" onclick="entregarApartado('${a.id}')" ${a.serie?'':'disabled'}>✅ Entregar</button>
+      <button class="btn-ap gris" onclick="cancelarApartado('${a.id}')" title="Cancelar apartado">✕</button>
+    </div>`;
+  return `<div class="card ap-card ${a.tipo==='traspaso'?'t-tras':'t-pre'}${a.diasTarde>0?' t-tarde':''}" style="padding:11px 14px">
+    <div class="ap-row" style="padding:0">
+      <div style="flex:1;min-width:0">
+        <h4 style="font-size:13.5px;font-weight:700">${esc(a.cliente||'(sin nombre)')} ${a.seguro==='Si'?'🛡️':''}</h4>
+        <span style="font-size:11px;color:#999">${esc(nombre)} · SKU ${a.sku} · ${esc(a.telefono||'sin tel')}${a.precio?' · '+money(Number(a.precio)):''}${a.transaccion?' · Tx '+esc(a.transaccion):''}</span>
+        ${a.serie ? `<div><span class="ap-serie">N° ${esc(a.serie)}</span></div>` : ''}
+        ${a.tipo==='traspaso' ? `<div class="ap-traspaso">🚚 ${a.origen ? 'De '+esc(a.origen) : 'De otra tienda'}${
+            a.promesa ? ' · ' + (a.diasTarde > 0
+              ? `<b class="tarde">prometido hace ${a.diasTarde} día${a.diasTarde!==1?'s':''}</b>`
+              : 'para el '+esc(a.promesa)) : ''}</div>` : ''}
+        <div style="font-size:10.5px;color:#aaa;margin-top:3px">
+          ${a.fecha ? `💵 Cobrado el ${esc(fechaCortaAp_(a.fecha))}` : ''}
+
+          ${a.entregado ? `${a.fecha ? ' · ' : ''}📦 Entregado el ${esc(fechaCortaAp_(a.entregado))}${a.entregadoPor?' por '+esc(a.entregadoPor):''}` : ''}
+        </div>
+      </div>
+      <span class="ap-est${cls}">${esc(est)}</span>
+    </div>
+    ${acciones}
+  </div>`;
+}
+
+/* «2026-07-31 14:23» o «2026-07-31» -> «31 jul». Lo importante de estas dos
+   fechas es la DISTANCIA entre ellas, no la hora: un apartado cobrado en julio
+   y entregado en agosto se lee de un vistazo, y esa diferencia es la que
+   explica por qué su ticket no está en el corte de hoy.
+
+   Se parte el texto en vez de usar `new Date(...)`: la cadena viene sin zona
+   horaria, y el navegador la interpretaría como UTC — en México eso adelanta
+   la fecha seis horas y una venta de las 8 pm sale al día siguiente. Es el
+   mismo motivo por el que las fechas se calculan en hora de México en la base. */
+function fechaCortaAp_(txt){
+  const m = String(txt || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return String(txt || '');
+  const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return Number(m[3]) + ' ' + (MESES[Number(m[2]) - 1] || m[2]);
+}
+
+/* ---- Ligar la pieza física al cliente ----
+   Dos momentos distintos y a propósito separados: ASIGNAR es apartar la caja
+   cuando llega el embarque —el equipo sigue en bodega—, ENTREGAR es que salió
+   con el cliente. Con un solo paso no habría forma de saber cuánta mercancía
+   está comprometida pero todavía en la tienda, que es lo que hay que saber el
+   día que llega el pedido.
+
+   El escaneo NO vive aquí: lo hace Captura de Series, que ya tiene cámara,
+   lector de código de barras y OCR de respaldo. Duplicar ese motor en el
+   tablero sería mantener dos lectores que se van a separar. */
+function _apPorId(id){ return APARTADOS.filter(function(a){ return String(a.id)===String(id); })[0]; }
+
+function asignarSerie(id){
+  const a = _apPorId(id); if(!a) return;
+  location.href = 'captura_series.html?apartado=' + encodeURIComponent(id) +
+                  '&accion=asignar&volver=tablero.html%23preventa';
+}
+
+function entregarApartado(id){
+  const a = _apPorId(id); if(!a) return;
+  if(!a.serie){ alert('Primero asigna la serie del equipo.'); return; }
+  /* Se manda a escanear otra vez en vez de confirmar con un botón: la
+     verificación no es que el asesor recuerde la serie, es que el aparato que
+     tiene en la mano SEA el de este cliente. Con cinco Orange Ocean iguales en
+     la bodega, confirmar de memoria es entregar la pieza de otro. */
+  location.href = 'captura_series.html?apartado=' + encodeURIComponent(id) +
+                  '&accion=entregar&volver=tablero.html%23preventa';
+}
+
+function cancelarApartado(id){
+  const a = _apPorId(id); if(!a) return;
+  if(!confirm('¿Cancelar el apartado de ' + (a.cliente||'') + '?\n\nLa pieza vuelve al cupo' +
+              (a.serie ? ' y la serie ' + a.serie + ' se libera para otro cliente.' : '.'))) return;
+  sbEscribir('apartado_estatus', { p_id: Number(id), p_estatus: 'Cancelado' }).then(function(d){
+    if(d && d.ok === true){ cargarApartadosNube(); }
+    else { alert('No se pudo cancelar: ' + ((d && d.error) || 'sin conexión')); }
+  });
+}
+/* ── La sección de Apartados (8-ago-2026) ────────────────────────────────
+   Sustituye a la de Preventa. Las doce tarjetas con cupo para apartar Pura 90S
+   se retiraron: los equipos llegaron —24 piezas en piso— y ese modelo se vende
+   desde Precios como cualquier otro. El cupo existía para no prometer más de lo
+   que iba a llegar; ya llegó.
+
+   Lo que sobrevive son las ENTREGAS, y ahí una preventa y un traspaso son la
+   misma cosa: alguien pagó, el equipo no estaba, hay que dárselo con su serie.
+   Por eso van en la misma lista y solo se distinguen por el filo de color. */
+function seccionApartados(){
+  const vivos = APARTADOS.filter(a => String(a.estatus||'').toLowerCase() !== 'cancelado');
+  const es = a => String(a.estatus||'Apartado').toLowerCase();
+
+  // Lo que se pasó de fecha va PRIMERO. Es lo único de este flujo que se
+  // convierte en queja, y al fondo de la lista no lo ve nadie.
+  const tarde     = vivos.filter(a => es(a)!=='entregado' && a.diasTarde > 0);
+  const sinSerie  = vivos.filter(a => es(a)!=='entregado' && !a.serie && !(a.diasTarde > 0));
+  const listos    = vivos.filter(a => es(a)!=='entregado' && a.serie && !(a.diasTarde > 0));
+  const entregados= APARTADOS.filter(a => es(a)==='entregado');
+  const cancelados= APARTADOS.filter(a => es(a)==='cancelado');
+
+  let html = '';
+  if(CARGAS.apartados !== 'ok'){
+    html += `<div class="pv-banner"><div class="pv-banner-n">⏳ Confirmando los apartados con la nube — puede faltar alguno</div></div>`;
+  }
+  if(tarde.length){
+    html += `<div class="aviso-franja" style="margin:0 16px 12px">
+      <h4>⏰ Se pasó la fecha prometida</h4>
+      <div class="af-item">${tarde.length===1?'Un cliente lleva':'Estos clientes llevan'} esperando más de lo que se le dijo.
+      <span class="af-det">Vale más una llamada avisando del retraso que una queja después.</span></div>
+    </div>`;
+    html += `<div class="grupo-titulo">⏰ Se pasó la fecha (${tarde.length})</div>`;
+    html += tarde.map(cardApartado).join('');
+  }
+  if(sinSerie.length){
+    html += `<div class="grupo-titulo" style="margin-top:18px">📦 Falta ligar el equipo (${sinSerie.length})</div>`;
+    html += sinSerie.map(cardApartado).join('');
+  }
+  if(listos.length){
+    html += `<div class="grupo-titulo" style="margin-top:18px">✅ Listos para entregar (${listos.length})</div>`;
+    html += listos.map(cardApartado).join('');
+  }
+  if(entregados.length){
+    html += `<div class="grupo-titulo" style="margin-top:18px">🎉 Entregados (${entregados.length})</div>`;
+    html += entregados.map(cardApartado).join('');
+  }
+  if(cancelados.length){
+    html += `<div class="grupo-titulo" style="margin-top:18px">Cancelados (${cancelados.length})</div>`;
+    html += cancelados.map(cardApartado).join('');
+  }
+  if(!APARTADOS.length){
+    html += `<div class="empty">No hay nada apartado.<br>
+      Para apartar, busca el producto en Precios y usa «Apartar para un cliente».</div>`;
+  }
+  return html;
+}
+let _apartSku = null, _apartCtx = null;
+
+/* Sirve para los dos casos y por eso recibe el producto: en la preventa salía
+   de la lista fija de la Pura 90S, pero un traspaso puede ser cualquier SKU del
+   catálogo. Si no se le pasa nada, se busca en el inventario. */
+function abrirApartado(sku, prodEnc, precio){
+  _apartSku = sku;
+  const inv = invBySku[sku] || {};
+  const producto = prodEnc ? decodeURIComponent(prodEnc) : (inv.producto || ('SKU '+sku));
+  /* El precio se busca en TRES sitios, en este orden: el que manda la tarjeta,
+     el del catálogo, y el de la promoción vigente.
+     El tercero se añadió el 8-ago-2026. Un SKU que dejó de ser vigente pierde
+     su importe en el catálogo —el informe ya no lo lista— pero puede seguir con
+     promo en curso, que es el precio al que de verdad se está vendiendo. Sin
+     mirar ahí, el apartado se guardaba sin monto y había que teclearlo. */
+  const promo = PROMOS.find(p => p.sku === sku);
+  const px = Number(precio) || Number(inv.precio)
+             || Number(promo && (promo.pp || promo.pr)) || 0;
+  _apartCtx = { producto, precio: px, tipo: 'traspaso' };
+
+  document.getElementById('apModalTitle').textContent = 'Apartar para un cliente';
+  document.getElementById('apModalSub').textContent = producto + (px ? ' · '+money(px) : '');
+  /* El precio solo se pregunta cuando NO se sabe por ningún lado. Es el último
+     recurso, no un paso más del formulario: si el tablero lo conoce, teclearlo
+     sería pedirle al asesor que copie algo que ya está en pantalla, con el
+     riesgo de que se equivoque. */
+  document.getElementById('apPrecioBox').style.display = px ? 'none' : '';
+  document.getElementById('apPrecio').value = '';
+  document.getElementById('apTraspaso').style.display = '';
+  document.getElementById('apOrigen').value = '';
+  // Por defecto, para dentro de tres días: es lo que suele tardar un traspaso y
+  // evita que se quede sin fecha, que es lo que impide avisar de un retraso.
+  const d = new Date(); d.setDate(d.getDate()+3);
+  document.getElementById('apPromesa').value =
+    d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('apCliente').value='';
+  document.getElementById('apTel').value='';
+  /* El vendedor sale de la sesión, no se teclea: es la misma persona que entró
+     con su número de empleado. Se muestra para que se vea a nombre de quién
+     queda, pero no se puede cambiar — cambiarlo sería registrar una venta a
+     nombre de otro. */
+  document.getElementById('apVend').textContent = YO && YO.nombre ? YO.nombre : '⚠️ sin sesión de empleado';
+  document.getElementById('apTransaccion').value='';
+  document.getElementById('apSeguro').checked=false;
+  document.getElementById('apModal').classList.add('show');
+  _apartBorradorRestaurar(sku);
+}
+
+/* ── El apartado a medio llenar sobrevive al cambio de app ──────
+   Llenar esto lleva su rato: nombre, teléfono, de qué tienda viene, para
+   cuándo. Y a media captura es normal irse a WhatsApp a confirmarle al cliente
+   la fecha, o al POS por el número de ticket. Si Android descarta la app en
+   ese momento, se vuelve a empezar con el cliente enfrente.
+
+   Se guarda por SKU: dos apartados distintos no se pisan el borrador. */
+const AP_BORRADOR = 'hes_apartado_borrador';
+const AP_CAMPOS = ['apOrigen','apPromesa','apCliente','apTel','apTransaccion'];
+function _apartBorradorGuardar(){
+  if(!_apartSku) return;
+  const d = { sku:_apartSku, ts:Date.now(), seguro:document.getElementById('apSeguro').checked };
+  AP_CAMPOS.forEach(id => { d[id] = document.getElementById(id).value; });
+  try{ localStorage.setItem(AP_BORRADOR, JSON.stringify(d)); }catch(e){}   // sin cuota se pierde el borrador, no el apartado
+}
+function _apartBorradorTirar(){
+  try{ localStorage.removeItem(AP_BORRADOR); }catch(e){}   // si no se puede borrar, caduca solo a las 2 h
+}
+function _apartBorradorRestaurar(sku){
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem(AP_BORRADOR)||'null'); }catch(e){}   // borrador ilegible = sin borrador, se abre en blanco
+  // Dos horas: más allá, quien vuelve a abrir el modal ya está con otro cliente
+  // y rellenarle el nombre del anterior es peor que dejarlo vacío.
+  if(!d || d.sku !== sku || Date.now() - d.ts > 2*60*60*1000) return;
+  if(!AP_CAMPOS.some(id => (d[id]||'').trim())) return;   // borrador vacío: nada que restaurar
+  AP_CAMPOS.forEach(id => { if(d[id]) document.getElementById(id).value = d[id]; });
+  document.getElementById('apSeguro').checked = !!d.seguro;
+}
+AP_CAMPOS.forEach(id => {
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', _apartBorradorGuardar);
+});
+(function(){ const s = document.getElementById('apSeguro');
+  if(s) s.addEventListener('change', _apartBorradorGuardar); })();
+
+function cerrarApartado(){
+  document.getElementById('apModal').classList.remove('show');
+  _apartSku=null;
+  // Cerrar es abandonar: el borrador solo sirve para volver de otra app, y el
+  // modal cerrado ya no se está llenando.
+  _apartBorradorTirar();
+}
+function guardarApartado(){
+  const sku=_apartSku; if(!sku) return;
+  const cliente=document.getElementById('apCliente').value.trim();
+  const tel=document.getElementById('apTel').value.trim();
+  const vend = (YO && YO.nombre) ? YO.nombre : '';
+  if(!vend){
+    // Sin nombre, el apartado no cuenta para el attach de nadie ni se sabe quién
+    // lo hizo. Mejor parar que guardar una venta huérfana.
+    alert('No se pudo identificar quién eres.' + String.fromCharCode(10,10) + 'Sal y vuelve a entrar con tu número de empleado.');
+    return;
+  }
+  const transaccion=document.getElementById('apTransaccion').value.trim();
+  const seguro=document.getElementById('apSeguro').checked?'Si':'No';
+  if(!cliente){ alert('Escribe el nombre del cliente.'); return; }
+  const btn=document.getElementById('apGuardar'); btn.disabled=true; btn.textContent='Guardando…';
+  /* En `color` va el producto ENTERO, no solo el color: "Pura 90S Pro Max
+     12/512GB · Negro". Antes se guardaba solo "Negro" y, al abrir la hoja o
+     Supabase, no había forma de saber si era Pro o Pro Max — se deducía por el
+     precio, que es justo lo que no debe hacer quien entrega el equipo.
+
+     Decidido así el 4-ago-2026 para tenerlo hoy mismo: la alternativa era un
+     campo propio, y eso obliga a tocar el Apps Script, la hoja y Supabase.
+     El precio de esta vía: el campo Color ya no contiene solo el color, así que
+     si algún día alguien quiere filtrar o contar por color, tendrá que partir
+     el texto por el "·". Está aquí escrito para que no le pille por sorpresa. */
+  const producto = (_apartCtx && _apartCtx.producto) || ('SKU '+sku);
+  const origen  = (document.getElementById('apOrigen')||{}).value || '';
+  const promesa = (document.getElementById('apPromesa')||{}).value || null;
+  /* Cuando el campo está a la vista, manda lo que se tecleó: se enseña
+     justamente porque el precio del catálogo no sirve para este apartado. Si
+     está oculto, el del catálogo es el bueno y no hay nada que teclear. */
+  const cajaPrecio = document.getElementById('apPrecioBox');
+  const tecleado = parseFloat(String((document.getElementById('apPrecio')||{}).value || '')
+                     .replace(/[^0-9.]/g,'')) || null;
+  const precio = (cajaPrecio && cajaPrecio.style.display !== 'none')
+    ? (tecleado || (_apartCtx && _apartCtx.precio) || null)
+    : ((_apartCtx && _apartCtx.precio) || null);
+  /* 7-ago-2026: va DIRECTO a Supabase; ya no pasa por la hoja.
+     Lo que se gana no es velocidad, es el cupo: el trigger `apartado_cabe`
+     vigila la tabla `apartados` y hasta hoy nadie insertaba ahí, así que nunca
+     se disparó. El único freno contra dos asesores apartando la última pieza a
+     la vez era el número de este navegador — y dos navegadores no se ven. */
+  sbEscribir('apartado_guardar', {
+    p_sku: sku, p_color: producto, p_cliente: cliente, p_telefono: tel,
+    p_precio: precio, p_seguro: (seguro === 'Si'),
+    p_vendedor: vend, p_transaccion: transaccion,
+    p_tipo: 'traspaso', p_origen: origen.trim() || null, p_promesa: promesa || null
+  }).then(function(data){
+    btn.disabled=false; btn.textContent='Guardar apartado';
+    if(data && data.ok === true){
+      // el mismo texto que se acaba de mandar, para que la lista local y la
+      // nube no digan cosas distintas hasta el próximo refresco
+      APARTADOS.push({id:String(data.id), sku:sku, color:producto, cliente:cliente,
+        telefono:tel, precio:String(precio||''), seguro:seguro, vend:vend,
+        estatus:'Apartado', transaccion:transaccion, serie:'',
+        tipo:'traspaso', origen:origen.trim(), promesa:promesa||'', diasTarde:null});
+      cerrarApartado(); render(); cargarApartadosNube();
+    } else if(data && data.error){
+      // "Cupo agotado: 4 de 4 piezas ya apartadas" llega tal cual desde la
+      // base. Se muestra: el asesor tiene al cliente enfrente y necesita saber
+      // que esa pieza ya no existe, no un "hubo un error".
+      alert('No se guardó: ' + data.error);
+    } else {
+      alert('Sin conexión — el apartado NO se guardó. Intenta de nuevo.');
+    }
+  }).catch(function(){
+    btn.disabled=false; btn.textContent='Guardar apartado';
+    alert('Sin conexión — el apartado NO se guardó. Intenta de nuevo.');
+  });
+}
+/* Los apartados salen SOLO de Supabase desde el 7-ago-2026.
+   No hay caída al Apps Script a propósito: la hoja ya no recibe preventa, así
+   que responder desde ella sería servir una foto vieja SIN QUE NADA AVISE —y
+   una foto vieja de apartados es prometerle a un cliente una pieza que ya tiene
+   dueño—. Si Supabase no contesta, se marca la carga como fallida y el banner
+   dice "no prometas la última pieza todavía", que es la verdad. */
+async function cargarApartadosNube(){
+  const filas = await sbCall('apartados_lista');
+  if(!Array.isArray(filas)){ marcarCarga('apartados', false); return; }
+  APARTADOS = filas.map(_apartadoDeSupabase);
+  render();
+  marcarCarga('apartados', true);
+}
+function cardBundle(x){
+  const skuArr=(x.skus||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const prods=skuArr.map(s=>invBySku[s]?invBySku[s].producto:'SKU '+s);
+  const vig = x.d2 ? badgeVigencia(x.d2) : '';
+  const precioNum = Number(x.precio)||0;
+  // Sin selector de seguro aparte: el precio del bundle ya incluye el seguro
+  // de los artículos que le tocan (ver regla de combos), ofrecerlo aquí de
+  // nuevo lo cobraría dos veces.
+  const incluyeTxt = prods.map(p=>'• '+p).join('\n');
+  const waBtn = precioNum ? `<button class="btn-wa" onclick="compartirWA('${encodeURIComponent(x.nombre||'Bundle')}','${skuArr.join('+')}',${precioNum},${precioNum},true,'${encodeURIComponent(incluyeTxt)}')">📲 Compartir por WhatsApp</button>` : '';
+  return `<div class="card t-bundle">
+    <div class="top"><h3>${x.nombre||'Bundle'}</h3><span class="tag bundle">🎁</span></div>
+    ${desgloseBundle(x)}
+    ${vig?`<div class="meta">${vig}</div>`:''}
+    ${waBtn}
+  </div>`;
+}
+function cardPromo(x){
+  const vig = x.d2 ? badgeVigencia(x.d2) : '';
+  const precioBase = x.pr || x.pp;
+  const precioVenta = x.pp || x.pr;
+  const pv = parseFloat(String(precioVenta||0).replace(/[^0-9.]/g,''))||0;
+  const pb = parseFloat(String(precioBase||0).replace(/[^0-9.]/g,''))||0;
+  const waBtn = pv ? `<button class="btn-wa" onclick="compartirWA('${encodeURIComponent(x.producto)}','${x.sku}',${pv},${pb})">📲 Compartir</button>` : '';
+  /* Las existencias las resuelve `estadoSku`, la misma para todas las tarjetas.
+     Antes cada una las deducía con sus propios if y por eso el mismo producto
+     salía "sin piezas" en promos y "pedir caja" en resurtir. */
+  const e = estadoSku(x.sku);
+  // El ahorro en porcentaje, que es como lo pregunta el cliente. Solo si hay
+  // rebaja de verdad: un "−0%" sobre un precio sin descuento es ruido.
+  const dto = (pb > pv && pb > 0) ? Math.round((1 - pv/pb) * 100) : 0;
+  /* El sello de Promo sube a la línea del SKU: es lo que define la tarjeta, y
+     abajo competía con la vigencia y las existencias. Arriba se ve antes de
+     leer el precio, que es cuando importa saber si ese precio es especial. */
+  const badges = vig ? `<div class="meta">${vig}</div>` : '';
+  const selA = (precioBase && precioVenta)
+    ? segSelector(x.sku, precioBase, precioVenta, badges, x.pr != null && pb > pv ? x.pr : null, dto)
+    : badges;
+  return `<div class="card prod">
+    <div class="prod-top">
+      <div class="prod-nom">
+        <div class="prod-eyebrow">${eyebrowSku(x.sku)}<span class="badge b-promo">🔥 Promo</span></div>
+        <h3>${x.producto}</h3>
+      </div>
+      ${pastillaEstado(x.sku)}
+    </div>
+    ${selA}
+    ${botonApartar(x.sku, x.producto, pv)}
+    <div class="prod-pie"><span>${e.pie || ''}</span>${waBtn}</div>
+  </div>`;
+}
+function cardPrecioReg(x){
+  const precio = x.precio || 0;
+  const waBtn = precio ? `<button class="btn-wa" onclick="compartirWA('${encodeURIComponent(x.producto)}','${x.sku}',${precio},${precio})">📲 Compartir</button>` : '';
+  /* El estado y las piezas los pone `pastillaEstado`, que es la MISMA para todas
+     las tarjetas. Los badges de aquí se quedan solo para lo que no es estado. */
+  const e = estadoSku(x.sku);
+  const sel = precio
+    ? segSelector(x.sku, precio, precio, '')
+    : `<div class="meta"><span class="badge">Sin precio registrado</span></div>`;
+  return `<div class="card prod">
+    <div class="prod-top">
+      <div class="prod-nom">
+        <div class="prod-eyebrow">${eyebrowSku(x.sku)}</div>
+        <h3>${x.producto}</h3>
+      </div>
+      ${pastillaEstado(x.sku)}
+    </div>
+    ${sel}
+    ${botonApartar(x.sku, x.producto, precio)}
+    <div class="prod-pie"><span>${e.pie || ''}</span>${waBtn}</div>
+  </div>`;
+}
+function bundlesParaSku(sku){
+  return BUNDLES.filter(b=>(b.skus||'').split(',').map(s=>s.trim()).includes(sku));
+}
+function bundleTip(sku){
+  const bs = bundlesParaSku(sku);
+  if(!bs.length) return '';
+  const tips = bs.map(b=>{
+    const skuArr=(b.skus||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const prods=skuArr.map(s=>invBySku[s]?invBySku[s].producto:'SKU '+s);
+    const precioNum=Number(b.precio)||0;
+    const incluyeTxt=prods.map(p=>'• '+p).join('\n');
+    return `<div class="eol-bundle-tip">
+      <div class="tip-lbl">🎁 ${bs.length>1?'Opción de combo':'Mejor opción — vender en combo'}</div>
+      <div class="tip-nom">${b.nombre}</div>
+      <div class="meta"><span class="precio">${money(precioNum)}</span></div>
+      <button class="btn-wa" onclick="compartirWA('${encodeURIComponent(b.nombre||'Bundle')}','${skuArr.join('+')}',${precioNum},${precioNum},true,'${encodeURIComponent(incluyeTxt)}')">📲 Compartir combo</button>
+    </div>`;
+  });
+  if(tips.length===1) return tips[0];
+  const dots = tips.map(()=>'<span></span>').join('');
+  return `<div class="combo-group" style="margin-top:10px">
+    <div class="combo-group-lbl" style="margin:0 0 6px">🔀 ${tips.length} opciones de combo — desliza →</div>
+    <div class="combo-carousel">${tips.map(t=>`<div class="combo-slide">${t}</div>`).join('')}</div>
+    <div class="combo-dots">${dots}</div>
+  </div>`;
+}
+function cardEol(e){
+  if(e.estado==='listo'){
+    return `<div class="card t-eol listo">
+      <div class="top"><h3>${e.producto}</h3><span class="tag eol">−50%</span></div>
+      <p class="det"><b>✅ Ya se puede vender al 50%</b> — solo la pieza de exhibición (👁 ${e.exhibe}). Stock cerrado en 0.</p>
+      <div class="meta">
+        ${e.precio50!=null?`<span class="precio"><span class="antes">${money(e.precio)}</span>${money2(e.precio50)}</span>`:`<span class="badge">50% del precio regular</span>`}
+        <span class="badge">SKU ${e.sku}</span>
+      </div>
+      <p class="warn">⚠️ Al 50% pierde garantía de fábrica y NO es elegible para Assurant.</p>
+      ${bundleTip(e.sku)}
+      ${botonApartar(e.sku, e.producto, e.precio)}
+    </div>`;
+  }
+  if(e.estado==='pendiente'){
+    return `<div class="card t-eol">
+      <div class="top"><h3>${e.producto}</h3><span class="eol-status pend">EOL</span></div>
+      <p class="det">Primero agotar <b>${e.stock}</b> pza(s) de stock cerrado a precio normal. El <b>50%</b> se activa cuando llegue a 0.</p>
+      <div class="meta"><span class="badge">SKU ${e.sku}</span>${e.exhibe?`<span class="exh">👁 ${e.exhibe} exhib.</span>`:''}</div>
+    </div>`;
+  }
+  return `<div class="card t-eol">
+    <div class="top"><h3>${e.producto}</h3><span class="eol-status agot">Agotado</span></div>
+    <p class="det">Sin stock cerrado ni pieza de exhibición.</p>
+    <div class="meta"><span class="badge">SKU ${e.sku}</span></div>
+  </div>`;
+}
+function cardAviso(x){
+  const vigTxt = x.d2 ? `<span class="badge">Vence ${x.d2}</span>` : '';
+  const tipoTxt = (x.tipo&&x.tipo!=='manual') ? `<span class="badge" style="background:#eef3fb;color:var(--azul)">${x.tipo.toUpperCase()}</span>` : '';
+  return `<div class="card t-aviso ${x.prioridad==='alta'?'alta':''}">
+    <div class="top"><h3>${x.titulo}</h3><span class="tag aviso">Aviso</span></div>
+    <p class="det">${x.detalle||''}</p>
+    <div class="meta">${vigTxt}${tipoTxt}</div>
+  </div>`;
+}
+function rowResurtir(x){
+  const sinPiso = (x.exhibe||0) === 0;
+  const badge = x.nuncaLlego
+    ? `<span class="exh" style="background:#fdeaea;color:var(--rojo);font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;">🆕 nunca ha llegado</span>`
+    : sinPiso
+    ? `<span class="exh" style="background:#fdeaea;color:var(--rojo);font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;">📭 sin piso</span>`
+    : `<span class="exh" style="background:#fff5ee;color:var(--naranja);font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;">🪟 ${x.exhibe} piso</span>`;
+  /* Mismo criterio que la sección entera, no `ROLE==='gerente'`. Con el rol,
+     Miguel perdía el botón por entrar con su número de empleado en vez de con
+     su correo — la misma persona y el mismo puesto, distinta puerta. */
+  const btnEol = PUEDE_GESTIONAR
+    ? `<button onclick="marcarNoResurtir('${x.sku}','${x.producto.replace(/'/g,'')}',this)"
+         title="Ya no se resurte — quitar del listado"
+         style="background:none;border:1.5px solid #ddd;border-radius:7px;cursor:pointer;padding:3px 8px;font-size:11px;font-weight:700;color:#aaa;flex-shrink:0;white-space:nowrap">✕ EOL</button>`
+    : '';
+  return `<div class="inv-row">
+    <div class="dot cero"></div>
+    <div class="inv-info"><h4>${x.producto}</h4><span>SKU ${x.sku||'—'}</span></div>
+    ${badge}
+    ${btnEol}
+    <div class="stock cero"><div class="num">0</div><div class="lbl lbl2">piezas</div></div>
+  </div>`;
+}
+
+function resurtirWA(){
+  const lines = ['🔄 *Resurtir · HES ' + TIENDA_NOMBRE + '*'];
+  if(AGOTADOS.length){
+    lines.push('', '📭 *Sin existencia — pedir urgente (' + AGOTADOS.length + ')*');
+    AGOTADOS.forEach(x => lines.push('• ' + x.producto + ' (SKU ' + x.sku + ')'
+      + (x.nuncaLlego ? ' — en promoción, nunca ha llegado' : '')));
+  }
+  if(RESURTIR.length){
+    lines.push('', '🪟 *Queda piso — pedir caja (' + RESURTIR.length + ')*');
+    RESURTIR.forEach(x => lines.push('• ' + x.producto + ' (SKU ' + x.sku + ')'));
+  }
+  lines.push('', '_HES ' + TIENDA_NOMBRE + ' · Odemás Grupo Gigante_');
+  window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+}
+
+function marcarNoResurtir(sku, producto, btn){
+  if(!confirm('"' + producto + '"\n\n¿Ya no se va a resurtir? Se quitará del listado.')) return;
+  if(btn){ btn.disabled=true; btn.textContent='…'; }
+  /* A Supabase desde el 7-ago-2026. Sin precio a propósito: la base lo busca en
+     el catálogo, igual que hacía `agregarEol_` recorriendo la hoja. Si se
+     guardara sin precio, `eol_precio_venta` no podría calcular el 50 % y el
+     producto saldría marcado como EOL pero sin precio de venta, que es peor
+     que no marcarlo. */
+  sbEscribir('eol_guardar', { p_sku: sku }).then(function(data){
+    if(data && data.ok === true){
+      eolSkuSet.add(sku);
+      calcDerivados();
+      render();
+    } else {
+      if(btn){ btn.disabled=false; btn.textContent='✕ EOL'; }
+      alert('No se pudo guardar' + (data && data.error ? ': ' + data.error : '. Verifica tu conexión.'));
+    }
+  }).catch(function(){
+    if(btn){ btn.disabled=false; btn.textContent='✕ EOL'; }
+    alert('Sin conexión — no se guardó.');
+  });
+}
+function rowInv(x){
+  const cls = x.stock===0 ? 'cero' : x.stock<=3 ? 'bajo' : 'ok';
+  const est = eolMap[x.sku];
+  const eolB = est==='listo' ? `<span class="exh eol-ready">🏷️ 50%</span>`
+             : est==='pendiente' ? `<span class="exh eol-pend">EOL</span>` : '';
+  const exh = x.exhibe ? `<span class="exh">👁 ${x.exhibe} exhib.</span>` : '';
+  const vB = (D._invCloud && x._vendido) ? `<span class="exh" style="background:#f0f0f0;color:#999">−${x._vendido} vend.</span>` : '';
+  // Promo vigente del producto, si la hay. Va aquí para no obligar al asesor a
+  // saltar entre Inventario y Promos: ve las piezas y el precio en la misma fila.
+  // Si el producto ya se vende al 50% por EOL, ese badge manda y no se duplica:
+  // el 50% pisa a la promo (misma prioridad que precioVentaEnCombo).
+  const pr = est==='listo' ? null : _promoDe(x.sku);
+  const pp = pr ? parseFloat(String(pr.pp||pr.pr||0).replace(/[^0-9.]/g,'')) : 0;
+  const promoB = pp ? `<span class="exh promo-b">🔥 ${money(pp)}</span>` : '';
+  return `<div class="inv-row">
+    <div class="dot ${cls}"></div>
+    <div class="inv-info" style="flex:1;min-width:0"><h4>${x.producto}</h4><span>SKU ${x.sku||'—'}</span></div>
+    ${eolB}${promoB}${exh}${vB}
+    <div class="stock ${cls}"><div class="num">${x.stock}</div><div class="lbl lbl2">para vender</div></div>
+  </div>`;
+}
+
+function seccion(titulo, items, fn){
+  if(!items || !items.length) return '';
+  return `<div class="grupo-titulo">${titulo}</div>` + items.map(fn).join('');
+}
+
+function mainSkuBundle(b){
+  return (b.skus||'').split(',')[0].trim();
+}
+function seccionBundles(titulo, items){
+  if(!items || !items.length) return '';
+  const grupos = [], idx = {};
+  items.forEach(b=>{
+    const ms = mainSkuBundle(b);
+    if(idx[ms]==null){ idx[ms]=grupos.length; grupos.push({sku:ms, items:[]}); }
+    grupos[idx[ms]].items.push(b);
+  });
+  const html = grupos.map(g=>{
+    if(g.items.length===1) return cardBundle(g.items[0]);
+    const nombreProd = invBySku[g.sku]?invBySku[g.sku].producto:'Producto';
+    const dots = g.items.map(()=>'<span></span>').join('');
+    return `<div class="combo-group">
+      <div class="combo-group-lbl">🔀 ${nombreProd} · ${g.items.length} opciones — desliza para ver más →</div>
+      <div class="combo-carousel">${g.items.map(b=>`<div class="combo-slide">${cardBundle(b)}</div>`).join('')}</div>
+      <div class="combo-dots">${dots}</div>
+    </div>`;
+  }).join('');
+  return `<div class="grupo-titulo">${titulo}</div>` + html;
+}
+
+function render(){
+  // Cruzar la medianoche con la app abierta también cuenta como cambio de día.
+  if(tocarDia()){ refiltrarCaches(); pintarUpdated(); }
+  /* Aquí y no dentro de cada rama: es la ÚNICA puerta por la que se pinta algo,
+     así que basta con cerrarla una vez. Filtrar en la rama de la sección habría
+     dejado la cabecera con su título y la pantalla vacía debajo — y el asesor
+     leería que existe una sección a la que no puede entrar.
+     Hace falta aunque `_deLaUrl` e `irA` ya filtren, porque el servidor puede
+     retirar el permiso con la sección abierta (ver confirmarPuesto). */
+  if(!seccionVisible_(filtroActivo)){ filtroActivo = 'inicio'; _urlAlDia(); }
+  renderCabeceraSeccion();
+  /* Escribir en el buscador manda sobre la sección abierta: si el asesor está
+     buscando algo, lo que quiere es ENCONTRARLO, no seguir dentro de donde
+     estaba. Al borrar la búsqueda se vuelve a la sección tal cual estaba. */
+  if(busqueda){
+    document.getElementById('app').innerHTML = buscarEnTodo();
+    return;
+  }
+  const f = filtroActivo;
+  let html = '';
+
+  const bundles = BUNDLES.filter(x=>coincide(x.nombre,x.sku1,x.sku2));
+  const promosTodas = PROMOS.filter(x=>coincide(x.producto,x.sku));
+  /* Se listan TODAS, pero separadas en dos bloques —con piezas y agotadas— no
+     ordenadas dentro de uno solo: ver la sección `promo` más abajo. Una promo
+     sin piezas se puede vender igual trayendo el equipo de otra tienda, y antes
+     de agosto se ocultaba: el asesor no tenía dónde consultar el precio. */
+  const eolAll = EOL.filter(e=>coincide(e.producto,e.sku));
+  const eolListo = eolAll.filter(e=>e.estado==='listo');
+  const eolPend  = eolAll.filter(e=>e.estado==='pendiente');
+  const eolAgot  = eolAll.filter(e=>e.estado==='agotado');
+  const inv    = (D.inventario||[]).filter(x=>coincide(x.producto,x.sku)&&((x.stock||0)>0||(x.exhibe||0)>0));
+  const resurtir = RESURTIR.filter(x=>coincide(x.producto,x.sku));
+  const agotados = AGOTADOS.filter(x=>coincide(x.producto,x.sku));
+  const resurtirTodos = [...agotados, ...resurtir];
+
+  if(f==='inicio'){
+    const promoAct = PROMOS.filter(x=>tieneExistencia_(x.sku)).length;
+    const eolList  = EOL.filter(e=>e.estado==='listo').length;
+    const avisosAct= (D.avisos||[]).filter(a=>!a.d2||a.d2>=HOY_ISO).length;
+    const resurtirN= RESURTIR.length + AGOTADOS.length;
+    const att=attTotal(); const total=att.c+att.s;
+    const pct=total>0?Math.round(att.c/total*100):0;
+    const col=pct>=25?'var(--verde)':pct>=15?'var(--naranja)':'var(--rojo)';
+    const barW=Math.min(pct,100);
+    /* De dónde salen las ventas. Ya no se enumeran capturas contra ajustes
+       manuales porque los manuales dejaron de existir: o son las de toda la
+       tienda, o —sin red— solo las de este aparato, y ESO sí hay que decirlo. */
+    const fuente = VENTAS_NUBE
+      ? `toda la tienda<br>${VENTAS_NUBE_HORA}`
+      : 'solo lo capturado<br>en <b>este</b> equipo';
+    html += `<div class="card att-card">
+      <div class="att-header"><span>🛡️ Assurant del día</span>
+        <span class="att-fuente">${fuente}</span></div>
+      <div class="att-cifra">
+        <div class="att-rate" id="attRate" style="color:${col}">${total>0?pct+'%':'—'}</div>
+        <div class="att-sub" id="attSub">${total>0
+          ? `${att.c} con seguro<br>de ${total} venta${total!==1?'s':''} hoy ${pct>=25?'✅':'⚠️'}`
+          : 'Aún sin ventas<br>registradas hoy'}</div>
+      </div>
+      <div class="att-prog">
+        <div class="att-prog-track">
+          <div class="att-prog-fill" id="attBarFill" style="width:${barW}%;background:${col}"></div>
+          <div class="att-prog-goal"></div>
+        </div>
+        <div class="att-prog-lbl"><span>0%</span><span class="meta">▲ meta 25%</span><span>100%</span></div>
+      </div>
+      ${equipoHtml()}
+      <button class="btn-wa" onclick="resumenWA()">📲 Compartir resumen por WhatsApp</button>
+    </div>`;
+
+    /* Los avisos van en una FRANJA arriba, no en una tarjeta más (8-ago-2026).
+       Un aviso se lee al entrar; nadie navega a "Avisos" a ver si hay alguno —
+       por eso llevaba tanto sin mirarse. Solo aparece cuando hay. */
+    const avisosHoy = (D.avisos||[]).filter(a=>!a.d2||a.d2>=HOY_ISO);
+    if(avisosHoy.length){
+      html = `<div class="aviso-franja">
+        <h4>📢 ${avisosHoy.length===1?'Aviso':'Avisos'} de hoy</h4>
+        ${avisosHoy.slice(0,3).map(a=>`<div class="af-item">${esc(a.titulo||'')}
+          ${a.detalle?`<span class="af-det">${esc(String(a.detalle).slice(0,160))}</span>`:''}</div>`).join('')}
+        ${avisosHoy.length>3?`<div class="af-det" style="margin-top:6px">y ${avisosHoy.length-3} más</div>`:''}
+      </div>` + html;
+    }
+
+    /* Las tarjetas sustituyen a la rejilla de números y a la barra de chips:
+       cada una dice a dónde lleva Y cuánto hay dentro, así que se ve de un
+       vistazo dónde hay trabajo sin tener que entrar a mirar. */
+    const cuentas = { promo:promoAct, apartados:cuenta('apartados'), eol:eolList, resurtir:resurtirN };
+    const subs = { promo:`${promoAct} con promo · ${sinPromoConPiezasN()} a precio regular`,
+                   apartados:(function(){
+                     const v=APARTADOS.filter(a=>{const e=String(a.estatus||'').toLowerCase();
+                       return e!=='cancelado' && e!=='entregado';});
+                     const t=v.filter(a=>a.diasTarde>0).length;
+                     return t ? `${v.length} por entregar · ⏰ ${t} con la fecha pasada`
+                              : `${v.length} pagados, pendientes de entregar`; })(),
+                   eol:'Piezas de exhibición al 50%',
+                   resurtir:'Sin existencia — hay que pedir' };
+    html += `<div class="ir-grid">` + FILTROS.filter(f=>seccionTieneItems(f.id) && seccionVisible_(f.id)).map(f=>`
+      <button class="ir-card" onclick="irA('${f.id}')">
+        <span class="ir-ico" style="background:${f.color}1a">${f.icono}</span>
+        <span class="ir-txt"><b>${f.label}</b><span>${subs[f.id]||f.sub}</span></span>
+        <span class="ir-n" style="color:${(cuentas[f.id]||0)>0?f.color:'#ccc'}">${cuentas[f.id]||0}</span>
+      </button>`).join('') + `</div>`;
+  }
+  if(f==='eol'){
+    html += seccion('🏷️ Vender al 50% · pieza de exhibición', eolListo, cardEol);
+    html += seccion('⏳ EOL próximos · agotar stock cerrado', eolPend, cardEol);
+    html += seccion('Agotados', eolAgot, cardEol);
+  }
+  if(f==='apartados') html += seccionApartados();
+  if(f==='promo'){
+    const promoSkus = new Set(PROMOS.map(p => p.sku));
+    /* Los agotados TAMBIÉN se listan (1-ago-2026). Antes el filtro exigía
+       existencia, así que un producto sin piezas desaparecía con todo y su
+       precio — y son justo los que el cliente pide y se traen de otra tienda.
+       Van al final, para que no estorben a quien solo está hojeando, pero el
+       buscador sí los encuentra.
+
+       PERO solo los que de verdad se pueden traer (7-ago-2026). Un agotado
+       marcado EOL no se va a resurtir nunca: enseñar su precio es ofrecerle al
+       cliente algo que no va a llegar. Medido ese día: de 97 agotados en esta
+       lista, 95 estaban marcados EOL. La pestaña decía "Precio regular (110)"
+       cuando lo que se podía vender o traer eran 16.
+
+       El criterio no es nuevo: `AGOTADOS` (l. 901) ya excluye los EOL con este
+       mismo `eolSkuSet`. Esta lista era la única que no lo hacía. */
+    // conPiezas_ y seConsigue_ viven fuera del render: los comparten esta
+    // sección, las tarjetas de Inicio y el buscador global.
+    const conPiezas = conPiezas_;
+    const sinPromo = inventarioSinPromo()
+      .filter(x => coincide(x.producto, x.sku) && seConsigue_(x))
+      .sort((a,b) => (conPiezas_(b)?1:0) - (conPiezas_(a)?1:0));
+    // El contador de "se traen de otra tienda" cuenta lo mismo: sin los EOL,
+    // que no se traen de ningún lado.
+    const porTraer = sinPromo.filter(x => !conPiezas(x)).length
+                   + promosTodas.filter(x => !tieneExistencia_(x.sku)
+                                          && !eolSkuSet.has(x.sku)).length;
+    /* Las promos se parten igual que el resto: lo que hay, y lo que se trae.
+       Antes iban todas en un bloque, ordenadas pero MEZCLADAS —una promo
+       agotada podía quedar entre dos con piezas si el orden cambiaba—, y el
+       texto de arriba decía "117 promos con existencia" cuando 37 de esas 117
+       estaban agotadas. Un contador que miente es peor que no tenerlo: el
+       gerente lo lee de un vistazo para saber qué puede empujar hoy. */
+    const promosConPiezas = promosTodas.filter(x => tieneExistencia_(x.sku));
+    // Una promo agotada Y marcada EOL no se trae de ningún lado: fuera, igual
+    // que en precio regular.
+    const promosAgotadas  = promosTodas.filter(x => !tieneExistencia_(x.sku)
+                                                 && !eolSkuSet.has(x.sku));
+    /* "sin piezas para vender", no "agotados": desde el 8-ago aquí también caen
+       los que conservan la de exhibición. Hay una pieza en el aparador, pero no
+       se puede vender, así que para el cliente cuenta como cero. */
+    const traerTxt = porTraer > 0 ? ` · ${porTraer} sin piezas para vender (se traen de otra tienda)` : '';
+    /* Si todas las promos vencen el mismo día, se dice UNA vez aquí arriba y las
+       tarjetas se callan. `_vigUnica` lo lee badgeVigencia mientras se pinta la
+       sección; se limpia al terminar para no arrastrarlo al buscador ni a otra
+       pantalla, donde el conjunto de promos es distinto. */
+    _vigUnica = vigenciaComun(promosTodas);
+    html += `<div class="promo-toolbar"><span>${promosConPiezas.length} promo${promosConPiezas.length!==1?'s':''} con existencia${traerTxt}</span><button id="btnRefreshPromos" onclick="cargarPromosNube(true)">↻ Actualizar</button></div>`;
+    if(_vigUnica) html += `<div class="vig-barra">${avisoVigencia(_vigUnica)}</div>`;
+
+    /* UNA sola lista, no dos pestañas deslizables (7-ago-2026).
+       Lo que se gana no es estética: **el buscador**. Con el slider, escribir
+       "matepad" filtraba las dos listas pero solo se veía la que estuviera
+       abierta, así que un producto podía existir, coincidir con la búsqueda y
+       no aparecer — sin ninguna señal de que había que deslizar. El asesor
+       concluía "no lo tenemos" con el cliente enfrente.
+
+       Se conserva la separación por bloques con encabezados: un producto con
+       promo y otro sin ella se cobran distinto, y mezclarlos sin marcar cuál es
+       cuál sería peor que dos pestañas. */
+    const sinPromoConPiezas = sinPromo.filter(conPiezas);
+    const sinPromoAgotados  = sinPromo.filter(x => !conPiezas(x));
+
+    /* PRIMERO todo lo que hay en tienda, DESPUÉS todo lo que hay que traer.
+       Nada de mezclar: el asesor que hojea esta pantalla está buscando qué
+       puede vender ahora mismo, y una tarjeta sin piezas entre dos que sí las
+       tienen le hace perder el tiempo o, peor, prometer algo que no está. */
+    if(promosConPiezas.length){
+      html += `<div class="grupo-titulo">🔥 Con promoción (${promosConPiezas.length})</div>`;
+      html += promosConPiezas.map(cardPromo).join('');
+    }
+    if(sinPromoConPiezas.length){
+      html += `<div class="grupo-titulo" style="margin-top:18px">💰 Precio regular (${sinPromoConPiezas.length})</div>`;
+      html += sinPromoConPiezas.map(cardPrecioReg).join('');
+    }
+    /* Los agotados que SÍ se pueden traer, todos juntos al final y bajo su
+       propio título — con promo y sin ella. Cada uno conserva su tarjeta, que
+       es la que sabe enseñar el precio correcto. */
+    const agotadosTraibles = promosAgotadas.length + sinPromoAgotados.length;
+    if(agotadosTraibles){
+      html += `<div class="grupo-titulo" style="margin-top:18px">📭 Agotados · se traen de otra tienda (${agotadosTraibles})</div>`;
+      html += promosAgotadas.map(cardPromo).join('');
+      html += sinPromoAgotados.map(cardPrecioReg).join('');
+    }
+    _vigUnica = null;   // fuera de esta sección, cada tarjeta decide por su cuenta
+    if(!promosConPiezas.length && !sinPromoConPiezas.length && !agotadosTraibles){
+      html += `<div class="empty">${busqueda ? 'Sin resultados para «'+esc(busqueda)+'».' : 'Sin promos ni precios que mostrar.'}</div>`;
+    }
+  }
+  if(f==='resurtir'){
+    if(agotados.length) html += seccion('📭 Sin existencia — pedir urgente', agotados, rowResurtir);
+    if(resurtir.length) html += seccion('🪟 Queda piso — pedir caja', resurtir, rowResurtir);
+    if(RESURTIR.length || AGOTADOS.length){
+      html += `<button class="btn-wa" style="margin-top:14px" onclick="resurtirWA()">📲 Compartir lista completa por WhatsApp</button>`;
+    }
+  }
+  if(f==='inv')   html += seccion('📊 Inventario · existencias', inv, rowInv);
+
+  if(!html.trim()) html = `<div class="empty">Sin resultados${busqueda?` para “${busqueda}”`:''}.</div>`;
+  document.getElementById('app').innerHTML = html;
+}
+
+document.getElementById('q').addEventListener('input', e=>{
+  busqueda = e.target.value.trim().toLowerCase();
+  _urlAlDia();
+  render();
+});
+/* Lo que se rescató de la URL hay que ponerlo en la caja del buscador; si no,
+   se filtra la lista pero el recuadro se ve vacío y parece un tablero roto. */
+(function(){
+  const q = document.getElementById('q');
+  if(q && busqueda) q.value = busqueda;
+})();
+
+/* ================= Cola de llamadas al GAS =================
+   Google Apps Script descarta las llamadas que llegan encimadas y lo hace EN
+   SILENCIO (responde 200 sin ejecutar). Antes las 6 cargas salían todas en el
+   mismo instante: unas llegaban y otras no, así que promos/combos/avisos se
+   quedaban vacíos —y sus pestañas se ocultaban solas por seccionTieneItems()—
+   sin que nadie se enterara. Ahora salen de una en una, espaciadas, con
+   timeout, reintento y aviso visible si algo no llegó. */
+const GAS_GAP        = 1500;    // ms de separación entre llamadas
+const GAS_TIMEOUT    = 15000;   // ms de espera por respuesta
+const GAS_REINTENTOS = 2;
+
+let _gasCola = [], _gasCorriendo = false, _gasN = 0;
+const espera = ms => new Promise(r=>setTimeout(r, ms));
+
+function gasJsonp(qs){
+  return new Promise(function(resolve, reject){
+    // Callback único: Date.now() solo no basta, dos llamadas en el mismo
+    // milisegundo se pisan y cruzan las respuestas (ya pasó en Captura de Series).
+    const cb = '_gas' + Date.now() + '_' + (++_gasN);
+    const sc = document.createElement('script');
+    const t  = setTimeout(function(){ limpiar(); reject(new Error('timeout')); }, GAS_TIMEOUT);
+    function limpiar(){ clearTimeout(t); delete window[cb]; sc.remove(); }
+    window[cb] = function(d){ limpiar(); resolve(d); };
+    sc.onerror = function(){ limpiar(); reject(new Error('red')); };
+    sc.src = CLOUD_URL + '?' + qs + '&callback=' + cb
+           + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
+    document.head.appendChild(sc);
+  });
+}
+
+// prioritario:true → se cuela al frente (para escrituras: apartados, EOL)
+function gasPedir(qs, opts){
+  opts = opts || {};
+  return new Promise(function(resolve, reject){
+    const tarea = { qs, resolve, reject, intentos:0,
+      max: opts.reintentos!=null ? opts.reintentos : GAS_REINTENTOS };
+    if(opts.prioritario) _gasCola.unshift(tarea); else _gasCola.push(tarea);
+    _gasBombear();
+  });
+}
+
+async function _gasBombear(){
+  if(_gasCorriendo) return;
+  _gasCorriendo = true;
+  while(_gasCola.length){
+    const t = _gasCola.shift();
+    try{
+      t.resolve(await gasJsonp(t.qs));
+    }catch(e){
+      if(t.intentos < t.max){
+        t.intentos++;
+        _gasCola.unshift(t);                      // reintenta antes que el resto
+        await espera(GAS_GAP * (t.intentos + 1)); // ...dándole más aire cada vez
+        continue;
+      }
+      t.reject(e);
+    }
+    if(_gasCola.length) await espera(GAS_GAP);
+  }
+  _gasCorriendo = false;
+}
+
+/* ---- Estado de las cargas + aviso al usuario ---- */
+/* `ventas` entró aquí el 17-ago-2026, y es lo que faltaba: el leaderboard de
+   Assurant era la única carga que podía quedarse vieja SIN que el banner dijera
+   nada. Con la doble escritura viva no se notaba —la hoja y Supabase decían lo
+   mismo— pero al apagarla, un fallo aquí no daría error: daría un porcentaje.
+   Y ese porcentaje es el KPI que se reporta con meta del 25 %. */
+const CARGAS = { inventario:'pendiente', eol:'pendiente', promos:'pendiente',
+                 bundles:'pendiente', avisos:'pendiente', apartados:'pendiente',
+                 ventas:'pendiente' };
+const CARGA_NOMBRE = { inventario:'inventario', eol:'EOL', promos:'promos',
+                       bundles:'combos', avisos:'avisos', apartados:'apartados',
+                       ventas:'Assurant del día' };
+function marcarCarga(k, ok){ CARGAS[k] = ok ? 'ok' : 'error'; actualizarBanner(); }
+
+function actualizarBanner(){
+  const w = document.getElementById('liveWarning');
+  const t = document.getElementById('liveWarningTitulo');
+  const m = document.getElementById('liveWarningMsg');
+  if(!w || !t || !m) return;
+  const btn = '<button class="lw-btn" onclick="reintentarCargas()">↻ Reintentar</button>';
+  if(CARGAS.inventario === 'error'){
+    w.className = 'visible err';
+    t.textContent = 'Sin conexión al inventario';
+    m.innerHTML = 'No se pudo confirmar el stock — <b>los números que ves pueden estar desactualizados</b>.<br>' + btn;
+    return;
+  }
+  if(CARGAS.inventario === 'pendiente'){
+    w.className = 'visible';
+    t.textContent = 'Inventario sin confirmar';
+    m.innerHTML = 'Conectando… no cotices piezas al cliente hasta ver <b style="color:var(--verde)">● en vivo</b> arriba';
+    return;
+  }
+  const fallidas = Object.keys(CARGAS).filter(k=>CARGAS[k]==='error').map(k=>CARGA_NOMBRE[k]);
+  if(fallidas.length){
+    w.className = 'visible';
+    t.textContent = 'Faltan datos por cargar';
+    m.innerHTML = 'No cargó: <b>' + fallidas.join(', ') + '</b>. Esas pestañas pueden verse vacías o incompletas.<br>' + btn;
+    return;
+  }
+  w.className = '';
+}
+
+function reintentarCargas(){
+  const mapa = { inventario:cargarInventarioNube, eol:cargarEolNube, promos:cargarPromosNube,
+                 bundles:cargarBundlesNube, avisos:cargarAvisosNube, apartados:cargarApartadosNube,
+                 ventas:cargarVentasNube };
+  Object.keys(CARGAS).forEach(function(k){
+    if(CARGAS[k] === 'error'){ CARGAS[k] = 'pendiente'; mapa[k](); }
+  });
+  actualizarBanner();
+}
+
+/* ---- Antigüedad del inventario ----
+   Con la PWA abierta varios días, "Live 09:12" del martes se ve idéntico al de
+   hoy. Si la última confirmación no es de hoy, se dice con todas sus letras. */
+let _invFecha = null;      // Date de la última confirmación de inventario
+let _ultimaCarga = 0;      // ms de la última carga con éxito
+let _ultimoIntento = 0;    // ms del último intento (con o sin éxito)
+
+function pintarUpdated(){
+  const el = document.getElementById('updated');
+  if(!el) return;
+  // Sin respuesta de la nube pero con inventario guardado: se muestra, diciendo
+  // de cuándo es. Que nadie prometa una pieza creyendo que el dato es de hoy.
+  if(!_invFecha && _invEdadHoras != null){
+    const h = Math.round(_invEdadHoras);
+    const txt = h < 1 ? 'hace un rato' : (h < 24 ? 'hace ' + h + ' h' : 'hace ' + Math.floor(h/24) + ' d');
+    const color = _invEdadHoras <= INV_HORAS_OK ? 'var(--naranja)' : 'var(--rojo)';
+    el.innerHTML = 'Guardado<b style="color:' + color + ';display:block;font-size:11px">● ' + txt + ' · confirma en sistema</b>';
+    return;
+  }
+  if(!_invFecha) return;
+  const t = _invFecha.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  if(hoyISO(_invFecha) === HOY_ISO){
+    el.innerHTML = 'Live ' + t + '<b style="color:var(--verde);display:block;font-size:11px">● en vivo</b>';
+  }else{
+    const dia = _invFecha.toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+    el.innerHTML = dia + ' ' + t + '<b style="color:var(--naranja);display:block;font-size:11px">● no es de hoy</b>';
+  }
+}
+
+/* ---- Aplicadores ----
+   Separados de las funciones que piden los datos, porque la misma respuesta
+   puede llegar por una llamada suelta (modo=inventario) o dentro del paquete
+   completo (modo=todo). */
+const _esObj = d => d && typeof d === 'object' && !Array.isArray(d);
+/* Desde que el Apps Script exige token, un rechazo llega como
+   {error:'no_autorizado'} — que TAMBIÉN es un objeto y pasaba _esObj. El
+   tablero lo tomaba por datos buenos, se marcaba "en vivo" con todo en cero y
+   pisaba el inventario guardado. */
+const _esError = d => _esObj(d) && typeof d.error === 'string';
+const _datosUtiles = d => _esObj(d) && !_esError(d) && Object.keys(d).length > 0;
+
+function aplicarInventario(data){
+  (function(data){
+    // Guarda los datos crudos de la nube; el stock cerrado y la exhibición
+    // restante se calculan en calcDerivados (finalizarStock), que corre también
+    // cuando llegan los datos de EOL.
+    function rawFields(cl){
+      return {
+        _onhand:    cl.o || 0,
+        _vendido:   cl.v || 0,
+        _exhibeRaw: (typeof cl.e === 'number') ? cl.e : 0,
+        _ev:        cl.ev || 0
+      };
+    }
+    (D.inventario||[]).forEach(function(item){
+      const cl = data[item.sku];
+      if(cl && typeof cl.o === 'number'){
+        Object.assign(item, rawFields(cl));
+        if(cl.p && !item.precio) item.precio = parseFloat(String(cl.p).replace(/[^0-9.]/g,''))||0;
+      }
+    });
+    // Agrega al inventario local los SKUs que el GAS conoce (Catalogo o Catalogo_ref)
+    // pero que no están en datos.js — esto incluye productos agotados que ya no vienen
+    // en el Excel de Sonar pero el GAS los conserva vía Catalogo_ref
+    const skusLocales = new Set((D.inventario||[]).map(function(x){ return x.sku; }));
+    Object.keys(data).forEach(function(sku){
+      if(skusLocales.has(sku)) return;
+      const cl = data[sku];
+      if(!cl || !cl.d) return; // sin descripción → SKU vacío, ignorar
+      const item = Object.assign({
+        sku: sku,
+        producto: cl.d,
+        precio:   parseFloat(String(cl.p||'').replace(/[^0-9.]/g,''))||0
+      }, rawFields(cl));
+      if(!D.inventario) D.inventario = [];
+      D.inventario.push(item);
+      invBySku[sku] = item;
+    });
+    // Actualiza invBySku para SKUs EOL que no están en D.inventario
+    (D.eol||[]).forEach(function(e){
+      if(invBySku[e.sku]) return;
+      const cl = data[e.sku];
+      if(!cl) return;
+      invBySku[e.sku] = Object.assign({
+        sku: e.sku, producto: cl.d||'',
+        precio: parseFloat(String(cl.p||'').replace(/[^0-9.]/g,''))||0
+      }, rawFields(cl));
+    });
+    D._invCloud = true;
+    _invFecha = new Date();
+    _ultimaCarga = Date.now();
+    guardarInvCache();   // para que sirva sin red la próxima vez
+    pintarUpdated();
+  })(data);
+}
+
+function aplicarEol(data){
+  const skusLocales = new Set((D.eol||[]).map(function(e){ return e.sku; }));
+  data.forEach(function(e){
+    if(skusLocales.has(e.sku)) return;
+    // SKU subido via admin (ADENDUM PDF) que no estaba en datos.js
+    (D.eol = D.eol||[]).push({ sku: e.sku, precio: parseFloat(e.precio)||0 });
+    eolSkuSet.add(e.sku);
+  });
+}
+
+function aplicarPromos(data){
+  const todas = Object.keys(data).map(function(sku){
+    const p = data[sku] || {};
+    const inv = invBySku[sku];
+    return { sku:sku, producto:p.d||(inv && inv.producto)||('SKU '+sku),
+      pr:(p.pr!=null?p.pr:null), pp:(p.pp!=null?p.pp:null), d1:p.d1||null, d2:p.d2||null };
+  });
+  // Se cachea la lista COMPLETA (no la filtrada): así, al cambiar el día, las
+  // vigencias se recalculan desde el caché aunque el celular esté sin red.
+  try{ localStorage.setItem(PROMOS_KEY, JSON.stringify(todas)); }catch(e){}   // cuota llena: se sigue con lo que hay en memoria
+  PROMOS = todas.filter(vigenteHoy)
+                .sort(function(a,b){ return a.producto.localeCompare(b.producto); });
+}
+
+function aplicarBundles(data){
+  try{ localStorage.setItem(BUNDLES_KEY, JSON.stringify(data)); }catch(e){}   // cuota llena: se sigue con lo que hay en memoria
+  BUNDLES = data.filter(vigenteHoy);
+}
+
+/* Vuelve a filtrar promos y combos desde el caché — para cuando cambió el día
+   sin que haya habido una carga nueva de la nube. */
+function refiltrarCaches(){
+  try{
+    const c = JSON.parse(localStorage.getItem(PROMOS_KEY)||'null');
+    if(Array.isArray(c)) PROMOS = c.filter(vigenteHoy)
+      .sort(function(a,b){ return a.producto.localeCompare(b.producto); });
+  }catch(e){}   // si el cache no se puede releer, quedan las promos ya filtradas
+  try{
+    const b = JSON.parse(localStorage.getItem(BUNDLES_KEY)||'null');
+    if(Array.isArray(b)) BUNDLES = b.filter(vigenteHoy);
+  }catch(e){}   // idem: quedan los combos ya filtrados
+}
+
+function aplicarAvisos(data){
+  const locales = new Set((D.avisos||[]).map(function(a){ return a.titulo; }));
+  data.forEach(function(a){
+    if(locales.has(a.titulo)) return;
+    (D.avisos = D.avisos||[]).unshift(a);
+  });
+}
+
+/* Las filas de `ventas_hoy` de Supabase, a la forma {vendedor:{c,s}} que espera
+   aplicarVentas. Vive aquí, en un solo sitio, porque la usan DOS rutas: el
+   viaje único (`tablero_todo`, vía _deSupabase) y la carga suelta de abajo.
+   Duplicarla es la trampa que ya documenta el mapa en aplicarTodo: una de las
+   dos copias se queda atrás y el tablero enseña cosas distintas según qué
+   llamada contestó, sin dar ningún error. */
+function _vendDeSupabase(filas){
+  const vend = {};
+  (filas || []).forEach(function(v){
+    vend[v.vendedor] = { c:Number(v.con_seguro)||0, s:Number(v.sin_seguro)||0 };
+  });
+  return vend;
+}
+
+// Devuelve false si la respuesta no trae el formato esperado (GAS sin el modo)
+function aplicarVentas(data){
+  if(!_esObj(data) || !_esObj(data.vend)) return false;
+  const acc = {};
+  Object.keys(data.vend).forEach(function(n){
+    const v = data.vend[n] || {};
+    acc[n] = { c:Number(v.c)||0, s:Number(v.s)||0 };
+  });
+  VENTAS_NUBE = acc;
+  VENTAS_NUBE_HORA = 'actualizado ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  return true;
+}
+
+/* ---- Cargas sueltas (respaldo si no hay modo=todo) ---- */
+/* El stock sale SOLO de Supabase (ver aplicarTodo). Esta vía suelta se queda
+   como último recurso pero pidiéndoselo también a Supabase, no al Apps Script:
+   la hoja ya no recibe el Excel del día. */
+async function cargarInventarioNube(){
+  const bruto = await sbRpc('tablero_todo');
+  if(_esObj(bruto) && Array.isArray(bruto.inventario) && bruto.inventario.length){
+    aplicarInventario(_deSupabase(bruto).inventario);
+    calcDerivados(); render();
+    marcarCarga('inventario', true);
+    return;
+  }
+  marcarCarga('inventario', false);
+}
+
+/* Se conserva sin usar a propósito, para la etapa 5: cuando se retire el Apps
+   Script hay que poder ver qué se estaba llamando y desde dónde. */
+async function _cargarInventarioGasViejo(){
+  let data;
+  try{
+    data = await gasPedir('modo=inventario');
+    if(_esError(data))      throw new Error('rechazado: ' + data.error);
+    if(!_datosUtiles(data)) throw new Error('respuesta inválida');
+  }catch(e){
+    marcarCarga('inventario', false);
+    // Si hay inventario guardado seguimos mostrándolo (con su edad); solo
+    // cuando no hay nada se anuncia que no hay conexión.
+    if(_invEdadHoras != null){ pintarUpdated(); return; }
+    const el = document.getElementById('updated');
+    if(el) el.innerHTML = '<span style="color:var(--rojo);font-weight:700">Sin conexión</span>';
+    return;
+  }
+  aplicarInventario(data);
+  calcDerivados();
+  render();
+  marcarCarga('inventario', true);
+}
+
+async function cargarEolNube(){
+  let data;
+  try{
+    data = await gasPedir('modo=eol_cloud');
+    if(!Array.isArray(data)) throw new Error('respuesta inválida');
+  }catch(e){ marcarCarga('eol', false); return; }
+  aplicarEol(data);
+  calcDerivados();
+  render();
+  marcarCarga('eol', true);
+}
+
+let _promosCargando = false;
+async function cargarPromosNube(manual){
+  if(_promosCargando) return;
+  _promosCargando = true;
+  const btnR = document.getElementById('btnRefreshPromos');
+  if(btnR){ btnR.textContent='↻'; btnR.disabled=true; btnR.classList.add('girando'); }
+  function soltarBoton(){
+    const b = document.getElementById('btnRefreshPromos');
+    if(b){ b.textContent='↻ Actualizar'; b.disabled=false; b.classList.remove('girando'); }
+  }
+  let data;
+  try{
+    // El botón "↻ Actualizar" lo pide el usuario y está esperando: va al frente.
+    data = await gasPedir('modo=promos', { prioritario: !!manual });
+    if(!_esObj(data)) throw new Error('respuesta inválida');
+  }catch(e){
+    _promosCargando = false; soltarBoton(); marcarCarga('promos', false); return;
+  }
+  _promosCargando = false;
+  aplicarPromos(data);
+  render();
+  soltarBoton();
+  marcarCarga('promos', true);
+}
+
+async function cargarBundlesNube(){
+  let data;
+  try{
+    data = await gasPedir('modo=bundles');
+    if(!Array.isArray(data)) throw new Error('respuesta inválida');
+  }catch(e){ marcarCarga('bundles', false); return; }
+  aplicarBundles(data);
+  render();
+  marcarCarga('bundles', true);
+}
+
+async function cargarAvisosNube(){
+  let data;
+  try{
+    data = await gasPedir('modo=avisos_cloud');
+    if(!Array.isArray(data)) throw new Error('respuesta inválida');
+  }catch(e){ marcarCarga('avisos', false); return; }
+  aplicarAvisos(data);
+  render();
+  marcarCarga('avisos', true);
+}
+
+/* Ventas del día de TODA la tienda, para el leaderboard de Assurant.
+
+   A SUPABASE, no al Apps Script (17-ago-2026). Esta carga pedía `modo=ventas_hoy`
+   al GAS, que lo saca de la hoja. Mientras la doble escritura siga viva da lo
+   mismo —los dos lados tienen las mismas ventas—, pero el día que se apague, la
+   hoja se queda congelada y esto serviría el Assurant del último día que la
+   recibió. No daría un error: daría un porcentaje, con la misma pinta que uno
+   bueno, en el número que se reporta a Demetrio con meta del 25 %.
+
+   Es el mismo motivo por el que el stock y los apartados ya solo se aceptan de
+   Supabase (ver aplicarTodo). Se cambia AHORA, con los dos lados diciendo lo
+   mismo, para que el cambio se pueda comprobar sin nada en juego.
+
+   Si Supabase no contesta, se marca la carga como fallida y el banner lo dice.
+   El tablero se queda con las ventas capturadas en este equipo (attPorVendedor):
+   un dato incompleto y anunciado, en vez de uno falso y callado. */
+async function cargarVentasNube(){
+  const filas = await sbRpc('ventas_hoy');
+  if(!Array.isArray(filas)){ marcarCarga('ventas', false); return; }
+  if(aplicarVentas({ vend: _vendDeSupabase(filas) })){
+    marcarCarga('ventas', true);
+    render();
+  } else {
+    marcarCarga('ventas', false);
+  }
+}
+
+/* ---------- FASE 2 · leer de Supabase, con el Apps Script de respaldo ----------
+   4-ago-2026. Medido en este mismo tablero: `modo=todo` tarda entre 5 y 8
+   segundos y `tablero_todo` entre 0.18 y 0.37. La diferencia no es la base de
+   datos: es que el Apps Script descarta las llamadas encimadas respondiendo
+   200, y por eso hay una cola con 1.5 s de separación.
+
+   Supabase devuelve filas y las funciones aplicar* de aquí abajo esperan los
+   objetos indexados del GAS. Se traduce en `_deSupabase` en vez de tocarlas:
+   son las que pintan el stock y ya están probadas en piso.
+
+   El adaptador se comparó contra `modo=todo` con los mismos datos antes de
+   escribir una sola línea aquí: 215 SKUs sin diferencia en onhand, vendido,
+   exhibición ni exh_vendida; 117 promos; los 9 apartados con su número de
+   ticket. Si algo de esto se toca, se vuelve a comparar. */
+const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
+const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+
+/* Una llamada a Supabase con los parámetros que hagan falta. `p_store` va
+   siempre: ninguna función de la base contesta sin saber de qué tienda habla.
+   Devuelve null —nunca lanza— para que quien llama decida si cae al Apps
+   Script o si avisa; un throw aquí tumbaría el arranque del tablero. */
+/* La llamada pelada, con los parámetros EXACTOS que se le pasen. Casi nada la
+   usa directamente: existe porque no todas las funciones de la base hablan de
+   una tienda —`login_empleado` recibe un número de empleado y nada más—, y
+   colarle un `p_store` que no está en su firma hace que PostgREST no la
+   encuentre y responda 404. Un 404 aquí devuelve null igual que un corte de
+   red, así que se vería como "sin conexión" y no como "la llamada está mal". */
+async function sbCallRaw(fn, params, ms){
+  const ctl = new AbortController();
+  const t = setTimeout(function(){ ctl.abort(); }, ms || 8000);
+  try{
+    const r = await fetch(SB_URL + '/rest/v1/rpc/' + fn, {
+      method:'POST', signal: ctl.signal,
+      headers:{ apikey:SB_KEY, Authorization:'Bearer '+SB_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify(params || {})
+    });
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }        // sin red, timeout o rechazo: se cae al GAS
+  finally{ clearTimeout(t); }
+}
+async function sbCall(fn, params, ms){
+  return sbCallRaw(fn, Object.assign({ p_store: String(TIENDA_ID || '') }, params || {}), ms);
+}
+async function sbRpc(fn, ms){ return sbCall(fn, null, ms); }
+
+/* ── Que el permiso no se quede congelado en el teléfono ────────────────
+   `hes_empleado` se escribe UNA vez, al entrar, y no se vuelve a refrescar.
+   Sin esto, cambiar un puesto en Admin → Equipo no llegaría hasta que esa
+   persona cerrara sesión y volviera a entrar — y nadie cierra sesión: la app
+   recuerda al usuario. Es el mismo fallo que dejó a los asesores dos días sin
+   poder capturar (ver el comentario de `queFaltaEnLaSesion` en index.html).
+
+   Corrige en LAS DOS direcciones a propósito. Solo quitar sería más "seguro" y
+   estaría mal: ascender a alguien y que no vea lo suyo no da ningún error, y
+   nadie relacionaría el síntoma con que su teléfono guarda el puesto viejo.
+
+   Se reusa `login_empleado`, que es la misma función del login y ya devuelve el
+   puesto: una función nueva sería un segundo sitio donde vive la respuesta a
+   "¿qué puesto tiene esta persona?", y esos dos sitios se separan solos.
+
+   Si no hay red no pasa nada: se queda lo que decidió el arranque, que es lo
+   que había hasta hoy. */
+async function confirmarPuesto(){
+  if(!YO || !YO.empno) return;      // gerente dueño: su permiso es la sesión
+  const r = await sbCallRaw('login_empleado', { p_pin: String(YO.empno) }, 8000);
+  const f = Array.isArray(r) ? r[0] : r;
+  if(!f || !f.emp_puesto) return;   // sin respuesta útil no se toca nada
+  const antes = PUEDE_GESTIONAR;
+  PUEDE_GESTIONAR = esPuestoDeGestion_(f.emp_puesto);
+  if(f.emp_puesto !== YO.puesto){
+    YO.puesto = f.emp_puesto;
+    // Se guarda para que el próximo arranque ya nazca bien, aunque sea sin red
+    try{ localStorage.setItem('hes_empleado', JSON.stringify(YO)); }
+    catch(e){ /* almacenamiento lleno o bloqueado: se vuelve a preguntar mañana */ }
+  }
+  if(antes !== PUEDE_GESTIONAR) render();   // aparece o desaparece sin recargar
+}
+
+/* Las escrituras de preventa llevan el token de tienda, el mismo secreto que
+   ya protegía al Apps Script. Sale de la sesión (login_asesor lo devuelve), y
+   por eso NO está escrito en este archivo, que es público. Sin token la base
+   responde `no_autorizado` — a propósito: la anon key sola no debe escribir. */
+function sbEscribir(fn, params){
+  return sbCall(fn, Object.assign({ p_token: GAS_TOKEN }, params || {}), 12000);
+}
+
+/* Una fila de `apartados_lista` → la forma que usan cardApartado y el cupo.
+   Vive suelta porque la usan DOS caminos: el viaje único (`tablero_todo`) y la
+   recarga después de escribir (`cargarApartadosNube`). Si se copiara en cada
+   uno, el día que se agregue un campo se agregaría en uno solo y el otro lo
+   perdería en silencio — que es justo lo que pasó con `transaccion` en agosto. */
+function _apartadoDeSupabase(a){
+  // `transaccion` es el ticket del POS: el enlace entre el apartado y la
+  // venta. Si se cae de aquí, se pierde sin que nada avise.
+  return { id:String(a.id), sku:a.sku, color:a.color||'', cliente:a.cliente,
+           telefono:a.telefono||'', precio: a.precio!=null ? String(a.precio) : '',
+           seguro: a.con_seguro ? 'Si' : '', vend:a.vendedor||'',
+           estatus:a.estatus||'Apartado', transaccion:a.transaccion||'',
+           serie:a.serie||'',
+           asignado: a.asignado_en ? String(a.asignado_en).slice(0,10) : '',
+           entregado: a.entregado_en ? String(a.entregado_en).slice(0,10) : '',
+           entregadoPor: a.entregado_por||'',
+           tipo: a.tipo||'preventa',
+           origen: a.origen||'',
+           promesa: a.promesa||'',
+           // Los días de retraso los calcula la base, no el celular: un
+           // teléfono con la fecha mal decidiría a qué cliente llamar.
+           diasTarde: (a.dias_tarde==null ? null : Number(a.dias_tarde)),
+           fecha: a.creado_en ? String(a.creado_en).slice(0,16).replace('T',' ') : '' };
+}
+
+/* Supabase → la forma que ya consumen aplicarInventario, aplicarPromos, etc. */
+function _deSupabase(d){
+  const inv = {};
+  (d.inventario||[]).forEach(function(x){
+    inv[x.sku] = { d:x.descripcion, o:x.onhand, v:x.vendido,
+                   e:x.exhibicion, ev:x.exh_vendida, p:x.precio };
+  });
+  const pro = {};
+  (d.promos||[]).forEach(function(p){
+    pro[p.sku] = { d:p.producto, pr:p.precio_reg, pp:p.precio_pro,
+                   est:p.estatus, msi:p.msi, d1:p.vigente_desde, d2:p.vigente_hasta };
+  });
+  const vend = _vendDeSupabase(d.ventas_hoy);
+  return {
+    inventario: inv,
+    promos: pro,
+    eol: (d.eol||[]).map(function(e){
+      return { sku:e.sku, precio: e.precio!=null ? e.precio : e.precio_efectivo }; }),
+    bundles: (d.bundles||[]).map(function(b){
+      return { id:String(b.id), nombre:b.nombre,
+               // en Supabase skus es un array de verdad; aquí se espera "a,b,c"
+               skus: Array.isArray(b.skus) ? b.skus.join(',') : String(b.skus||''),
+               precio:b.precio, d1:b.vigente_desde, d2:b.vigente_hasta }; }),
+    avisos: (d.avisos||[]).map(function(a){
+      /* `tipo` venía fijo en 'manual' desde la fase 2, y no por decisión: la
+         tabla de Supabase no tenía la columna, así que no había de dónde
+         sacarla. Efecto: los avisos de corporativo perdieron su etiqueta azul
+         CEA/LEA en el tablero —cardAviso, l. 1354— y quedaron indistinguibles
+         de un recado interno. Nadie lo reportó porque el aviso se sigue
+         leyendo; solo pierde la señal de quién lo manda.
+         Columna agregada en supabase_escrituras_resto.sql. */
+      return { id:String(a.id), titulo:a.titulo, detalle:a.detalle||'',
+               fecha: a.creado_en ? String(a.creado_en).slice(0,10) : '',
+               d2:a.vigente_hasta, prioridad:a.prioridad||'normal',
+               tipo:a.tipo||'manual' }; }),
+    apartados: (d.apartados||[]).map(_apartadoDeSupabase),
+    ventas_hoy: { vend: vend },
+    // Marca de origen. La lee aplicarTodo para saber si puede confiar en los
+    // apartados: los del Apps Script vienen de una hoja que ya nadie escribe.
+    __sb: true
+  };
+}
+
+async function cargarTodoSupabase(){
+  const bruto = await sbRpc('tablero_todo');
+  // Se revisa la FORMA, no solo que llegue: una respuesta rara vale menos que
+  // ninguna, porque pintaría un tablero vacío como si fuera bueno.
+  if(!_esObj(bruto) || !Array.isArray(bruto.inventario) || !bruto.inventario.length) return false;
+  return aplicarTodo(_deSupabase(bruto));
+}
+
+/* Todo en un solo viaje (~4 s contra ~20 s de las seis llamadas). Si este GAS
+   no tiene el modo, contesta con la lista de ventas —su else final— así que hay
+   que revisar la FORMA de lo que llega, no solo que llegue. */
+async function cargarTodoNube(){
+  let d;
+  try{
+    d = await gasPedir('modo=todo', { reintentos:1 });
+    if(!_esObj(d) || !_esObj(d.inventario)) throw new Error('sin modo=todo');
+  }catch(e){ return false; }
+  return aplicarTodo(d);
+}
+
+/* Lo comparten las dos rutas a propósito: el que pinta el stock es el mismo
+   código venga de donde venga el dato. Si se duplicara, tarde o temprano una
+   de las dos ramas se quedaría atrás y el tablero mostraría cosas distintas
+   según qué nube haya contestado. */
+function aplicarTodo(d){
+  /* El STOCK solo se acepta de Supabase, desde el 7-ago-2026.
+     El Excel del día se sube directo a Supabase: la hoja dejó de recibirlo, así
+     que el `modo=todo` del Apps Script devuelve el On Hand del último informe
+     que pasó por ahí — que se va quedando más viejo cada día que pasa.
+
+     Y un stock viejo no es un dato incompleto: es un dato FALSO. Dice que hay
+     piezas que ya se vendieron, y el asesor le promete al cliente algo que no
+     está. Sin stock el tablero avisa (el banner naranja); con stock inventado,
+     no avisa nadie.
+
+     Los PRECIOS sí siguen cayendo al Apps Script: una promo de hace unos días
+     casi siempre sigue vigente, y quedarse sin precios deja al asesor sin poder
+     vender. El dato viejo hace daño en el stock, no en el precio. */
+  if(d.__sb){ aplicarInventario(d.inventario);                 marcarCarga('inventario', true); }
+  if(Array.isArray(d.eol))       { aplicarEol(d.eol);          marcarCarga('eol', true); }
+  if(_esObj(d.promos))           { aplicarPromos(d.promos);    marcarCarga('promos', true); }
+  if(Array.isArray(d.bundles))   { aplicarBundles(d.bundles);  marcarCarga('bundles', true); }
+  if(Array.isArray(d.avisos))    { aplicarAvisos(d.avisos);    marcarCarga('avisos', true); }
+  /* Los apartados SOLO se aplican si vienen de Supabase (`d.__sb`).
+     `modo=todo` del Apps Script también los trae, pero desde el 7-ago los lee
+     de una hoja que ya nadie escribe. Y llega ~7 s DESPUÉS que Supabase: sin
+     este candado, la respuesta lenta borraría de la pantalla el apartado que el
+     asesor acaba de guardar, o le devolvería la serie a un equipo ya entregado.
+     No da error, solo deshace trabajo — por eso se marca el origen. */
+  if(d.__sb && Array.isArray(d.apartados)) { APARTADOS = d.apartados; marcarCarga('apartados', true); }
+  /* Las ventas del día, SOLO de Supabase — mismo candado que el stock y los
+     apartados, y por el mismo motivo (17-ago-2026).
+
+     El `modo=todo` del Apps Script también trae `ventas_hoy`, pero de la hoja.
+     Hoy coinciden; en cuanto se apague la doble escritura, esa mitad de la
+     respuesta queda congelada y pisaría el Assurant bueno que Supabase acaba de
+     entregar — porque además llega ~7 s DESPUÉS. Sería el caso de los apartados
+     otra vez: la respuesta lenta deshaciendo el trabajo de la rápida.
+
+     Sin el candado esto no avisaría de nada: un attach del 40 % de anteayer se
+     ve igual de creíble que el de hoy. Con él, si el dato no viene de Supabase
+     la carga se marca fallida y el banner lo nombra. */
+  marcarCarga('ventas', d.__sb ? aplicarVentas(d.ventas_hoy) : false);
+  calcDerivados();
+  render();
+  return true;
+}
+
+let _refrescando = false;
+async function refrescarNube(){
+  if(_refrescando) return;
+  _refrescando = true;
+  _ultimoIntento = Date.now();
+  try{
+    /* Supabase primero: un viaje y sin cola (~0,25 s contra ~7 s).
+       El Apps Script queda de respaldo mientras dure la migración.
+
+       Esto estuvo apagado unas horas el 4-ago y se volvió a encender el mismo
+       día, cuando la fase 3 lo hizo correcto. Merece la pena recordar por qué,
+       porque es el error más fácil de repetir:
+
+       `inventario_vivo` calcula lo vendido a partir de la tabla `ventas`. Con
+       las ventas escribiéndose SOLO en el Sheet, Supabase únicamente conocía
+       las de la última `resincronizar()`, y el tablero mostraba **una pieza de
+       más** por cada venta del día. No lo traía Supabase: lo traía leer de un
+       lado lo que se escribe en el otro.
+
+       Ahora cada venta va a los dos lados en cuanto el Sheet confirma, y lo que
+       falle por red se reintenta desde la cola de Captura de Series. Si esa
+       cola se quedara atascada, esto volvería a inflar el stock — es lo primero
+       que hay que mirar si el inventario no cuadra. */
+    if(await cargarTodoSupabase()) return;
+    /* Supabase no contestó. El Apps Script sirve para todo lo demás, pero YA NO
+       para los apartados: su `modo=todo` los saca de la hoja, que desde el
+       7-ago no recibe preventa. Así que se pide la preventa aparte —otra vez a
+       Supabase, por si fue un timeout suelto—, y si tampoco esta vez, la carga
+       queda marcada como fallida y el banner lo dice. Mejor "no prometas la
+       última pieza" que un cupo inventado. */
+    if(await cargarTodoNube()){ cargarApartadosNube(); return; }
+    // Respaldo: de una en una y espaciadas, porque juntas se pierden en silencio.
+    // Orden por criticidad: primero lo que decide un precio o un cupo frente al
+    // cliente (stock, 50% de EOL, apartados de preventa); los avisos y el
+    // leaderboard pueden esperar.
+    cargarInventarioNube();
+    cargarEolNube();
+    cargarApartadosNube();
+    cargarPromosNube();
+    cargarBundlesNube();
+    cargarAvisosNube();
+    cargarVentasNube();
+  } finally { _refrescando = false; }
+}
+
+render();
+actualizarBanner();
+refrescarNube();
+confirmarPuesto();
+
+/* ---- Al volver a la app ----
+   El asesor deja la PWA abierta y regresa horas (o días) después: sin esto ve
+   el stock, las vigencias y el leaderboard del momento en que la abrió. */
+const REFRESCO_MS = 5*60*1000;   // datos más viejos que esto se vuelven a pedir
+const ESPERA_MIN_MS = 30*1000;   // ...pero nunca dos viajes al GAS tan seguidos
+
+function alVolver(){
+  if(document.visibilityState !== 'visible') return;
+  const cambioDia = tocarDia();
+  if(cambioDia){
+    refiltrarCaches();   // vigencias al día aunque no haya red
+    pintarUpdated();
+    render();
+  }
+  if(Date.now() - _ultimoIntento < ESPERA_MIN_MS) return;
+  if(cambioDia || Date.now() - _ultimaCarga > REFRESCO_MS) refrescarNube();
+}
+document.addEventListener('visibilitychange', alVolver);
+window.addEventListener('focus', alVolver);
+
+/* Si la app se recargó con un apartado a medio llenar, se vuelve a abrir sola.
+   Sin esto el borrador existiría pero habría que acordarse de tocar «Apartar»
+   en el mismo producto para verlo, y nadie lo sabría. */
+(function(){
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem(AP_BORRADOR)||'null'); }catch(e){}   // borrador ilegible = sin borrador, se abre en blanco
+  if(!d || !d.sku) return;
+  // Media hora, igual que continuidad.js: es la misma pregunta —«¿esto sigue
+  // siendo lo que estaba haciendo?»— y dos plazos distintos confundirían.
+  if(Date.now() - d.ts > 30*60*1000){ _apartBorradorTirar(); return; }
+  if(!AP_CAMPOS.some(id => (d[id]||'').trim())) return;   // se abrió y no se escribió nada
+  const inv = invBySku[d.sku] || {};
+  abrirApartado(d.sku, encodeURIComponent(inv.producto||''), inv.precio||0);
+})();
+window.addEventListener('online', function(){ _ultimoIntento = 0; alVolver(); });
+
+// ── Push notifications (OneSignal) ──────────────────────────────
+const ONE_APP_ID = 'db32a1ef-d484-4be3-adfc-2a9e17f7e4f1';
+
+/* El sitio NO vive en la raíz del dominio: está en
+   github.io/tablero-hes1217/. Un service worker servido desde un subdirectorio
+   no puede reclamar `/` — el navegador lo rechaza por seguridad— y con el scope
+   mal `OneSignal.init()` falla entero.
+
+   Eso es lo que tenía la campana muerta, y explica los CERO suscriptores del
+   7-ago-2026: nadie pudo suscribirse nunca. El fallo no se veía porque lo
+   recogía un `catch` con `console.warn`, que en un celular no lo lee nadie.
+
+   Se deriva de la ruta en vez de escribirlo: así sigue funcionando si el repo
+   cambia de nombre o si algún día se sirve desde la raíz. */
+const ONE_BASE = location.pathname.replace(/[^/]*$/, '');   // '/tablero-hes1217/'
+let _oneListo = false;
+let _oneError = '';
+
+function actualizarCampana(){
+  const btn=document.getElementById('btnBell');
+  if(!btn) return;
+  /* Se mira la suscripción de OneSignal, NO `Notification.permission`.
+     Son cosas distintas: el permiso lo da el navegador, la suscripción la
+     registra OneSignal. Se puede tener permiso y no estar suscrito —justo lo
+     que pasaba aquí— y entonces la campana decía "ya están activadas" mientras
+     no llegaba ni un aviso. */
+  let suscrito = false;
+  try{
+    suscrito = !!(window.OneSignal && OneSignal.User && OneSignal.User.PushSubscription
+                  && OneSignal.User.PushSubscription.optedIn);
+  }catch(e){
+    /* El SDK aún no terminó de cargar: se pinta como no suscrito, que es la
+       lectura honesta hasta que conteste. */
+  }
+  btn.style.color = suscrito ? 'var(--rojo)' : '#ddd';
+  btn.title = suscrito ? 'Avisos activados' : 'Activar avisos push';
+}
+
+async function activarNotifs(){
+  if(!('Notification' in window) || !('serviceWorker' in navigator)){
+    alert('Este navegador no soporta avisos push.\n\nEn iPhone hay que abrir el tablero desde el ícono de la pantalla de inicio, no desde Safari.');
+    return;
+  }
+  if(_oneError){
+    // Antes esto se quedaba en console.warn y la campana parecía un ícono
+    // muerto. Si algo falló, que se lea en el teléfono.
+    alert('No se pudieron activar los avisos.\n\n' + _oneError);
+    return;
+  }
+  if(!_oneListo){
+    alert('Los avisos aún se están cargando. Espera unos segundos y vuelve a tocar la campana.');
+    return;
+  }
+  if(Notification.permission === 'denied'){
+    alert('Los avisos están BLOQUEADOS para esta página.\n\nHay que permitirlos desde los ajustes del navegador (candado junto a la dirección → Notificaciones → Permitir) y volver a tocar la campana.');
+    return;
+  }
+  try{
+    /* El permiso se pide al NAVEGADOR directamente, no a través del SDK.
+       Con `OneSignal.Notifications.requestPermission()` el diálogo no llegaba a
+       aparecer nunca: el permiso se quedaba en `default` y Chrome ni siquiera
+       listaba el sitio en sus ajustes de Notificaciones — señal de que la
+       petición no le llegó. (7-ago-2026, diagnosticado con los datos que ahora
+       muestra el propio mensaje de error.)
+
+       `Notification.requestPermission()` es la API estándar y se llama DENTRO
+       del gesto del clic, sin un solo `await` por delante: los navegadores
+       descartan la petición si el gesto ya se consumió. Por eso esta línea va
+       la primera de todo el bloque. */
+    const permiso = await Notification.requestPermission();
+    if(permiso !== 'granted'){
+      alert(permiso === 'denied'
+        ? 'Bloqueaste los avisos. Para activarlos: candado junto a la dirección → Permisos → Notificaciones → Permitir.'
+        : 'El navegador no llegó a preguntar.\n\nSi usas Chrome, entra en ⋮ → Configuración → Notificaciones y desactiva "Usar mensajes más discretos". Otra opción que casi siempre funciona: añade el tablero a la pantalla de inicio (⋮ → Añadir a pantalla principal) y ábrelo desde ahí.');
+      return;
+    }
+    // Conceder el permiso NO suscribe: hay que darse de alta explícitamente. Sin
+    // esta línea el navegador dice "permitido" y OneSignal sigue sin
+    // destinatarios, que es el estado en el que estaba todo el equipo.
+    if(OneSignal.User && OneSignal.User.PushSubscription){
+      await OneSignal.User.PushSubscription.optIn();
+    }
+    actualizarCampana();
+    const ok = !!(OneSignal.User && OneSignal.User.PushSubscription
+                  && OneSignal.User.PushSubscription.optedIn);
+    if(ok){ alert('✅ Avisos activados. Ya te van a llegar las novedades del tablero.'); return; }
+
+    /* "No quedó activado" a secas no sirve para nada: hay tres motivos posibles
+       y desde fuera no se distinguen. Así que el mensaje LOS DICE.
+       (7-ago-2026: se perdió una hora probando a ciegas por no tener esto.) */
+    // `permiso` ya viene de arriba, del requestPermission(). Se relee del
+    // navegador por si cambió durante el alta de OneSignal.
+    const permisoAhora = ('Notification' in window) ? Notification.permission : 'no soportado';
+    let regs = [];
+    try{
+      regs = (await navigator.serviceWorker.getRegistrations()).map(r => r.scope);
+    }catch(e){ regs = ['(no se pudieron leer)']; }
+    const subId = (OneSignal.User && OneSignal.User.PushSubscription
+                   && OneSignal.User.PushSubscription.id) || '(ninguno)';
+
+    let pista = '';
+    if(permisoAhora === 'denied')       pista = 'El navegador tiene BLOQUEADAS las notificaciones para esta página. Hay que permitirlas en los ajustes del sitio.';
+    else if(permisoAhora === 'default') pista = 'El permiso se perdió a mitad del alta. Vuelve a tocar la campana.';
+    else if(!regs.some(s => s.indexOf('tablero-hes1217') >= 0))
+                                   pista = 'El service worker no está registrado en la ruta correcta. Hay que borrar los datos del sitio y volver a entrar.';
+    else                           pista = 'Permiso concedido y service worker en su sitio, pero OneSignal no completó el alta.';
+
+    alert('No quedó activado.\n\n' + pista +
+          '\n\n— — — datos para diagnóstico — — —' +
+          '\npermiso: ' + permiso +
+          '\nsuscripción: ' + subId +
+          '\nservice workers: ' + (regs.join(' | ') || 'ninguno'));
+  }catch(e){
+    alert('No se pudieron activar los avisos.\n\n' + ((e && e.message) || e));
+  }
+}
+
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+OneSignalDeferred.push(async function(OneSignal){
+  if(ONE_APP_ID==='TU_APP_ID_AQUI') return;
+  try{
+    await OneSignal.init({
+      appId: ONE_APP_ID,
+      // Ruta DESDE LA RAÍZ del dominio, que es como la espera OneSignal, y
+      // scope limitado al subdirectorio donde de verdad vive el sitio.
+      serviceWorkerPath: (ONE_BASE + 'sw.js').replace(/^\//, ''),
+      serviceWorkerParam: { scope: ONE_BASE },
+      notifyButton: { enable: false }
+    });
+    _oneListo = true;
+  }catch(e){
+    _oneError = (e && e.message) || String(e);
+    console.warn('OneSignal init falló:', e);
+  }
+  actualizarCampana();
+});
+
+actualizarCampana();
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(()=>{});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#D12026">
+<title>Comisiones y Extracoberturas · HES Red</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="HES Red">
+<style>
+  /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
+     de la tienda fallando, el CDN caído dibujaba la app con la letra del
+     sistema y todo se descuadraba sin avisar. Ver tablero.html. */
+  @font-face{
+    font-family:'Montserrat';
+    src:url('./fuentes/Montserrat.woff2') format('woff2');
+    font-weight:400 800; font-display:swap;
+  }
+</style>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  :root { --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e; --teal:#0e9594; --gris:#777; --linea:#ececec; --bg:#f6f6f7; }
+  body { font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; padding-bottom:40px; }
+
+  header { background:#fff; border-bottom:3px solid var(--rojo); padding:14px 16px;
+    display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:30; }
+  header .back { text-decoration:none; color:var(--rojo); font-size:30px; font-weight:700;
+    line-height:1; padding:0 6px 4px 0; display:flex; align-items:center; }
+  header img { height:34px; width:auto; }
+  .h-txt h1 { font-size:15px; font-weight:800; letter-spacing:-.2px; }
+  .h-txt p { font-size:11px; color:var(--gris); margin-top:1px; }
+  .updated { margin-left:auto; font-size:10px; color:#aaa; text-align:right; line-height:1.3; }
+  .updated b { color:var(--teal); display:block; font-size:11px; }
+
+  main { padding:16px 16px 0; max-width:560px; margin:0 auto; }
+  .nota { font-size:11.5px; color:#999; background:#fff; border:1px solid var(--linea); border-radius:10px;
+    padding:10px 12px; margin-bottom:16px; line-height:1.4; }
+  .nota b { color:#555; }
+
+  .grupo-titulo { font-size:11px; font-weight:700; color:#999; text-transform:uppercase;
+    letter-spacing:1px; margin:18px 4px 8px; }
+
+  .card { background:#fff; border:1px solid var(--linea); border-left-width:4px;
+    border-radius:12px; padding:14px 15px; margin-bottom:10px; border-left-color:var(--teal); }
+
+  .card .top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+  .card h3 { font-size:14.5px; font-weight:700; line-height:1.3; }
+  .card .puesto { font-size:11.5px; color:#999; font-weight:600; margin-top:1px; }
+
+  .venta-row { display:flex; align-items:baseline; gap:8px; margin-top:10px; }
+  .venta { font-size:20px; font-weight:800; color:var(--rojo); }
+  .venta-lbl { font-size:10.5px; color:#aaa; font-weight:600; }
+  .badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; background:#f2f2f2; color:#666; }
+  .badge.ok { background:#eafaf1; color:var(--verde); }
+  .badge.warn { background:#fff5ee; color:var(--naranja); }
+  .badge.bad { background:#fdeaea; color:var(--rojo); }
+  .meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px; }
+
+  .extra { margin-top:10px; padding-top:10px; border-top:1px dashed var(--linea); }
+  .extra-head { font-size:11px; font-weight:800; color:var(--teal); text-transform:uppercase;
+    letter-spacing:.4px; margin-bottom:6px; }
+  .extra-grid { display:flex; align-items:center; gap:14px; }
+  .extra-pct { font-size:22px; font-weight:800; }
+  .extra-det { font-size:11.5px; color:#888; line-height:1.4; }
+  .extra-none { font-size:12px; color:#bbb; }
+
+  footer { text-align:center; font-size:10px; color:#ccc; margin-top:24px; padding:0 16px; }
+</style>
+</head>
+<body>
+<script src="./continuidad.js"></script>
+
+
+<header>
+  <a href="index.html" class="back" title="Menú">‹</a>
+  <img src="logo_odemas.png" alt="Odemás">
+  <div class="h-txt">
+    <h1>Comisiones y Extracoberturas</h1>
+    <p id="storeSub">—</p>
+  </div>
+  <div class="updated">Actualizado<b id="updated">—</b></div>
+</header>
+
+<main>
+  <div class="nota">📊 Datos oficiales de <b>Sonar by Office Depot</b>. <b>Venta</b> = periodo <span id="pComis">—</span>. <b>Extracobertura</b> = periodo <span id="pGar">—</span>. Se actualiza cuando el gerente comparte captura nueva del reporte.</div>
+  <div id="app"></div>
+  <footer id="footerTxt">Odemás · Grupo Gigante</footer>
+</main>
+
+<!-- comisiones_datos.js se elimino el 1-ago-2026: este repo es publico y ese
+     archivo traia nombre completo, venta individual, alcance y monto de
+     comision de cada persona. Los datos vienen de la nube (modo=comisiones). -->
+<script>
+/* ====== Sesión de tienda: sin hes_store no hay datos que mostrar ====== */
+const _storeConfig = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+
+/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
+   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
+   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
+   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
+(function(){
+  var _c = _storeConfig;
+  if(!_c || !_c.store_id || _c.gas_token) return;
+  function _pintar(){
+    var b = document.createElement('div');
+    b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
+      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
+      + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
+    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
+      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
+      + ' — no se pierde nada de lo que tengas capturado.';
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
+  else _pintar();
+})();
+
+if(!_storeConfig || !_storeConfig.store_id){
+  // Se avisa a continuidad.js de que esta salida es voluntaria. Hoy el menú ya
+  // no reanudaría —sin `hes_store` no reanuda nada—, pero eso es una casualidad
+  // de dos condiciones que coinciden, y el día que una cambie esto sería un
+  // bucle: comisiones → menú → comisiones.
+  if(window.HES_salirAlMenu) window.HES_salirAlMenu();
+  location.replace('index.html');
+  throw new Error('Sin sesión de tienda — redirigiendo a login');
+}
+const _storeId = _storeConfig.store_id;
+document.getElementById('storeSub').textContent = 'HES ' + _storeId + ' · ' + (_storeConfig.nombre || 'Odemás');
+document.getElementById('footerTxt').textContent = 'Odemás · Grupo Gigante — uso interno HES ' + _storeId;
+
+/* ====== Datos: caché local de esta tienda -> nube (GAS) -> respaldo estático embebido ====== */
+const CLOUD_URL = _storeConfig.gas_url || '';
+// El Apps Script exige token desde el 1-ago-2026. Sin esto la peticion se
+// rechaza y la pagina se queda con el cache viejo SIN avisar.
+const GAS_TOKEN = _storeConfig.gas_token || '';
+const COMISKEY = 'hes' + _storeId + '_comisiones';
+let D = { empleados: [] };
+// Cache ilegible: se arranca vacio y la nube lo llena; si tampoco responde,
+// avisoNube() lo dice en pantalla.
+try{ const c = JSON.parse(localStorage.getItem(COMISKEY)||'null'); if(c && Array.isArray(c.empleados)) D = c; }catch(e){}
+
+function pintarPeriodos(){
+  document.getElementById('updated').textContent = D.actualizado || '—';
+  document.getElementById('pComis').textContent = D.periodoComisiones || '—';
+  document.getElementById('pGar').textContent = D.periodoGarantias || '—';
+}
+pintarPeriodos();
+
+function money(n){
+  return '$' + Number(n||0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function nombreCorto(n){ const p=(n||'').split(' '); return p[0]+(p[1]?' '+p[1]:''); }
+
+function alcanceBadge(pct){
+  if (pct == null) return '';
+  const cls = pct >= 100 ? 'ok' : pct >= 70 ? 'warn' : 'bad';
+  return `<span class="badge ${cls}">${pct}% de meta</span>`;
+}
+
+function garantiaColor(pct){
+  if (pct >= 25) return 'var(--verde)';
+  if (pct >= 15) return 'var(--naranja)';
+  return 'var(--rojo)';
+}
+
+function cardEmpleado(e){
+  const extra = (e.garantiaPct == null)
+    ? `<div class="extra"><div class="extra-head">🛡️ Extracobertura</div><div class="extra-none">Sin datos en este periodo.</div></div>`
+    : `<div class="extra">
+        <div class="extra-head">🛡️ Extracobertura</div>
+        <div class="extra-grid">
+          <div class="extra-pct" style="color:${garantiaColor(e.garantiaPct)}">${e.garantiaPct}%</div>
+          <div class="extra-det">${e.garantiaPzas} de ${e.garantiaElegible} piezas elegibles<br>${money(e.garantiaMonto)} en extracobertura</div>
+        </div>
+      </div>`;
+  return `<div class="card">
+    <div class="top">
+      <div><h3>${e.nombre}</h3><div class="puesto">${e.puesto}</div></div>
+    </div>
+    <div class="venta-row"><span class="venta">${money(e.venta)}</span><span class="venta-lbl">venta para comisión</span></div>
+    <div class="meta">${alcanceBadge(e.alcance)}<span class="badge">${e.pptoPct}% de aplicación</span></div>
+    ${extra}
+  </div>`;
+}
+
+function render(){
+  const list = (D.empleados||[]).slice().sort((a,b)=> (b.venta||0)-(a.venta||0));
+  if(!list.length){
+    document.getElementById('app').innerHTML =
+      '<div class="nota">Aún no hay comisiones cargadas para esta tienda. Pide al gerente que las suba.</div>';
+    return;
+  }
+  document.getElementById('app').innerHTML =
+    `<div class="grupo-titulo">👥 Equipo — ${list.length} integrante${list.length!==1?'s':''}</div>` +
+    list.map(cardEmpleado).join('');
+}
+render();
+
+/* Aviso visible cuando la nube no responde. Sin esto la página se queda con lo
+   guardado en el teléfono y parece al día, que es justo lo que pasó al cerrar
+   el Apps Script: se veían comisiones de julio como si fueran de agosto. */
+function avisoNube(msg){
+  let el = document.getElementById('avisoNube');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'avisoNube';
+    el.style.cssText = 'margin:12px 16px;padding:10px 12px;border-radius:10px;'
+      + 'background:#fdf3dc;border-left:3px solid #F37021;color:#7a5200;'
+      + 'font-size:12.5px;line-height:1.45;font-weight:600';
+    const m = document.querySelector('main');
+    if(m) m.insertBefore(el, m.firstChild); else document.body.appendChild(el);
+  }
+  el.textContent = '⚠ ' + msg;
+}
+
+/* Desde el 7-ago-2026 las comisiones se suben directo a Supabase, así que hay
+   que LEERLAS de ahí: la hoja ya no las recibe y el Apps Script devolvería el
+   último reporte que se subió antes del cambio — un mes viejo, con aspecto de
+   actual. Esa pantalla la mira el equipo para saber cuánto lleva ganado.
+
+   Se intenta Supabase primero y, si no contesta, se cae al Apps Script: los
+   reportes anteriores siguen en la hoja y valen más que una pantalla vacía. */
+const SB_URL_CO = 'https://rjdrljtujbwooejrpyqv.supabase.co';
+const SB_KEY_CO = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+
+async function comisionesDeSupabase(){
+  if(!_storeId) return null;
+  const ctl = new AbortController();
+  const t = setTimeout(function(){ ctl.abort(); }, 8000);
+  try{
+    const r = await fetch(SB_URL_CO + '/rest/v1/rpc/comisiones_lista', {
+      method:'POST', signal: ctl.signal,
+      headers:{ apikey:SB_KEY_CO, Authorization:'Bearer '+SB_KEY_CO, 'Content-Type':'application/json' },
+      body: JSON.stringify({ p_store: String(_storeId) })
+    });
+    if(!r.ok) return null;
+    const filas = await r.json();
+    if(!Array.isArray(filas) || !filas.length) return null;
+    // Supabase devuelve filas; esta pantalla espera el objeto del Apps Script.
+    return {
+      actualizado: filas[0].actualizado ? String(filas[0].actualizado).slice(0,10) : '',
+      periodoComisiones: filas[0].periodo || '',
+      periodoGarantias:  filas[0].periodo_gar || '',
+      empleados: filas.map(function(k){
+        return { empNo:k.empno||'', nombre:k.nombre||'', puesto:k.puesto||'',
+                 venta:Number(k.venta)||0, pptoPct:Number(k.ppto_pct)||0,
+                 alcance:Number(k.alcance)||0,
+                 // null NO es 0: "sin dato" y "cero garantías" se ven igual en
+                 // pantalla pero significan cosas distintas para quien cobra.
+                 garantiaPct: k.gar_pct==null ? null : Number(k.gar_pct),
+                 garantiaPzas: k.gar_pzas==null ? null : Number(k.gar_pzas),
+                 garantiaElegible: k.gar_elegible==null ? null : Number(k.gar_elegible),
+                 garantiaMonto: k.gar_monto==null ? null : Number(k.gar_monto) };
+      })
+    };
+  }catch(e){ return null; }
+  finally{ clearTimeout(t); }
+}
+
+// Trae la versión más reciente desde la nube de esta tienda (si Admin ya la configuró)
+async function refreshComisionesCloud(){
+  const sb = await comisionesDeSupabase();
+  if(sb){
+    D = sb;
+    localStorage.setItem(COMISKEY, JSON.stringify(D));
+    pintarPeriodos();
+    render();
+    return;
+  }
+  if(!CLOUD_URL) return;
+  const cb = '_cbComis' + Date.now();
+  window[cb] = function(data){
+    delete window[cb];
+    const sc = document.getElementById('_comis_sc'); if(sc) sc.remove();
+    if(data && data.error){ avisoNube('La nube rechazó la consulta (' + data.error + '). Vuelve a entrar desde el menú.'); return; }
+    if(data && Array.isArray(data.empleados) && data.empleados.length){
+      D = data;
+      localStorage.setItem(COMISKEY, JSON.stringify(D));
+      pintarPeriodos();
+      render();
+      return;
+    }
+    // Respuesta sin datos: antes se ignoraba en silencio y la pantalla se
+    // quedaba con el caché viejo, que parecía actualizado.
+    avisoNube('No llegaron datos nuevos. Lo que ves es lo último guardado en este teléfono.');
+  };
+  const sc = document.createElement('script');
+  sc.id = '_comis_sc';
+  sc.src = CLOUD_URL + (CLOUD_URL.includes('?')?'&':'?') + 'modo=comisiones&callback=' + cb
+         + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
+  sc.onerror = function(){ delete window[cb]; sc.remove(); avisoNube('Sin conexión con la nube.'); };
+  document.head.appendChild(sc);
+}
+refreshComisionesCloud();
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(()=>{});
+}
+</script>
+</body>
+</html>

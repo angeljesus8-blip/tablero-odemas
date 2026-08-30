@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#D12026">
+<title>Actualizar datos de tienda · HES 1217</title>
+<link rel="apple-touch-icon" href="logo_odemas.png">
+<style>
+  /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
+     de la tienda fallando, el CDN caído dibujaba la app con la letra del
+     sistema y todo se descuadraba sin avisar. Ver tablero.html. */
+  @font-face{
+    font-family:'Montserrat';
+    src:url('./fuentes/Montserrat.woff2') format('woff2');
+    font-weight:400 800; font-display:swap;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js"></script>
+<script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';</script>
+<style>
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  :root{ --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e; --gris:#777; --linea:#ececec; --bg:#f6f6f7; }
+  body{ font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; }
+  header{ background:#fff; border-bottom:3px solid var(--rojo); padding:12px 16px; display:flex; align-items:center; gap:12px; }
+  header img{ height:32px; }
+  .h-txt h1{ font-size:15px; font-weight:800; }
+  .h-txt p{ font-size:11px; color:var(--gris); margin-top:1px; }
+  main{ max-width:520px; margin:0 auto; padding:18px 16px 40px; }
+
+  .card{ background:#fff; border:1px solid var(--linea); border-radius:14px; padding:18px; margin-bottom:14px; }
+  .card h2{ font-size:14px; font-weight:800; margin-bottom:6px; }
+  .card p{ font-size:13px; color:#555; line-height:1.5; }
+  .steps{ font-size:13px; color:#555; line-height:1.6; margin:8px 0 0 18px; }
+  .steps b{ color:#1a1a1a; }
+
+  .btn{ width:100%; border:none; font-family:inherit; font-weight:700; font-size:15px; padding:15px;
+    border-radius:12px; cursor:pointer; transition:.12s; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .btn:active{ transform:scale(.99); }
+  .btn-main{ background:var(--rojo); color:#fff; }
+  .btn-go{ background:var(--verde); color:#fff; }
+  .btn[disabled]{ opacity:.5; pointer-events:none; }
+
+  .filebox{ border:2px dashed var(--linea); border-radius:12px; padding:20px; text-align:center; cursor:pointer; }
+  .filebox.ok{ border-color:var(--verde); background:#f7fdfa; }
+  .filebox .fn{ font-size:13px; font-weight:700; color:var(--verde); margin-top:6px; word-break:break-all; }
+  .filebox .ph{ font-size:13px; color:var(--gris); }
+
+  .result{ font-size:13.5px; line-height:1.5; border-radius:10px; padding:12px 14px; margin-top:12px; display:none; }
+  .result.show{ display:block; }
+  .result.ok{ background:#eafaf1; color:#13703c; border:1.5px solid #bfe7cd; }
+  .result.bad{ background:#fdeaea; color:#b3261e; border:1.5px solid #f3c3c0; }
+  .result b{ font-weight:800; }
+
+  /* Pantalla de inicio */
+  #gate{ position:fixed; inset:0; z-index:50; background:#fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:24px; text-align:center; }
+  #gate.hide{ display:none; }
+  #gate img{ height:46px; margin-bottom:16px; }
+  #gate h1{ font-size:22px; font-weight:800; }
+  #gate .sub{ font-size:12px; color:var(--gris); font-weight:600; margin-top:4px; letter-spacing:.5px; }
+  #gate .q{ font-size:14px; font-weight:700; color:#444; margin:26px 0 14px; }
+  .names{ width:100%; max-width:340px; display:flex; flex-direction:column; gap:10px; }
+  .name{ font-family:inherit; font-size:17px; font-weight:700; background:#fff; border:1.5px solid var(--linea);
+    border-radius:13px; padding:15px; cursor:pointer; }
+  .name:active{ transform:scale(.99); }
+  .who{ font-size:12px; color:var(--gris); }
+  .who b{ color:#1a1a1a; }
+  .spin{ display:inline-block; width:15px; height:15px; border:2px solid #fff; border-top-color:transparent;
+    border-radius:50%; animation:r .7s linear infinite; }
+  @keyframes r{ to{ transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <img src="logo_odemas.png" alt="Odemás">
+  <h1>Actualizar datos</h1>
+  <div class="sub">HES 1217 · Catálogo e inventario</div>
+  <div class="q">¿Quién actualiza?</div>
+  <div class="names" id="gateNames"></div>
+</div>
+
+<header>
+  <img src="logo_odemas.png" alt="Odemás">
+  <div class="h-txt"><h1>Actualizar datos de tienda</h1><p>HES 1217 · Angelópolis</p></div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>📦 Catálogo e inventario</h2>
+    <p>Sube el <b>“Informe de Artículos Totales en Tienda”</b> (.xlsx). Actualiza el catálogo (UPC → SKU + descripción) y el inventario (ON HAND) para todos.</p>
+    <ol class="steps">
+      <li>Descarga el informe de tu sistema.</li>
+      <li>Elige el archivo aquí abajo.</li>
+      <li>Toca <b>Subir y actualizar</b>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <input type="file" id="file" accept=".xlsx,.xls" hidden>
+    <div class="filebox" id="filebox">
+      <div class="ph" id="fileph">📄 Toca para elegir el archivo (.xlsx)</div>
+    </div>
+    <div style="font-size:12px;color:#999;margin:8px 2px 0">Actualiza: <b id="whoLabel">—</b></div>
+    <button class="btn btn-go" id="btnGo" style="margin-top:14px" disabled>Subir y actualizar</button>
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="card">
+    <h2>🏷️ Promociones (CEA)</h2>
+    <p>Sube el <b>PDF del CEA de promociones</b>. La app saca solas las promos (SKU → precio promo + vigencia) y, en la captura, aplica el precio promo cuando esté vigente.</p>
+    <input type="file" id="filePromo" accept="application/pdf,.pdf" hidden>
+    <div class="filebox" id="fileboxPromo" style="margin-top:12px">
+      <div class="ph" id="filephPromo">📄 Toca para elegir el PDF de promociones</div>
+    </div>
+    <button class="btn btn-go" id="btnPromo" style="margin-top:14px" disabled>Subir promociones</button>
+    <div class="result" id="resultPromo"></div>
+  </div>
+</main>
+
+<script>
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbwbZFsiDqZrNitPKNLqr4r6xOFu3VKprtXJacScftIJmcQdAl_yytjxK8BymWvy8I1gjA/exec';
+
+// Config de la sesión. Antes había aquí una lista de nombres completos, en un
+// archivo público, y elegir uno era todo el "control de acceso". Ahora la
+// identidad sale del login que ya validó Supabase.
+const _cfgAD = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+
+/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
+   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
+   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
+   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
+(function(){
+  var _c = _cfgAD;
+  if(!_c || !_c.store_id || _c.gas_token) return;
+  function _pintar(){
+    var b = document.createElement('div');
+    b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
+      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
+      + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
+    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
+      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
+      + ' — no se pierde nada de lo que tengas capturado.';
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
+  else _pintar();
+})();
+
+const GAS_TOKEN = (_cfgAD && _cfgAD.gas_token) || '';
+const gasQS = qs => CLOUD_URL + '?' + qs + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
+const gasPost = () => CLOUD_URL + (GAS_TOKEN ? '?t=' + encodeURIComponent(GAS_TOKEN) : '');
+
+/* Sube al Apps Script y DICE si funcionó. Antes iba con mode:'no-cors', que deja
+   la respuesta opaca: el navegador no permite leerla, así que la app daba por
+   bueno cualquier envío — incluso uno rechazado. Así se perdieron ventas el
+   1-ago-2026 sin que nadie lo notara hasta el día siguiente.
+   El Apps Script responde con Access-Control-Allow-Origin:*, o sea que no-cors
+   nunca hizo falta: solo nos dejaba ciegos. Lanza si algo salió mal; quien llama
+   ya tiene su try/catch y lo muestra en pantalla. */
+async function gasEnviar(payload){
+  const res = await fetch(gasPost(), { method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(payload) });
+  let r = null;
+  try{ r = JSON.parse(await res.text()); }catch(e){}   // no-JSON: cae en los if de abajo
+  if(!res.ok) throw new Error('la nube respondió ' + res.status);
+  if(r && r.error === 'no_autorizado')
+    throw new Error('la nube rechazó la sesión — sal y vuelve a entrar desde el menú');
+  if(!r || r.ok === false)
+    throw new Error((r && r.error) ? String(r.error) : 'la nube no confirmó el guardado');
+  return r;
+}
+
+/* ---- Las cargas van a Supabase desde el 7-ago-2026 ----
+   Subir el Excel ya no pasa por la hoja. Lo que se gana no es velocidad: es que
+   el tablero LO VEA. Las lecturas están en Supabase desde la fase 2, así que
+   cada Excel que se subía a la hoja no llegaba al tablero hasta que alguien
+   corría `resincronizar()` a mano — y nadie lo corría. El inventario del
+   tablero podía llevar días viejo sin que nada lo dijera.
+
+   Lanza si algo va mal, igual que `gasEnviar`, para que el `catch` que ya
+   existe en cada botón enseñe el error tal cual. Una carga que falla en
+   silencio deja al equipo mirando precios de la semana pasada. */
+const SB_URL_AD = 'https://rjdrljtujbwooejrpyqv.supabase.co';
+const SB_KEY_AD = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+
+async function sbCarga(fn, params){
+  const store = (_cfgAD && _cfgAD.store_id) || '';
+  if(!store) throw new Error('no hay sesión — entra desde el menú');
+  if(!GAS_TOKEN) throw new Error('tu sesión es vieja — sal y vuelve a entrar desde el menú');
+
+  let res;
+  try{
+    res = await fetch(SB_URL_AD + '/rest/v1/rpc/' + fn, {
+      method:'POST',
+      headers:{ apikey:SB_KEY_AD, Authorization:'Bearer '+SB_KEY_AD, 'Content-Type':'application/json' },
+      body: JSON.stringify(Object.assign({ p_store:String(store), p_token:GAS_TOKEN }, params||{}))
+    });
+  }catch(e){ throw new Error('sin conexión — no se subió nada'); }
+
+  let r = null;
+  // Callar aquí es correcto: una respuesta que no es JSON (un 502 con HTML de
+  // por medio, por ejemplo) se trata en los dos `if` de abajo, que sí lanzan
+  // con el código de estado. Tragarse el error de parseo evita enseñar
+  // "Unexpected token <" en vez de "la nube respondió 502".
+  try{ r = await res.json(); }catch(e){}
+  if(!res.ok) throw new Error('la nube respondió ' + res.status + (r && r.message ? ' · '+r.message : ''));
+  if(!r || r.ok !== true)
+    throw new Error((r && r.error) ? String(r.error) : 'la nube no confirmó el guardado');
+  return r;
+}
+
+
+// Quien haya entrado; si no hay sesión, que lo diga en vez de dejar pasar.
+const AUTORIZADOS = (_cfgAD && _cfgAD.nombre) ? [_cfgAD.nombre] : [];
+const $ = id => document.getElementById(id);
+let quien = '', parsed = null;
+
+/* Pantalla de inicio */
+$('gateNames').innerHTML = AUTORIZADOS.length
+  ? AUTORIZADOS.map(n => `<button class="name" data-n="${n}">${n}</button>`).join('')
+  : '<p style="color:#c62828;font-weight:600">Entra primero desde el tablero: esta página usa tu sesión.</p>';
+[...$('gateNames').children].forEach(b => b.onclick = () => { quien = b.dataset.n; $('whoLabel').textContent = quien; $('gate').classList.add('hide'); });
+
+/* Elegir archivo */
+$('filebox').onclick = () => $('file').click();
+$('file').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  $('result').className = 'result';
+  try{
+    parsed = await parseInforme(f);
+    $('fileph').style.display = 'none';
+    $('filebox').classList.add('ok');
+    $('filebox').insertAdjacentHTML('beforeend', `<div class="fn">✓ ${f.name}</div><div class="ph" style="margin-top:4px">${parsed.length} productos detectados</div>`);
+    $('btnGo').disabled = parsed.length === 0;
+  }catch(err){
+    parsed = null; $('btnGo').disabled = true;
+    showResult(false, 'No pude leer el archivo: ' + err.message + '. Verifica que sea el Informe de Artículos (.xlsx) con columnas SKU y UPC.');
+  }
+};
+
+/* Lee el Informe: busca la fila de encabezado con SKU y UPC */
+async function parseInforme(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
+  let h = -1;
+  for(let i=0;i<aoa.length;i++){
+    const up = aoa[i].map(c => String(c||'').trim().toUpperCase());
+    if(up.includes('SKU') && up.includes('UPC')){ h = i; break; }
+  }
+  if(h < 0) throw new Error('no encontré los encabezados SKU/UPC');
+  const H = aoa[h].map(c => String(c||'').trim().toUpperCase());
+  const iSku = H.indexOf('SKU'), iUpc = H.indexOf('UPC');
+  const iDesc = H.findIndex(x => x.includes('DESCRIP'));
+  const iOn = H.findIndex(x => x.includes('ON HAND') || x === 'ONHAND' || x.includes('EXIST'));
+  const iPre = H.findIndex(x => x.includes('PRECIO'));
+  const seen = {}; const rows = [];
+  for(let r=h+1; r<aoa.length; r++){
+    const row = aoa[r];
+    let upc = String(row[iUpc]||'').trim();
+    const sku = String(row[iSku]||'').trim();
+    if(!upc || !sku) continue;
+    if(/e\+/i.test(upc)) continue;               // notación científica = inservible
+    upc = upc.replace(/\.0$/,'');
+    if(seen[upc]) continue; seen[upc] = 1;
+    rows.push({ upc, sku, desc:String(row[iDesc]||'').trim(),
+      onhand: iOn>=0 ? String(row[iOn]||'').trim() : '',
+      precio: iPre>=0 ? String(row[iPre]||'').trim() : '' });
+  }
+  return rows;
+}
+
+/* Subir */
+$('btnGo').onclick = async () => {
+  if(!parsed || !parsed.length) return;
+  $('btnGo').disabled = true;
+  const prev = $('btnGo').textContent;
+  $('btnGo').innerHTML = '<span class="spin"></span> Subiendo…';
+  $('result').className = 'result';
+  try{
+    /* La respuesta ya trae el conteo, así que se acabaron la espera de 2,5 s y
+       la segunda llamada para "confirmar". Ese rodeo existía porque el Apps
+       Script contesta antes de terminar de escribir; aquí la función no vuelve
+       hasta que la transacción cerró — y si algo falla, lanza.
+
+       Con ello se va también el mensaje "Enviado, revisa la hoja en unos
+       segundos", que era la forma educada de decir "no sé si guardó". */
+    const r = await sbCarga('carga_catalogo', { p_filas: parsed, p_by: quien });
+    showResult(true, `✅ Catálogo e inventario actualizados: <b>${r.skus}</b> productos.<br>` +
+      `Por ${quien}. El tablero ya lo está viendo.`);
+  }catch(err){
+    showResult(false, 'No se pudo subir: ' + err.message + '. Revisa tu conexión e inténtalo de nuevo.');
+  }
+  $('btnGo').textContent = prev; $('btnGo').disabled = false;
+};
+
+function showResult(ok, html){ const r=$('result'); r.innerHTML=html; r.className='result show '+(ok?'ok':'bad'); }
+
+/* ===== PROMOCIONES (PDF) ===== */
+let parsedPromo = null;
+const MESES = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+function iso(y,m,d){ return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+
+async function parsePromosPDF(file){
+  if(typeof pdfjsLib==='undefined') throw new Error('no cargó el lector de PDF');
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+
+  // Extrae items con posición para agrupar por fila real
+  const allItems = [];
+  let flatText = '';
+  for(let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({scale:1});
+    const tc = await page.getTextContent();
+    tc.items.forEach(i=>{
+      allItems.push({ str:i.str, x:i.transform[4], y:vp.height - i.transform[5], page:p });
+    });
+    flatText += tc.items.map(i=>i.str).join(' ') + '\n';
+  }
+
+  // Une grupos de dígitos separados por espacio que juntos formen 9 dígitos (SKUs partidos por pdf.js)
+  function fixSkus(t){ return t.replace(/(\d{1,8}) (\d{1,8})/g, (m,a,b)=>(a+b).length===9?a+b:m); }
+  flatText = fixSkus(flatText);
+
+  const ds = s => s.replace(/\s/g,'');
+  let d1='', d2='', vig='';
+  const vm = flatText.match(/Vigencia\D{0,8}(\d\s*\d?)\s*al\s*(\d\s*\d?)\s*de\s+([A-Za-zÁÉÍÓÚáéíóú]+)\s+de\s+(\d{4})/i);
+  if(vm){ const dia1=ds(vm[1]), dia2=ds(vm[2]), mes=MESES[vm[3].toLowerCase()]||1, y=+vm[4];
+    d1=iso(y,mes,+dia1); d2=iso(y,mes,+dia2); vig=dia1+' al '+dia2+' de '+vm[3]+' '+vm[4]; }
+  let eolD1 = d1;
+  const em = flatText.match(/EOL[^.]{0,60}?a partir del\s+(\d\s*\d?)\s+de\s+([A-Za-zÁÉÍÓÚáéíóú]+)/i);
+  if(em && vm){ eolD1 = iso(+vm[4], MESES[em[2].toLowerCase()]||MESES[vm[3].toLowerCase()], +ds(em[1])); }
+
+  // Agrupa por renglón usando coordenada Y (tolerancia 6px para robustez)
+  const byRow = {};
+  allItems.forEach(it=>{
+    if(!it.str.trim()) return;
+    const k = it.page + '_' + Math.round(it.y / 6);
+    (byRow[k] || (byRow[k]=[])).push(it);
+  });
+  const lines = Object.values(byRow)
+    .map(r => fixSkus(r.sort((a,b)=>a.x-b.x).map(i=>i.str).join(' ').trim()))
+    .filter(l=>l.length>0);
+
+  const seen={}, rows=[];
+
+  // precio: número con coma de miles y hasta 3 decimales; $ opcional
+  const PRECIO = '\\$?([\\d,]+(?:\\.\\d{1,3})?)';
+  // columna extra opcional (MSI: "6", "12", "18", "Sin", "N/A", etc.)
+  const EXTRA  = '(?:\\S+\\s+)?';
+
+  // Intenta extraer una promo de una línea
+  function parseLine(line){
+    const sku9 = line.match(/^(\d{9})\b/);
+    if(!sku9) return;
+    const sku = sku9[1];
+    if(seen[sku]) return;
+    const re = new RegExp(
+      '(\\d{9})\\s+(.+?)\\s+' + PRECIO + '\\s+' + PRECIO + '\\s+' + EXTRA + '(Activo|EOL|Lanzamiento)', 'i'
+    );
+    const m = line.match(re);
+    if(!m) return;
+    const pr = parseFloat(m[3].replace(/,/g,'')), pp = parseFloat(m[4].replace(/,/g,''));
+    if(isNaN(pr)||isNaN(pp)) return;
+    seen[sku]=1;
+    const est = m[5].toUpperCase()==='EOL'?'EOL':'Activo';
+    rows.push({ sku, desc:m[2].trim().replace(/\s+/g,' '), pr:m[3], pp:m[4], est, msi:'',
+      d1: est==='EOL'?eolD1:d1, d2 });
+  }
+  lines.forEach(parseLine);
+
+  // Texto plano: siempre corre como complemento para capturar lo que Y no encontró
+  const rePlano = new RegExp(
+    '(\\d{9})\\s+(.+?)\\s+' + PRECIO + '\\s+' + PRECIO + '\\s+' + EXTRA + '(Activo|EOL|Lanzamiento)', 'gi'
+  );
+  let m2;
+  while((m2 = rePlano.exec(flatText))){
+    const sku=m2[1]; if(seen[sku]) continue; // ya capturado por Y, saltar
+    const pr=parseFloat(m2[3].replace(/,/g,'')), pp=parseFloat(m2[4].replace(/,/g,''));
+    if(isNaN(pr)||isNaN(pp)) continue;
+    seen[sku]=1;
+    const est=m2[5].toUpperCase()==='EOL'?'EOL':'Activo';
+    rows.push({sku,desc:m2[2].trim().replace(/\s+/g,' '),pr:m2[3],pp:m2[4],est,msi:'',
+      d1:est==='EOL'?eolD1:d1,d2});
+  }
+
+  return { rows, vig };
+}
+
+$('fileboxPromo').onclick = () => $('filePromo').click();
+$('filePromo').onchange = async e => {
+  const f = e.target.files && e.target.files[0]; if(!f) return;
+  $('resultPromo').className='result';
+  $('filephPromo').textContent='Leyendo PDF…';
+  try{
+    parsedPromo = await parsePromosPDF(f);
+    if(!parsedPromo.rows.length) throw new Error('no encontré filas de promo (SKU $precio $promo)');
+    $('fileboxPromo').classList.add('ok');
+    $('filephPromo').innerHTML = `✓ ${f.name}<br>${parsedPromo.rows.length} promos · vigencia ${parsedPromo.vig||'(no detectada)'}`;
+    $('btnPromo').disabled = false;
+  }catch(err){
+    parsedPromo=null; $('btnPromo').disabled=true; $('filephPromo').textContent='📄 Toca para elegir el PDF de promociones';
+    showResultP(false, 'No pude leer el PDF: ' + err.message + '. ¿Es el PDF del CEA con la tabla de promos?');
+  }
+};
+
+$('btnPromo').onclick = async () => {
+  if(!parsedPromo || !parsedPromo.rows.length) return;
+  $('btnPromo').disabled=true; const prev=$('btnPromo').textContent;
+  $('btnPromo').innerHTML='<span class="spin"></span> Subiendo…'; $('resultPromo').className='result';
+  try{
+    const r = await sbCarga('carga_promos', { p_filas: parsedPromo.rows, p_by: quien });
+    /* Las promos que la base no admite se APARTAN y se cuentan, no se tiran en
+       silencio: sin fecha de vigencia, o con precio promo mayor o igual que el
+       regular. En la hoja entraban y luego no se veían — aquí se dicen, porque
+       una promo que falta es un precio que el asesor no le cobra al cliente. */
+    let extra = '';
+    if(r.sin_fecha)       extra += `<br>⚠️ ${r.sin_fecha} sin fecha de vigencia — NO entraron.`;
+    if(r.precio_invalido) extra += `<br>⚠️ ${r.precio_invalido} con precio promo mayor o igual al regular — NO entraron.`;
+    showResultP(true, `✅ Promociones actualizadas: <b>${r.promos}</b> · vigencia ${parsedPromo.vig}.<br>` +
+      `Por ${quien}. La captura ya aplica el precio promo vigente.` + extra);
+  }catch(err){ showResultP(false, 'No se pudo subir: ' + err.message); }
+  $('btnPromo').textContent=prev; $('btnPromo').disabled=false;
+};
+function showResultP(ok, html){ const r=$('resultPromo'); r.innerHTML=html; r.className='result show '+(ok?'ok':'bad'); }
+function jsonp(url){
+  return new Promise((res, rej) => {
+    const cb = 'cb_' + Date.now();
+    const s = document.createElement('script');
+    const t = setTimeout(() => { cleanup(); rej(new Error('timeout')); }, 15000);
+    function cleanup(){ clearTimeout(t); delete window[cb]; s.remove(); }
+    window[cb] = d => { cleanup(); res(d); };
+    s.onerror = () => { cleanup(); rej(new Error('error')); };
+    s.src = url + (url.includes('?')?'&':'?') + 'callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+</script>
+</body>
+</html>
