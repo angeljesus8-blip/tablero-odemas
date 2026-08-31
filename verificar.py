@@ -561,9 +561,17 @@ def r_preventa_stock():
     excluye y el otro no, cada entrega resta una venta normal del conteo y el
     tablero enseña piezas que no están."""
     FILTRO = 'a.venta_id = v.id'
+    # Eran 3 y 2: `inventario_vivo` mas los dos de `cargar_cortes`, que despejaba
+    # el corte del mismo total. `cargar_cortes` traia ese total del Apps Script y
+    # aqui esta DESACTIVADA —devuelve un texto y ya—, asi que no tiene filtros
+    # que casar: el unico que queda es el de `inventario_vivo`.
+    #
+    # La regla se queda, y no se relaja a "1 o mas": si alguien vuelve a escribir
+    # `cargar_cortes` de verdad, este numero tiene que subir a la vez y esta
+    # cuenta es lo que obliga a mirarlo. Con `>= 1` pasaria una version a medias
+    # sin decir nada, y el tablero ensenaria piezas que no estan.
     archivos = {
-        'supabase_inventario_preventa.sql': 3,   # inventario_vivo + los 2 de cargar_cortes
-        'supabase_carga.sql': 2,                 # los 2 de cargar_cortes
+        'supabase_inventario_preventa.sql': 1,   # solo inventario_vivo
     }
     for nombre, esperados in archivos.items():
         sql = leer(nombre)
@@ -1379,20 +1387,55 @@ def r_funcion_repetida():
     donde = {}
     for ruta in sorted(glob.glob(os.path.join(BASE, 'supabase_*.sql'))):
         arch = os.path.basename(ruta)
+        # supabase_TODO.sql es la CONCATENACION de los demas, no una fuente: si
+        # se mirara, cada funcion apareceria dos veces —en su archivo y en el
+        # junto— y esta regla senalaria las 80 como duplicadas. Ochenta avisos
+        # falsos tapan los catorce de verdad, que es lo mismo que no tenerla.
+        if arch == 'supabase_TODO.sql': continue
         s = leer(arch)
         if s is None: continue
         for m in re.finditer(r'CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+public\.(\w+)\s*\(',
                              _sql_sin_comentarios(s), re.I):
             donde.setdefault(m.group(1), []).append(arch)
 
+    # Las que ya estan resueltas: `armar_sql.py` sabe cual tiene que ganar y se
+    # niega a generar el SQL si el orden no lo cumple. Avisar de esas convertia
+    # la regla en nueve lineas fijas en cada commit, y un aviso que sale siempre
+    # se deja de leer — con el de verdad dentro.
+    try:
+        import armar_sql
+        resueltas = armar_sql.ESPERADO_GANA
+    except Exception:
+        # Sin el script no se calla nada: no saber cual gana es peor que el ruido.
+        resueltas = {}
+
+    # Esto se mira SIEMPRE, tocara quien tocara: que `ESPERADO_GANA` siga
+    # apuntando a un archivo que de verdad define esa funcion. Si se comprobara
+    # solo al tocar ese archivo, el caso que se escapa es justo el peligroso —
+    # alguien renombra o parte otro `.sql`, la definicion se muda, y el orden
+    # queda apuntando a una version que ya no esta ahi.
+    for fn, arch_bueno in sorted(resueltas.items()):
+        if fn not in donde:
+            falla('duplicada',
+                  'armar_sql.py espera que `%s` gane en %s, y esa funcion ya no '
+                  'se define en ningun .sql. Quitala de ESPERADO_GANA.'
+                  % (fn, arch_bueno))
+        elif arch_bueno not in set(donde[fn]):
+            falla('duplicada',
+                  '`%s` ya no se define en %s, que es donde armar_sql.py espera '
+                  'que gane (esta en: %s). Actualiza ESPERADO_GANA, o el orden '
+                  'deja ganando otra version sin decir nada.'
+                  % (fn, arch_bueno, ', '.join(sorted(set(donde[fn])))))
+
     for fn, archivos in sorted(donde.items()):
         otros = sorted(set(archivos))
         if len(otros) < 2: continue
+        if fn in resueltas: continue
         if not (tocados & set(otros)): continue
         aviso('duplicada',
               '`%s` se define en %d archivos: %s. Al pegar gana el ultimo, y '
-              'repegar el viejo revierte al otro sin dar error. Comprueba cual '
-              'es la version buena antes de pegar.'
+              'repegar el viejo revierte al otro sin dar error. Anotala en '
+              'ESPERADO_GANA de armar_sql.py con la version buena.'
               % (fn, len(otros), ', '.join(otros)))
 
 

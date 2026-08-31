@@ -29,6 +29,28 @@ No hace falta Google Apps Script ni hoja de cálculo. **Todo vive en Supabase.**
 | `actualizar_datos.html` | Subir el Excel de inventario, catálogo y promos |
 | `accesorios_tecnico.html` | Consulta para técnicos externos. **Va aparte**: no está en el menú ni en el service worker |
 
+## Montar la base
+
+```powershell
+python armar_sql.py -v     # genera supabase_TODO.sql y dice por qué va en ese orden
+```
+
+Y se pega **entero** en el SQL Editor de Supabase. Luego se cambian `SUPABASE_URL`
+y `SUPABASE_KEY` en las páginas por las del proyecto nuevo.
+
+**No pegues los `.sql` sueltos a ojo.** No son un esquema: son la historia de
+parches de una tienda, y **14 funciones están definidas en más de un archivo**
+—`venta_guardar` en cuatro—. Al pegar gana la última, así que un orden mal
+puesto no da error: deja corriendo una versión vieja de la función que guarda
+las ventas, y eso no se ve hasta que los números no cuadran.
+
+`armar_sql.py` conoce esas 14, comprueba que gane la buena y **se niega a
+escribir** si el orden no lo cumple, diciendo cuál y por qué.
+
+Si añades un `.sql`, méte­lo en `ORDEN` dentro del script. Un archivo que esté en
+la carpeta y no en la lista también detiene la generación: no pegarlo significa
+una función que no va a existir, y eso se descubre en producción.
+
 ## Alta de una tienda
 
 1. En el menú → **Registrar tienda**, con el correo del gerente.

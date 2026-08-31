@@ -403,42 +403,22 @@ GRANT EXECUTE ON FUNCTION public.apartado_estatus(text,text,bigint,text)      TO
 --
 -- Se queda cargando solo comisiones. El nombre se conserva porque
 -- `resincronizar()` la llama por nombre; se limpia en la etapa 5.
+/* DESACTIVADA en esta copia.
+
+   Traia las comisiones del Apps Script, con `http_get(t.gas_url ...)`. Aqui no hay Apps
+   Script: `gas_url` no existe como columna, asi que la funcion original ni
+   siquiera compila. Solo la llamaba `resincronizar`, que ya estaba desactivada
+   desde el 7-ago-2026 —el reporte se carga desde Admin—, o sea que
+   esto era codigo muerto que ademas guardaba la unica referencia viva a la
+   hoja dentro de la base.
+
+   Se deja definida y no se borra: si algo la llamara, tiene que DECIR que no
+   hace nada. Borrada daria «function does not exist», que se lee como base mal
+   montada y manda a buscar donde no es. */
 CREATE OR REPLACE FUNCTION public.cargar_apartados_comisiones(p_store text)
- RETURNS text
- LANGUAGE plpgsql
-AS $function$
-DECLARE d jsonb; c int;
-BEGIN
-  -- Los apartados YA NO se traen de la hoja: desde el 7-ago-2026 esta tabla es
-  -- la fuente, no la copia. Ver supabase_preventa_series.sql, paso 10.
-  SELECT r.content::jsonb INTO d
-  FROM public.tiendas t,
-       LATERAL extensions.http_get(t.gas_url || '?modo=exportar&hoja=Comisiones&t=' || t.gas_token) r
-  WHERE t.store_id = p_store;
-  IF d IS NULL OR d ? 'error' THEN RETURN 'la nube no devolvio comisiones'; END IF;
-
-  DELETE FROM public.comisiones WHERE store_id = p_store;
-  INSERT INTO public.comisiones (store_id, empno, nombre, puesto, venta, ppto_pct, alcance,
-                                 gar_pct, gar_pzas, gar_elegible, gar_monto)
-  SELECT p_store,
-         nullif(trim(coalesce(x->>'EmpNo','')),''),
-         trim(coalesce(x->>'Nombre','')),
-         nullif(trim(coalesce(x->>'Puesto','')),''),
-         coalesce(nullif(regexp_replace(coalesce(x->>'Venta',''),'[^0-9.]','','g'),'')::numeric, 0),
-         coalesce(nullif(regexp_replace(coalesce(x->>'PptoPct',''),'[^0-9.]','','g'),'')::numeric, 0),
-         coalesce(nullif(regexp_replace(coalesce(x->>'Alcance',''),'[^0-9.]','','g'),'')::numeric, 0),
-         nullif(regexp_replace(coalesce(x->>'GarantiaPct',''),'[^0-9.]','','g'),'')::numeric,
-         nullif(regexp_replace(coalesce(x->>'GarantiaPzas',''),'[^0-9.]','','g'),'')::int,
-         nullif(regexp_replace(coalesce(x->>'GarantiaElegible',''),'[^0-9.]','','g'),'')::int,
-         nullif(regexp_replace(coalesce(x->>'GarantiaMonto',''),'[^0-9.]','','g'),'')::numeric
-  FROM jsonb_array_elements(d->'filas') x
-  WHERE trim(coalesce(x->>'Nombre','')) <> '';
-  GET DIAGNOSTICS c = ROW_COUNT;
-
-  RETURN 'apartados=(ya no se cargan: viven aqui) comisiones=' || c;
-EXCEPTION WHEN OTHERS THEN
-  RETURN 'ERROR ' || SQLSTATE || ': ' || left(regexp_replace(SQLERRM,'https?://[^ ]+','<url>','g'), 170);
-END $function$;
+RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT 'DESACTIVADA: no hay Apps Script del que traer nada. Sube el reporte de comisiones desde Admin.'::text;
+$fn$;
 
 
 -- ============================================================

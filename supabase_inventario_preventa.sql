@@ -132,66 +132,22 @@ $$;
 -- está, delante del cliente.
 --
 -- Las dos cuentas tienen que excluir exactamente lo mismo.
+/* DESACTIVADA en esta copia.
+
+   Traia los cortes de inventario del Apps Script, con `http_get(t.gas_url ...)`. Aqui no hay Apps
+   Script: `gas_url` no existe como columna, asi que la funcion original ni
+   siquiera compila. Solo la llamaba `resincronizar`, que ya estaba desactivada
+   desde el 7-ago-2026 —el inventario se carga desde Admin—, o sea que
+   esto era codigo muerto que ademas guardaba la unica referencia viva a la
+   hoja dentro de la base.
+
+   Se deja definida y no se borra: si algo la llamara, tiene que DECIR que no
+   hace nada. Borrada daria «function does not exist», que se lee como base mal
+   montada y manda a buscar donde no es. */
 CREATE OR REPLACE FUNCTION public.cargar_cortes(p_store text)
- RETURNS text
- LANGUAGE plpgsql
-AS $function$
-DECLARE d jsonb; a int; b int;
-BEGIN
-  SELECT r.content::jsonb INTO d
-  FROM public.tiendas t,
-       LATERAL extensions.http_get(t.gas_url || '?modo=inventario&t=' || t.gas_token) r
-  WHERE t.store_id = p_store;
-  IF d IS NULL OR d ? 'error' THEN RETURN 'la nube no devolvio inventario'; END IF;
-
-  -- El GAS no guarda el corte: guarda cuantas ventas habia CUANDO se tomo, y
-  -- reporta v = (ventas totales de ahora) - corte. Aqui se despeja al reves,
-  -- con las ventas ya cargadas:  corte = total - v.
-  -- Por eso este paso va DESPUES de cargar_ventas y no antes.
-  --
-  -- El filtro de las entregas de preventa es EL MISMO que usa inventario_vivo,
-  -- y tiene que seguir siendolo: si uno de los dos cambia, el otro tambien.
-  WITH totales AS (
-    SELECT v.sku, count(*)::int AS total
-    FROM public.ventas v
-    WHERE v.store_id = p_store AND v.sku IS NOT NULL AND v.sku <> ''
-      AND NOT EXISTS (SELECT 1 FROM public.apartados a WHERE a.venta_id = v.id)
-    GROUP BY v.sku
-  ), reportado AS (
-    SELECT j.key AS sku,
-           coalesce((j.value->>'v')::int, 0)  AS v,
-           coalesce((j.value->>'ev')::int, 0) AS ev
-    FROM jsonb_each(d) j
-    WHERE trim(j.key) <> ''
-  )
-  INSERT INTO public.inventario_corte (store_id, tipo, sku, vendidas)
-  SELECT p_store, 'onhand', r.sku, greatest(0, coalesce(t.total,0) - r.v)
-  FROM reportado r LEFT JOIN totales t ON t.sku = r.sku
-  ON CONFLICT (store_id, tipo, sku) DO UPDATE
-    SET vendidas = excluded.vendidas, tomado_en = now();
-  GET DIAGNOSTICS a = ROW_COUNT;
-
-  WITH totales AS (
-    SELECT v.sku, count(*)::int AS total
-    FROM public.ventas v
-    WHERE v.store_id = p_store AND v.sku IS NOT NULL AND v.sku <> ''
-      AND NOT EXISTS (SELECT 1 FROM public.apartados a WHERE a.venta_id = v.id)
-    GROUP BY v.sku
-  ), reportado AS (
-    SELECT j.key AS sku, coalesce((j.value->>'ev')::int, 0) AS ev
-    FROM jsonb_each(d) j WHERE trim(j.key) <> ''
-  )
-  INSERT INTO public.inventario_corte (store_id, tipo, sku, vendidas)
-  SELECT p_store, 'exhibicion', r.sku, greatest(0, coalesce(t.total,0) - r.ev)
-  FROM reportado r LEFT JOIN totales t ON t.sku = r.sku
-  ON CONFLICT (store_id, tipo, sku) DO UPDATE
-    SET vendidas = excluded.vendidas, tomado_en = now();
-  GET DIAGNOSTICS b = ROW_COUNT;
-
-  RETURN 'corte onhand=' || a || ' · corte exhibicion=' || b;
-EXCEPTION WHEN OTHERS THEN
-  RETURN 'ERROR ' || SQLSTATE || ': ' || left(regexp_replace(SQLERRM,'https?://[^ ]+','<url>','g'), 170);
-END $function$;
+RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT 'DESACTIVADA: no hay Apps Script del que traer nada. Sube el informe del dia desde Admin.'::text;
+$fn$;
 
 
 -- ============================================================

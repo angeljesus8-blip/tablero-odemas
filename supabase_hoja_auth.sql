@@ -26,17 +26,16 @@
 -- PASO 1 · Ver cómo está antes de tocar
 -- ------------------------------------------------------------
 SELECT store_id, nombre,
-       (hoja_auth IS NOT NULL AND hoja_auth <> '') AS tiene_hoja_auth,
-       (sheet_url IS NOT NULL AND sheet_url <> '') AS tiene_sheet_url
+       (hoja_auth IS NOT NULL AND hoja_auth <> '') AS tiene_hoja_auth
 FROM public.tiendas
 ORDER BY store_id;
 
 -- ------------------------------------------------------------
 -- PASO 2 · Las columnas, por si alguna falta (otra tienda nueva)
 -- ------------------------------------------------------------
+-- `sheet_url` (el link a la hoja de Google) ya no se anade: no hay hoja.
 ALTER TABLE public.tiendas
-  ADD COLUMN IF NOT EXISTS hoja_auth text,
-  ADD COLUMN IF NOT EXISTS sheet_url text;
+  ADD COLUMN IF NOT EXISTS hoja_auth text;
 
 COMMENT ON COLUMN public.tiendas.hoja_auth IS
   'Nombre EXACTO del vendedor que puede ver las ventas del día en Captura de '
@@ -84,15 +83,15 @@ DROP FUNCTION IF EXISTS public.login_asesor(text);
 
 CREATE FUNCTION public.login_asesor(p_pin text)
 RETURNS TABLE (store_id text, nombre text, ciudad text,
-               gas_url text, vendedores jsonb, gas_token text,
-               hoja_auth text, sheet_url text, sku_reparacion text)
+               vendedores jsonb, gas_token text,
+               hoja_auth text, sku_reparacion text)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT t.store_id, t.nombre, t.ciudad, t.gas_url,
+  SELECT t.store_id, t.nombre, t.ciudad,
          to_jsonb(t.vendedores), t.gas_token,
-         t.hoja_auth, t.sheet_url, t.sku_reparacion
+         t.hoja_auth, t.sku_reparacion
   FROM public.tiendas t
   WHERE coalesce(t.activo, true) = true
     AND length(coalesce(p_pin,'')) >= 4
@@ -104,17 +103,17 @@ DROP FUNCTION IF EXISTS public.login_empleado(text);
 
 CREATE FUNCTION public.login_empleado(p_pin text)
 RETURNS TABLE (store_id text, nombre text, ciudad text,
-               gas_url text, vendedores jsonb,
+               vendedores jsonb,
                emp_no text, emp_nombre text, emp_puesto text, emp_admin boolean,
-               gas_token text, hoja_auth text, sheet_url text, sku_reparacion text)
+               gas_token text, hoja_auth text, sku_reparacion text)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT t.store_id, t.nombre, t.ciudad, t.gas_url,
+  SELECT t.store_id, t.nombre, t.ciudad,
          to_jsonb(t.vendedores),
          e.empno, e.nombre, e.puesto, e.admin,
-         t.gas_token, t.hoja_auth, t.sheet_url, t.sku_reparacion
+         t.gas_token, t.hoja_auth, t.sku_reparacion
   FROM public.empleados e
   JOIN public.tiendas  t ON t.store_id = e.store_id
   WHERE e.activo = true
