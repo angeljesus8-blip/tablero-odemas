@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="theme-color" content="#D12026">
-<title>Tablero del Equipo · HES 1217</title>
+<title>Tablero del Equipo</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="HES 1217">
+<meta name="apple-mobile-web-app-title" content="Tablero">
 <style>
   /* Montserrat desde el propio repo, NO del CDN de Google (8-ago-2026).
      En la tienda la señal falla, y con el CDN caído el tablero se dibujaba con
@@ -541,10 +541,14 @@
 const D = window.DATOS || {};
 const _cfg = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
 
-/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
-   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
-   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
-   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
+/* Sin token de escritura esta tienda puede MIRAR pero no guardar: apartar una
+   pieza, marcar una entrega o registrar una venta van a fallar. Se avisa al
+   abrir, no a media captura con el cliente enfrente.
+
+   El nombre `gas_token` engaña y se conserva a propósito: ya no tiene nada que
+   ver con el Apps Script, es la credencial de escritura de Supabase. La compara
+   `escritura_ok_` contra `tiendas.gas_token` y la exigen 36 funciones, así que
+   renombrarla aquí y no en la base dejaría a la tienda sin poder guardar. */
 (function(){
   var _c = _cfg;
   if(!_c || !_c.store_id || _c.gas_token) return;
@@ -553,23 +557,20 @@ const _cfg = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store
     b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
       + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
       + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
-    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
-      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
-      + ' — no se pierde nada de lo que tengas capturado.';
+    b.innerHTML = '⚠ Tu tienda no tiene clave de escritura: puedes consultar, '
+      + 'pero no se va a guardar nada. Pídele a tu gerente que la configure en Admin.';
     document.body.insertBefore(b, document.body.firstChild);
   }
   if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
   else _pintar();
 })();
 
-const CLOUD_URL = (_cfg && _cfg.gas_url) ? _cfg.gas_url : 'https://script.google.com/macros/s/AKfycbwbZFsiDqZrNitPKNLqr4r6xOFu3VKprtXJacScftIJmcQdAl_yytjxK8BymWvy8I1gjA/exec';
-// Token del Apps Script. Llega desde login_asesor/login_empleado — nunca se
-// escribe aquí: este archivo es público y eso anularía el candado.
-// Si falta, las llamadas salen sin token y el script las rechazará en cuanto
-// GAS_ESTRICTO esté en true (ver GAS_guardian.gs).
 const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
-const TIENDA_ID     = (_cfg && _cfg.store_id) || '1217';
-const TIENDA_NOMBRE = (_cfg && _cfg.nombre)   || 'Angelópolis';
+/* Sin sesión no se inventa una tienda. Antes esto caía a la 1217 y su nombre,
+   así que una sesión rota pintaba el tablero de OTRA tienda —con su encabezado
+   y su pie— en vez de mandar a entrar. */
+const TIENDA_ID     = (_cfg && _cfg.store_id) || '';
+const TIENDA_NOMBRE = (_cfg && _cfg.nombre)   || '';
 const ROLE          = localStorage.getItem('hes_role') || 'asesor';
 /* Quién entró. Desde que se retiró el PIN de tienda, cada quien accede con su
    número de empleado, así que esto SIEMPRE existe y el tablero no tiene que
@@ -841,7 +842,7 @@ function coincide(...campos){
    SKUs, su stock y los EOL con precio. Ahora solo vive en el celular de quien
    entró, y solo mientras sirva: un stock de hace una semana hace prometer
    piezas que no hay, y eso es peor que no tener dato. */
-const INV_KEY       = 'hes1217_inv_cache';
+const INV_KEY       = 'odemas_inv_cache';
 const INV_HORAS_OK  = 24;   // hasta aquí se muestra sin peros
 const INV_HORAS_MAX = 72;   // pasado esto se descarta
 let _invEdadHoras = null;
@@ -873,8 +874,8 @@ const EOL_PAUSADOS = new Set(['100280724']); // MatePad 11.5" VD+TCL — pendien
 
 // Variables recalculables cuando llegan datos de la nube
 let EOL = [], eolMap = {}, RESURTIR = [], AGOTADOS = [];
-const PROMOS_KEY   = 'hes1217_promos_cache';
-const BUNDLES_KEY  = 'hes1217_bundles_cache';
+const PROMOS_KEY   = 'odemas_promos_cache';
+const BUNDLES_KEY  = 'odemas_bundles_cache';
 let PROMOS = [];
 let BUNDLES = [];
 
@@ -1053,7 +1054,7 @@ function selSeg(id, idx, p0, p1, p2, i1, i2) {
    salía sin renglones por vendedor.
    Los botones ✓/✗ siguen existiendo, pero solo como AJUSTE MANUAL para ventas
    que no pasaron por la app (por eso se suman aparte y se pueden reiniciar). */
-const SERIES_KEY = 'hes1217_series_v1';   // misma clave que escribe captura_series.html
+const SERIES_KEY = 'odemas_series_v1';   // misma clave que escribe captura_series.html
 let VENTAS_NUBE = null;        // {vendedor:{c,s}} de TODA la tienda; null = no disponible
 let VENTAS_NUBE_HORA = '';
 
@@ -1204,7 +1205,10 @@ function compartirWA(prodEnc,sku,pv,pb,sinSeguro,incluyeEnc){
   if(pv>=10000) msi.push('12 MSI');
   if(pv>=20000) msi.push('18 MSI*');
   if(msi.length) msg+='\n\n💳 '+msi.join(' · ')+' disponibles';
-  msg+='\n\n_HES Angelópolis Puebla_';
+  // La firma es la tienda de quien manda la cotización. Iba fija, y en una
+  // copia que usan varias eso firmaría todas con el nombre de una sola: el
+  // cliente iría a preguntar por su equipo a la tienda equivocada.
+  if(TIENDA_ID) msg += '\n\n_HES ' + TIENDA_ID + (TIENDA_NOMBRE ? ' ' + TIENDA_NOMBRE : '') + '_';
   window.open('https://wa.me/?text='+encodeURIComponent(msg.trim()),'_blank');
 }
 
@@ -2369,67 +2373,11 @@ document.getElementById('q').addEventListener('input', e=>{
   if(q && busqueda) q.value = busqueda;
 })();
 
-/* ================= Cola de llamadas al GAS =================
-   Google Apps Script descarta las llamadas que llegan encimadas y lo hace EN
-   SILENCIO (responde 200 sin ejecutar). Antes las 6 cargas salían todas en el
-   mismo instante: unas llegaban y otras no, así que promos/combos/avisos se
-   quedaban vacíos —y sus pestañas se ocultaban solas por seccionTieneItems()—
-   sin que nadie se enterara. Ahora salen de una en una, espaciadas, con
-   timeout, reintento y aviso visible si algo no llegó. */
-const GAS_GAP        = 1500;    // ms de separación entre llamadas
-const GAS_TIMEOUT    = 15000;   // ms de espera por respuesta
-const GAS_REINTENTOS = 2;
-
-let _gasCola = [], _gasCorriendo = false, _gasN = 0;
-const espera = ms => new Promise(r=>setTimeout(r, ms));
-
-function gasJsonp(qs){
-  return new Promise(function(resolve, reject){
-    // Callback único: Date.now() solo no basta, dos llamadas en el mismo
-    // milisegundo se pisan y cruzan las respuestas (ya pasó en Captura de Series).
-    const cb = '_gas' + Date.now() + '_' + (++_gasN);
-    const sc = document.createElement('script');
-    const t  = setTimeout(function(){ limpiar(); reject(new Error('timeout')); }, GAS_TIMEOUT);
-    function limpiar(){ clearTimeout(t); delete window[cb]; sc.remove(); }
-    window[cb] = function(d){ limpiar(); resolve(d); };
-    sc.onerror = function(){ limpiar(); reject(new Error('red')); };
-    sc.src = CLOUD_URL + '?' + qs + '&callback=' + cb
-           + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
-    document.head.appendChild(sc);
-  });
-}
-
-// prioritario:true → se cuela al frente (para escrituras: apartados, EOL)
-function gasPedir(qs, opts){
-  opts = opts || {};
-  return new Promise(function(resolve, reject){
-    const tarea = { qs, resolve, reject, intentos:0,
-      max: opts.reintentos!=null ? opts.reintentos : GAS_REINTENTOS };
-    if(opts.prioritario) _gasCola.unshift(tarea); else _gasCola.push(tarea);
-    _gasBombear();
-  });
-}
-
-async function _gasBombear(){
-  if(_gasCorriendo) return;
-  _gasCorriendo = true;
-  while(_gasCola.length){
-    const t = _gasCola.shift();
-    try{
-      t.resolve(await gasJsonp(t.qs));
-    }catch(e){
-      if(t.intentos < t.max){
-        t.intentos++;
-        _gasCola.unshift(t);                      // reintenta antes que el resto
-        await espera(GAS_GAP * (t.intentos + 1)); // ...dándole más aire cada vez
-        continue;
-      }
-      t.reject(e);
-    }
-    if(_gasCola.length) await espera(GAS_GAP);
-  }
-  _gasCorriendo = false;
-}
+/* Aqui vivia la cola de llamadas al Apps Script: salian de una en una y
+   espaciadas 1,5 s porque Google descarta EN SILENCIO las que llegan
+   encimadas —responde 200 sin ejecutar— y promos, combos y avisos se
+   quedaban vacios sin que nadie se enterara. Supabase no tiene ese limite:
+   las lecturas van directas, en un viaje y sin turnos. */
 
 /* ---- Estado de las cargas + aviso al usuario ---- */
 /* `ventas` entró aquí el 17-ago-2026, y es lo que faltaba: el leaderboard de
@@ -2672,39 +2620,33 @@ async function cargarInventarioNube(){
   marcarCarga('inventario', false);
 }
 
-/* Se conserva sin usar a propósito, para la etapa 5: cuando se retire el Apps
-   Script hay que poder ver qué se estaba llamando y desde dónde. */
-async function _cargarInventarioGasViejo(){
-  let data;
+/* Estas cuatro le pedían cada cosa al Apps Script; ahora vuelven a Supabase,
+   que es la única fuente. Siguen siendo funciones sueltas —y `refrescarNube`
+   las llama en el mismo orden de criticidad— porque cada una marca SU carga: si
+   vuelve media respuesta, el banner tiene que poder nombrar qué falta en vez de
+   decir que falló todo.
+
+   Sí, las cuatro vuelven a pedir `tablero_todo` entero. Es a propósito y es lo
+   que ya hacía `cargarInventarioNube`: cuando se llega aquí es porque el primer
+   viaje no contestó, y la apuesta del respaldo es que fuera un timeout suelto.
+   Pedir de nuevo es justamente el reintento. */
+async function _piezaNube(clave, esValida, aplicar){
+  let d;
   try{
-    data = await gasPedir('modo=inventario');
-    if(_esError(data))      throw new Error('rechazado: ' + data.error);
-    if(!_datosUtiles(data)) throw new Error('respuesta inválida');
-  }catch(e){
-    marcarCarga('inventario', false);
-    // Si hay inventario guardado seguimos mostrándolo (con su edad); solo
-    // cuando no hay nada se anuncia que no hay conexión.
-    if(_invEdadHoras != null){ pintarUpdated(); return; }
-    const el = document.getElementById('updated');
-    if(el) el.innerHTML = '<span style="color:var(--rojo);font-weight:700">Sin conexión</span>';
-    return;
-  }
-  aplicarInventario(data);
-  calcDerivados();
-  render();
-  marcarCarga('inventario', true);
+    const bruto = await sbRpc('tablero_todo');
+    if(!_esObj(bruto)) throw new Error('respuesta inválida');
+    d = _deSupabase(bruto)[clave];
+    if(!esValida(d)) throw new Error('respuesta inválida');
+  }catch(e){ marcarCarga(clave, false); return false; }
+  aplicar(d);
+  marcarCarga(clave, true);
+  return true;
 }
 
 async function cargarEolNube(){
-  let data;
-  try{
-    data = await gasPedir('modo=eol_cloud');
-    if(!Array.isArray(data)) throw new Error('respuesta inválida');
-  }catch(e){ marcarCarga('eol', false); return; }
-  aplicarEol(data);
-  calcDerivados();
-  render();
-  marcarCarga('eol', true);
+  await _piezaNube('eol', Array.isArray, function(d){
+    aplicarEol(d); calcDerivados(); render();
+  });
 }
 
 let _promosCargando = false;
@@ -2717,41 +2659,25 @@ async function cargarPromosNube(manual){
     const b = document.getElementById('btnRefreshPromos');
     if(b){ b.textContent='↻ Actualizar'; b.disabled=false; b.classList.remove('girando'); }
   }
-  let data;
+  /* `manual` era la prioridad en la cola del Apps Script —el botón "↻
+     Actualizar" lo pulsa alguien que está esperando y se colaba al frente—. Sin
+     cola no hay a quién adelantar: Supabase va en un viaje directo. Se conserva
+     el parámetro porque el botón lo pasa (l. 2305) y quitarlo de un lado sin el
+     otro dejaría el `onclick` llamando con un argumento que nadie lee. */
   try{
-    // El botón "↻ Actualizar" lo pide el usuario y está esperando: va al frente.
-    data = await gasPedir('modo=promos', { prioritario: !!manual });
-    if(!_esObj(data)) throw new Error('respuesta inválida');
-  }catch(e){
-    _promosCargando = false; soltarBoton(); marcarCarga('promos', false); return;
+    await _piezaNube('promos', _esObj, function(d){ aplicarPromos(d); render(); });
+  } finally {
+    _promosCargando = false;
+    soltarBoton();
   }
-  _promosCargando = false;
-  aplicarPromos(data);
-  render();
-  soltarBoton();
-  marcarCarga('promos', true);
 }
 
 async function cargarBundlesNube(){
-  let data;
-  try{
-    data = await gasPedir('modo=bundles');
-    if(!Array.isArray(data)) throw new Error('respuesta inválida');
-  }catch(e){ marcarCarga('bundles', false); return; }
-  aplicarBundles(data);
-  render();
-  marcarCarga('bundles', true);
+  await _piezaNube('bundles', Array.isArray, function(d){ aplicarBundles(d); render(); });
 }
 
 async function cargarAvisosNube(){
-  let data;
-  try{
-    data = await gasPedir('modo=avisos_cloud');
-    if(!Array.isArray(data)) throw new Error('respuesta inválida');
-  }catch(e){ marcarCarga('avisos', false); return; }
-  aplicarAvisos(data);
-  render();
-  marcarCarga('avisos', true);
+  await _piezaNube('avisos', Array.isArray, function(d){ aplicarAvisos(d); render(); });
 }
 
 /* Ventas del día de TODA la tienda, para el leaderboard de Assurant.
@@ -2944,22 +2870,9 @@ async function cargarTodoSupabase(){
   return aplicarTodo(_deSupabase(bruto));
 }
 
-/* Todo en un solo viaje (~4 s contra ~20 s de las seis llamadas). Si este GAS
-   no tiene el modo, contesta con la lista de ventas —su else final— así que hay
-   que revisar la FORMA de lo que llega, no solo que llegue. */
-async function cargarTodoNube(){
-  let d;
-  try{
-    d = await gasPedir('modo=todo', { reintentos:1 });
-    if(!_esObj(d) || !_esObj(d.inventario)) throw new Error('sin modo=todo');
-  }catch(e){ return false; }
-  return aplicarTodo(d);
-}
+/* Aquí vivía `cargarTodoNube`, el `modo=todo` del Apps Script que hacía de
+   segunda red. Se fue con él: esta copia no tiene Apps Script. */
 
-/* Lo comparten las dos rutas a propósito: el que pinta el stock es el mismo
-   código venga de donde venga el dato. Si se duplicara, tarde o temprano una
-   de las dos ramas se quedaría atrás y el tablero mostraría cosas distintas
-   según qué nube haya contestado. */
 function aplicarTodo(d){
   /* El STOCK solo se acepta de Supabase, desde el 7-ago-2026.
      El Excel del día se sube directo a Supabase: la hoja dejó de recibirlo, así
@@ -3028,17 +2941,16 @@ async function refrescarNube(){
        cola se quedara atascada, esto volvería a inflar el stock — es lo primero
        que hay que mirar si el inventario no cuadra. */
     if(await cargarTodoSupabase()) return;
-    /* Supabase no contestó. El Apps Script sirve para todo lo demás, pero YA NO
-       para los apartados: su `modo=todo` los saca de la hoja, que desde el
-       7-ago no recibe preventa. Así que se pide la preventa aparte —otra vez a
-       Supabase, por si fue un timeout suelto—, y si tampoco esta vez, la carga
-       queda marcada como fallida y el banner lo dice. Mejor "no prometas la
-       última pieza" que un cupo inventado. */
-    if(await cargarTodoNube()){ cargarApartadosNube(); return; }
-    // Respaldo: de una en una y espaciadas, porque juntas se pierden en silencio.
-    // Orden por criticidad: primero lo que decide un precio o un cupo frente al
-    // cliente (stock, 50% de EOL, apartados de preventa); los avisos y el
-    // leaderboard pueden esperar.
+    /* Supabase no contestó de una vez. Aquí había una segunda red —el
+       `modo=todo` del Apps Script— y ya no existe, así que se pasa directo al
+       respaldo pieza a pieza, que vuelve a preguntarle a Supabase por si fue un
+       timeout suelto.
+
+       El orden es por criticidad, y esa parte no cambia: primero lo que decide
+       un precio o un cupo con el cliente enfrente (stock, 50% de EOL, apartados
+       de preventa); los avisos y el leaderboard pueden esperar. Cada una marca
+       su carga, así que lo que no llegue lo nombra el banner en vez de quedarse
+       en un tablero a medias con aspecto de estar completo. */
     cargarInventarioNube();
     cargarEolNube();
     cargarApartadosNube();
@@ -3091,10 +3003,18 @@ window.addEventListener('focus', alVolver);
 window.addEventListener('online', function(){ _ultimoIntento = 0; alVolver(); });
 
 // ── Push notifications (OneSignal) ──────────────────────────────
-const ONE_APP_ID = 'db32a1ef-d484-4be3-adfc-2a9e17f7e4f1';
+/* La cuenta de OneSignal es de cada quien: se saca de onesignal.com (gratis
+   hasta 10.000 suscriptores) y se pega aqui. Mientras diga TU_APP_ID_AQUI la
+   campana no aparece — y eso es lo correcto: una campana que no manda nada es
+   peor que ninguna, porque el equipo la toca y se queda esperando avisos.
 
-/* El sitio NO vive en la raíz del dominio: está en
-   github.io/tablero-hes1217/. Un service worker servido desde un subdirectorio
+   No se hereda la cuenta de otra tienda a proposito. Los suscriptores y los
+   envios cuelgan del App ID: con uno prestado, los avisos de esta tienda le
+   llegarian al equipo de la otra. */
+const ONE_APP_ID = 'TU_APP_ID_AQUI';
+
+/* El sitio NO vive en la raíz del dominio, sino en un subdirectorio del tipo
+   usuario.github.io/nombre-del-repo/. Un service worker servido desde ahí
    no puede reclamar `/` — el navegador lo rechaza por seguridad— y con el scope
    mal `OneSignal.init()` falla entero.
 
@@ -3104,13 +3024,17 @@ const ONE_APP_ID = 'db32a1ef-d484-4be3-adfc-2a9e17f7e4f1';
 
    Se deriva de la ruta en vez de escribirlo: así sigue funcionando si el repo
    cambia de nombre o si algún día se sirve desde la raíz. */
-const ONE_BASE = location.pathname.replace(/[^/]*$/, '');   // '/tablero-hes1217/'
+const ONE_BASE = location.pathname.replace(/[^/]*$/, '');   // p.ej. '/tablero-odemas/'
 let _oneListo = false;
 let _oneError = '';
 
 function actualizarCampana(){
   const btn=document.getElementById('btnBell');
   if(!btn) return;
+  /* Sin cuenta de OneSignal no hay avisos que activar. Se esconde en vez de
+     dejarla apagada: apagada invita a tocarla, y tocarla no haria nada. */
+  if(ONE_APP_ID === 'TU_APP_ID_AQUI'){ btn.style.display = 'none'; return; }
+  btn.style.display = '';
   /* Se mira la suscripción de OneSignal, NO `Notification.permission`.
      Son cosas distintas: el permiso lo da el navegador, la suscripción la
      registra OneSignal. Se puede tener permiso y no estar suscrito —justo lo
@@ -3193,7 +3117,7 @@ async function activarNotifs(){
     let pista = '';
     if(permisoAhora === 'denied')       pista = 'El navegador tiene BLOQUEADAS las notificaciones para esta página. Hay que permitirlas en los ajustes del sitio.';
     else if(permisoAhora === 'default') pista = 'El permiso se perdió a mitad del alta. Vuelve a tocar la campana.';
-    else if(!regs.some(s => s.indexOf('tablero-hes1217') >= 0))
+    else if(!regs.some(s => s.indexOf(ONE_BASE) >= 0))
                                    pista = 'El service worker no está registrado en la ruta correcta. Hay que borrar los datos del sitio y volver a entrar.';
     else                           pista = 'Permiso concedido y service worker en su sitio, pero OneSignal no completó el alta.';
 
@@ -3209,7 +3133,10 @@ async function activarNotifs(){
 
 window.OneSignalDeferred = window.OneSignalDeferred || [];
 OneSignalDeferred.push(async function(OneSignal){
-  if(ONE_APP_ID==='TU_APP_ID_AQUI') return;
+  // Sin App ID no se llama a init: OneSignal lanzaria, `_oneError` se
+  // llenaria y la campana —ya escondida— diria que fallo algo. No falla nada:
+  // es que no esta configurado.
+  if(ONE_APP_ID==='TU_APP_ID_AQUI'){ actualizarCampana(); return; }
   try{
     await OneSignal.init({
       appId: ONE_APP_ID,

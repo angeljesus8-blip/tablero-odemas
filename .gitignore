@@ -10,10 +10,14 @@ eol/
 comisiones_datos.js
 _privado_no_publicar/
 
-# Los datos reales del equipo: nombres, números de empleado y el mapeo al Excel
-# regional. Estuvieron en el repo —que es público— desde el 18-ago-2026 hasta el
-# 28-ago-2026; ver MAPA.md, «Los datos del equipo llevan meses publicados».
-# Lo que se versiona son ejemplos; lo real vive aquí y no sale de la máquina.
-_privado/
+# Los datos reales del equipo: nombres y números de empleado. Este repo es
+# PÚBLICO. Lo real vive aquí y no sale de la máquina; lo único que se versiona
+# es la plantilla, para que quien monte una tienda sepa qué escribir.
+#
+# Va `_privado/*` y no `_privado/`: con la carpeta entera ignorada, git no mira
+# lo de dentro y el `!` de abajo no tendría efecto — la excepción se perdería en
+# silencio y la plantilla no llegaría a nadie.
+_privado/*
+!_privado/datos_equipo.txt.ejemplo
 # lo deja Python al importar verificar.py desde una prueba
 __pycache__/

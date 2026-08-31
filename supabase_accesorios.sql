@@ -95,46 +95,21 @@ ALTER TABLE public.accesorios_catalogo DROP COLUMN IF EXISTS generico;
    verdaderos son MICA HR / MATTE / BLUE / PRIV, no «hidrogel transparente» ni
    «para tablet». La colision de $149 es entre HR y MATTE — las 19 lineas que
    en julio hubo que abrir una por una. Y hay una a $199 que no se sabia. */
-INSERT INTO public.accesorios_catalogo (store_id, articulo, nombre, precio_ref, sku, orden)
-VALUES
-  ('1217','43739-MICAHR',        'MICA HR',                              149, '43739',  10),
-  ('1217','43739-MICAMATTE',     'MICA MATTE',                           149, '43739',  20),
-  ('1217','43739-MICABLUE',      'MICA BLUE',                            199, '43739',  30),
-  ('1217','43739-MICAPRIV',      'MICA PRIV',                            299, '43739',  40),
-  ('1217','43739-CARGA-66W',     'CARGADOR 66W',                         499, '43739',  50),
-  ('1217','43739-CARGA-100W',    'CARGADOR 100W',                        999, '43739',  60),
-  ('1217','W-1999',              'LICENCIA WINDOWS',                    1999, '43739',  70),
-  -- Sale en los tickets (KITLIMPIEZA, $169) pero no viene en ninguno de los
-  -- dos documentos oficiales. Precio confirmado por Angel el 18-ago-2026.
-  ('1217','43739-KITLIMPIEZA',   'KIT DE LIMPIEZA',                      169, '43739',  80),
-  ('1217','80066',               'MEMORIA OTG 32GB ADATA ANDROID',        99, '43739', 100),
-  ('1217','AUV250-64G-RBK',      'MEM USB ADATA 64GB UV250',             189, '43739', 110),
-  ('1217','AUSDX64GUICL10-RA1',  'TARJETA MICROSD ADATA 64GB CLASE 10',  249, '43739', 120),
-  ('1217','91273',               'MEMORIA USB ADATA 128GB',              329, '43739', 130),
-  ('1217','P5116',               'MOUSEPAD PC KENSIN P511 RJ/GR',        329, '43739', 140),
-  ('1217','65960',               'MOUSE PAD FOAM AZUL CON DESCANSA MUNECA', 349, '43739', 150),
-  ('1217','HX-MPFS-S-XL',        'MOUSEPAD HYPERX FURY S SPEED EXTRA LARGO', 399, '43739', 160),
-  ('1217','80050',               'BATERIA RESPALDO ADATA 10,000 MAH',    399, '43739', 170),
-  ('1217','91276',               'MICRO SD ADATA 128GB CLASE 10',        499, '43739', 180),
-  ('1217','100011',              'DISCO DURO ADATA 500GB 2.5',           799, '43739', 190),
-  ('1217','80065',               'DISCO DURO EXTERNO ADATA 1 TB',       2099, '43739', 200),
-  ('1217','AHD710P-2TU31-CBK',   'DISCO DURO ADATA HD710 2TB',          2699, '43739', 210),
-  ('1217','HDTX140XK3CA',        'DISCO DURO TOSHIBA GAMER 4TB NG',     3699, '43739', 220),
-  -- Caja propia. SI van al reporte, pero cada uno con SU sku.
-  ('1217','63602',               'OFFICE PERSONAL',                     2249, '63602', 300),
-  ('1217','57518',               'OFFICE FAMILIA',                      2699, '57518', 310)
-ON CONFLICT (store_id, nombre) DO UPDATE
-  SET articulo = excluded.articulo, precio_ref = excluded.precio_ref,
-      sku = excluded.sku, orden = excluded.orden, activo = true;
-
-/* La lista que se puso a ojo antes de tener los documentos. Se da de baja, no
-   se borra: si alguna venta se guardo con esos nombres, se quedaria apuntando
-   a un producto inexistente. */
-UPDATE public.accesorios_catalogo SET activo = false
- WHERE store_id = '1217'
-   AND nombre IN ('Mica hidrogel transparente','Mica hidrogel mate',
-                  'Mica de privacidad','Mica para tablet','Cargador 66W',
-                  'Cargador 100W','Kit de limpieza');
+-- Aqui iba el catalogo de accesorios de una tienda concreta: 25 articulos con
+-- sus precios. No se siembra. Los precios de accesorio los pone cada tienda y
+-- un precio ajeno no da error: se cobra.
+--
+-- El catalogo se llena desde Admin -> Accesorios, o pegando aqui las filas de
+-- tu tienda con esta misma forma:
+--
+--   INSERT INTO public.accesorios_catalogo (store_id, articulo, nombre, precio_ref, sku, orden)
+--   VALUES ('<tu-tienda>','43739-MICAHR','MICA HR', 149, '43739', 10)
+--   ON CONFLICT (store_id, nombre) DO UPDATE
+--     SET articulo = excluded.articulo, precio_ref = excluded.precio_ref,
+--         sku = excluded.sku, orden = excluded.orden, activo = true;
+--
+-- `orden` de diez en diez para poder meter uno en medio sin renumerar. El
+-- `sku` es el codigo generico con el que el POS cobra el accesorio.
 
 
 -- ── 2 · Las ventas ──────────────────────────────────────────

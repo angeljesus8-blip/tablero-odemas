@@ -103,10 +103,15 @@ COMMENT ON COLUMN public.tiendas.sku_reparacion IS
    Solo se siembran si la columna esta vacia: si el gerente ya los cambio desde
    Admin —porque Mr Fix cambio de codigo—, repegar este archivo no debe
    devolverle los viejos. */
-UPDATE public.tiendas
-   SET sku_reparacion = '100175537,100175545'
- WHERE store_id = '1217'
-   AND coalesce(trim(sku_reparacion), '') = '';
+-- Aqui iba la siembra de los codigos de UNA tienda concreta. No se siembra
+-- nada: los codigos de reparacion son los que cobra el taller de cada plaza y
+-- no hay un valor por defecto que sea correcto para todas. Sembrar los de otra
+-- tienda seria peor que dejarlo vacio: vacio hace que el asesor elija a mano
+-- —que es lo que hacia antes— y un codigo ajeno manda la venta a la tabla
+-- equivocada sin avisar. El gerente los pone en Admin -> Configuracion.
+--
+--   UPDATE public.tiendas SET sku_reparacion = '<codigo>,<codigo>'
+--    WHERE store_id = '<tu-tienda>';
 
 
 -- ── 1-ter · Captura pregunta el codigo al SERVIDOR ──────────

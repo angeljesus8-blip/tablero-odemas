@@ -97,26 +97,15 @@
 /* ====== Sesión de tienda: sin hes_store no hay datos que mostrar ====== */
 const _storeConfig = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
 
-/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
-   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
-   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
-   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
-(function(){
-  var _c = _storeConfig;
-  if(!_c || !_c.store_id || _c.gas_token) return;
-  function _pintar(){
-    var b = document.createElement('div');
-    b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
-      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
-      + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
-    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
-      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
-      + ' — no se pierde nada de lo que tengas capturado.';
-    document.body.insertBefore(b, document.body.firstChild);
-  }
-  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
-  else _pintar();
-})();
+/* Aquí iba el aviso de "tu sesión es de antes del candado del 1-ago-2026", que
+   se pintaba cuando la sesión no traía `gas_token`. Esta copia nace despues de
+   aquello y no hay sesiones viejas que avisar.
+
+   Ojo, que el nombre engaña: `gas_token` YA NO es el token del Apps Script. Es
+   la credencial de escritura de Supabase —`escritura_ok_` la compara contra
+   `tiendas.gas_token` y la exigen 36 funciones—, asi que se queda aunque el
+   Apps Script no exista. Aqui no se comprueba porque esta pantalla solo LEE
+   (`comisiones_lista` pide `p_store` y nada mas); donde se escribe si se avisa. */
 
 if(!_storeConfig || !_storeConfig.store_id){
   // Se avisa a continuidad.js de que esta salida es voluntaria. Hoy el menú ya
@@ -131,11 +120,7 @@ const _storeId = _storeConfig.store_id;
 document.getElementById('storeSub').textContent = 'HES ' + _storeId + ' · ' + (_storeConfig.nombre || 'Odemás');
 document.getElementById('footerTxt').textContent = 'Odemás · Grupo Gigante — uso interno HES ' + _storeId;
 
-/* ====== Datos: caché local de esta tienda -> nube (GAS) -> respaldo estático embebido ====== */
-const CLOUD_URL = _storeConfig.gas_url || '';
-// El Apps Script exige token desde el 1-ago-2026. Sin esto la peticion se
-// rechaza y la pagina se queda con el cache viejo SIN avisar.
-const GAS_TOKEN = _storeConfig.gas_token || '';
+/* ====== Datos: caché local de esta tienda -> Supabase ====== */
 const COMISKEY = 'hes' + _storeId + '_comisiones';
 let D = { empleados: [] };
 // Cache ilegible: se arranca vacio y la nube lo llena; si tampoco responde,
@@ -216,18 +201,20 @@ function avisoNube(msg){
   el.textContent = '⚠ ' + msg;
 }
 
-/* Desde el 7-ago-2026 las comisiones se suben directo a Supabase, así que hay
-   que LEERLAS de ahí: la hoja ya no las recibe y el Apps Script devolvería el
-   último reporte que se subió antes del cambio — un mes viejo, con aspecto de
-   actual. Esa pantalla la mira el equipo para saber cuánto lleva ganado.
+/* Las comisiones se leen de Supabase, que es la única fuente. Esta pantalla la
+   mira el equipo para saber cuánto lleva ganado.
 
-   Se intenta Supabase primero y, si no contesta, se cae al Apps Script: los
-   reportes anteriores siguen en la hoja y valen más que una pantalla vacía. */
+   NO devuelve `null` cuando algo sale mal: devuelve el MOTIVO. Antes había
+   cuatro formas distintas de fallar —rechazo, respuesta vacía, timeout y sin
+   red— y las cuatro daban `null`, que se tapaba cayendo al Apps Script. Sin esa
+   caída, un `null` mudo dejaría la pantalla con lo guardado en el teléfono y
+   con aspecto de estar al día: es exactamente lo que pasó al cerrar la hoja, y
+   se veían comisiones de julio como si fueran de agosto. */
 const SB_URL_CO = 'https://rjdrljtujbwooejrpyqv.supabase.co';
 const SB_KEY_CO = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
 
 async function comisionesDeSupabase(){
-  if(!_storeId) return null;
+  if(!_storeId) return { err:'sin_tienda' };
   const ctl = new AbortController();
   const t = setTimeout(function(){ ctl.abort(); }, 8000);
   try{
@@ -236,11 +223,14 @@ async function comisionesDeSupabase(){
       headers:{ apikey:SB_KEY_CO, Authorization:'Bearer '+SB_KEY_CO, 'Content-Type':'application/json' },
       body: JSON.stringify({ p_store: String(_storeId) })
     });
-    if(!r.ok) return null;
+    if(!r.ok) return { err:'rechazo', codigo:r.status };
     const filas = await r.json();
-    if(!Array.isArray(filas) || !filas.length) return null;
-    // Supabase devuelve filas; esta pantalla espera el objeto del Apps Script.
-    return {
+    // Vacío NO es un fallo de conexión: es que nadie ha cargado el reporte de
+    // este periodo. Decirlo como "sin conexión" manda a revisar el teléfono
+    // cuando lo que falta es que suban el archivo.
+    if(!Array.isArray(filas) || !filas.length) return { err:'vacio' };
+    // Supabase devuelve filas; esta pantalla espera un objeto.
+    return { datos:{
       actualizado: filas[0].actualizado ? String(filas[0].actualizado).slice(0,10) : '',
       periodoComisiones: filas[0].periodo || '',
       periodoGarantias:  filas[0].periodo_gar || '',
@@ -255,44 +245,41 @@ async function comisionesDeSupabase(){
                  garantiaElegible: k.gar_elegible==null ? null : Number(k.gar_elegible),
                  garantiaMonto: k.gar_monto==null ? null : Number(k.gar_monto) };
       })
-    };
-  }catch(e){ return null; }
+    }};
+  }catch(e){
+    // El timeout se distingue del corte de red: uno se reintenta solo al volver
+    // a entrar, el otro no depende de la señal del teléfono.
+    return { err: (e && e.name === 'AbortError') ? 'lento' : 'red' };
+  }
   finally{ clearTimeout(t); }
 }
 
-// Trae la versión más reciente desde la nube de esta tienda (si Admin ya la configuró)
+/* Trae la versión más reciente desde Supabase.
+
+   Todos los caminos que no traen datos AVISAN, y cada uno dice lo suyo: no es
+   lo mismo que nadie haya subido el reporte del periodo que que el teléfono no
+   tenga señal, y mandar a revisar la conexión cuando lo que falta es el archivo
+   hace perder el rato a quien lo lea. Ninguno se queda callado: callarse deja
+   en pantalla el sueldo del mes pasado con cara de ser el de este. */
 async function refreshComisionesCloud(){
-  const sb = await comisionesDeSupabase();
-  if(sb){
-    D = sb;
+  const r = await comisionesDeSupabase();
+  if(r && r.datos){
+    D = r.datos;
     localStorage.setItem(COMISKEY, JSON.stringify(D));
     pintarPeriodos();
     render();
     return;
   }
-  if(!CLOUD_URL) return;
-  const cb = '_cbComis' + Date.now();
-  window[cb] = function(data){
-    delete window[cb];
-    const sc = document.getElementById('_comis_sc'); if(sc) sc.remove();
-    if(data && data.error){ avisoNube('La nube rechazó la consulta (' + data.error + '). Vuelve a entrar desde el menú.'); return; }
-    if(data && Array.isArray(data.empleados) && data.empleados.length){
-      D = data;
-      localStorage.setItem(COMISKEY, JSON.stringify(D));
-      pintarPeriodos();
-      render();
-      return;
-    }
-    // Respuesta sin datos: antes se ignoraba en silencio y la pantalla se
-    // quedaba con el caché viejo, que parecía actualizado.
-    avisoNube('No llegaron datos nuevos. Lo que ves es lo último guardado en este teléfono.');
-  };
-  const sc = document.createElement('script');
-  sc.id = '_comis_sc';
-  sc.src = CLOUD_URL + (CLOUD_URL.includes('?')?'&':'?') + 'modo=comisiones&callback=' + cb
-         + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
-  sc.onerror = function(){ delete window[cb]; sc.remove(); avisoNube('Sin conexión con la nube.'); };
-  document.head.appendChild(sc);
+  // Si hay caché, hay que decir que lo que se ve es viejo; sin caché la
+  // pantalla está vacía y esa coletilla sobra.
+  const hayCache = D && Array.isArray(D.empleados) && D.empleados.length;
+  const cola = hayCache ? ' Lo que ves es lo último guardado en este teléfono.' : '';
+  const err = (r && r.err) || 'red';
+  if(err === 'rechazo')          avisoNube('La nube rechazó la consulta. Vuelve a entrar desde el menú.' + cola);
+  else if(err === 'vacio')       avisoNube('Todavía no hay comisiones cargadas de este periodo.' + cola);
+  else if(err === 'lento')       avisoNube('La nube tardó demasiado en contestar.' + cola);
+  else if(err === 'sin_tienda')  avisoNube('No sé de qué tienda eres. Vuelve a entrar desde el menú.');
+  else                           avisoNube('Sin conexión con la nube.' + cola);
 }
 refreshComisionesCloud();
 if('serviceWorker' in navigator){

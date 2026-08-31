@@ -42,8 +42,8 @@ function arrancar(extraLS){
                         hes_empleado: JSON.stringify(EMP) }, extraLS || {})
   });
   return Object.assign(ent, {
-    colaSb:  () => ent.lsJson('hes1217_sb_pend') || [],
-    colaGas: () => ent.lsJson('hes1217_pending') || []
+    colaSb:  () => ent.lsJson('odemas_sb_pend') || [],
+    colaGas: () => ent.lsJson('odemas_pending') || []
   });
 }
 
@@ -90,7 +90,7 @@ const ok = (t, c, extra) => { if(!c) fallos.push(t + (extra ? ' -> ' + extra : '
     { id:'i2', fecha:'16/8/2026', hora:'12:05', serie:'VIEJA-2', sku:'900002',
       desc:'Otra pendiente', precio:'2999', vend:EQUIPO[0], seguro:true }
   ];
-  const s = arrancar({ hes1217_pending: JSON.stringify(viejas) });
+  const s = arrancar({ odemas_pending: JSON.stringify(viejas) });
   ok('la pantalla arranca con la cola vieja', !s.err, s.err);
   if(!s.err){
     const cola = s.colaSb();
@@ -100,7 +100,7 @@ const ok = (t, c, extra) => { if(!c) fallos.push(t + (extra ? ' -> ' + extra : '
     /* Sin esto, esas ventas subirían solo a la hoja: stock que no baja y
        comisiones que no se pagan, sin ningún aviso. */
     ok('y la marca queda puesta para no reencolarlas en cada arranque',
-       !!s.LS['hes1217_cola_a_supabase']);
+       !!s.LS['odemas_cola_a_supabase']);
   }
 }
 
@@ -108,8 +108,8 @@ const ok = (t, c, extra) => { if(!c) fallos.push(t + (extra ? ' -> ' + extra : '
 {
   const viejas = [{ id:'i1', fecha:'16/8/2026', hora:'12:00', serie:'VIEJA-1', sku:'900001',
                     desc:'Pendiente', precio:'1999', vend:EQUIPO[0], seguro:false }];
-  const s = arrancar({ hes1217_pending: JSON.stringify(viejas),
-                       hes1217_cola_a_supabase: '1755400000000' });
+  const s = arrancar({ odemas_pending: JSON.stringify(viejas),
+                       odemas_cola_a_supabase: '1755400000000' });
   if(!s.err){
     ok('con la marca ya puesta, la cola vieja no se vuelve a encolar',
        s.colaSb().length === 0, 'se encolaron ' + s.colaSb().length);

@@ -1,7 +1,7 @@
 {
-  "name": "HES 1217 · Equipo",
-  "short_name": "HES 1217",
-  "description": "Tablero, inventario, captura de series y horarios — Odemás Angelópolis 1217",
+  "name": "Odemás · Equipo de tienda",
+  "short_name": "Odemás",
+  "description": "Tablero, inventario, captura de series, comisiones y horarios",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="theme-color" content="#D12026">
-<title>Admin · HES 1217</title>
+<title>Admin · Odemás</title>
 <link rel="apple-touch-icon" href="logo_odemas.png">
 <style>
   /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
@@ -202,7 +202,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
   <header>
     <a href="index.html" class="back">‹</a>
     <img src="logo_odemas.png" alt="Odemás">
-    <h1>Admin · HES 1217</h1>
+    <h1>Admin</h1>
   </header>
 
   <!-- El aviso de cuadre se fue con la hoja (fase 6, 17-ago-2026): ya no hay
@@ -593,10 +593,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
     <div class="card">
       <h2>⚙️ Configuración de tienda</h2>
       <p class="note">Datos necesarios para que la app de <b>Captura de Series</b> funcione en todos los dispositivos del equipo.</p>
-      <div class="field">
-        <label>URL del GAS (Apps Script)</label>
-        <input id="cfgGas" type="url" placeholder="https://script.google.com/macros/s/…/exec">
-      </div>
       <!-- Con esto la app sabe SOLA, al leer el ticket, si la linea es una
            reparacion o un accesorio. Los accesorios ya se reconocen por su
            codigo (43739 y los dos de Office); este es el del servicio tecnico.
@@ -610,15 +606,14 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
           Con él puesto, Captura de Series distingue sola las reparaciones de los
           accesorios. <b>Si lo dejas vacío</b>, el asesor lo elige a mano.</p>
       </div>
+      <!-- El campo se llama `hoja_auth` por herencia de cuando las ventas se
+           concentraban en una hoja de Google. Ya no: «Ventas del día» lee
+           Supabase. Lo que sigue haciendo es decidir QUIÉN puede abrir ese
+           panel, y por eso se queda. -->
       <div class="field">
-        <label>URL de la hoja de ventas (Google Sheets)</label>
-        <input id="cfgSheet" type="url" placeholder="https://docs.google.com/spreadsheets/d/…/edit">
-        <p style="font-size:11px;color:#aaa;margin-top:4px">Link de la hoja donde se concentran las ventas del equipo.</p>
-      </div>
-      <div class="field">
-        <label>Responsable de descargas</label>
-        <input id="cfgHoja" placeholder="Nombre de la hoja">
-        <p style="font-size:11px;color:#aaa;margin-top:4px">Nombre exacto del asesor que puede abrir la hoja desde Captura de Series.</p>
+        <label>Responsable de revisar las ventas</label>
+        <input id="cfgHoja" placeholder="Nombre del asesor, tal cual">
+        <p style="font-size:11px;color:#aaa;margin-top:4px">Nombre exacto del asesor que puede abrir «Ventas del día» en Captura de Series. Tiene que coincidir letra por letra con el de la lista de vendedores. Gerente y subgerente entran siempre, sin ponerlos aquí.</p>
       </div>
       <div class="field">
         <label>Vendedores del equipo (uno por línea)</label>
@@ -658,10 +653,16 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 <script>
 const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
 
-/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
-   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
-   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
-   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
+/* Sin clave de escritura, TODO lo que se haga desde Admin se pierde: cargar el
+   inventario del día, subir las promos, dar de alta a alguien. La base la pone
+   sola al registrar la tienda (supabase_token_alta.sql), así que llegar aquí
+   sin ella significa que se borró a mano o que el alta se hizo antes de ese
+   archivo. No se ofrece arreglarlo desde esta pantalla a propósito: quien pueda
+   escribirse su propia credencial desde el navegador puede escribirse la de
+   cualquiera.
+
+   Primero se avisa, y luego se deja usar: ver el equipo y las cargas anteriores
+   sigue funcionando, y sacar a nadie a la fuerza no arregla nada. */
 (function(){
   var _c = _cfg;
   if(!_c || !_c.store_id || _c.gas_token) return;
@@ -670,9 +671,9 @@ const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('hes_stor
     b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
       + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
       + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
-    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
-      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
-      + ' — no se pierde nada de lo que tengas capturado.';
+    b.innerHTML = '⚠ Tu tienda no tiene clave de escritura: lo que guardes aquí '
+      + 'no se va a aplicar, y el equipo no podrá capturar ventas. '
+      + 'Avisa a quien administra el sistema.';
     document.body.insertBefore(b, document.body.firstChild);
   }
   if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
@@ -680,32 +681,16 @@ const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('hes_stor
 })();
 
 const _role = localStorage.getItem('hes_role');
-const API   = (_cfg && _cfg.gas_url) ? _cfg.gas_url : 'https://script.google.com/macros/s/AKfycbwbZFsiDqZrNitPKNLqr4r6xOFu3VKprtXJacScftIJmcQdAl_yytjxK8BymWvy8I1gjA/exec';
-// Token del Apps Script: viene del login, nunca escrito aquí (archivo público).
+/* La credencial de escritura de Supabase. Se sigue llamando `gas_token` porque
+   así se llama la columna y así la piden las 36 funciones que la exigen; del
+   Apps Script no queda nada más que el nombre. Viene del login y no se escribe
+   aquí: este archivo es público. */
 const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
-const gasQS   = qs => API + '?' + qs + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
-const gasPost = () => API + (GAS_TOKEN ? '?t=' + encodeURIComponent(GAS_TOKEN) : '');
 
-/* Sube al Apps Script y DICE si funcionó. Antes iba con mode:'no-cors', que deja
-   la respuesta opaca: el navegador no permite leerla, así que la app daba por
-   bueno cualquier envío — incluso uno rechazado. Así se perdieron ventas el
-   1-ago-2026 sin que nadie lo notara hasta el día siguiente.
-   El Apps Script responde con Access-Control-Allow-Origin:*, o sea que no-cors
-   nunca hizo falta: solo nos dejaba ciegos. Lanza si algo salió mal; quien llama
-   ya tiene su try/catch y lo muestra en pantalla. */
-async function gasEnviar(payload){
-  const res = await fetch(gasPost(), { method:'POST',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify(payload) });
-  let r = null;
-  try{ r = JSON.parse(await res.text()); }catch(e){}   // no-JSON: cae en los if de abajo
-  if(!res.ok) throw new Error('la nube respondió ' + res.status);
-  if(r && r.error === 'no_autorizado')
-    throw new Error('la nube rechazó la sesión — sal y vuelve a entrar desde el menú');
-  if(!r || r.ok === false)
-    throw new Error((r && r.error) ? String(r.error) : 'la nube no confirmó el guardado');
-  return r;
-}
+/* Aquí vivían `API`, `gasQS`, `gasPost` y `gasEnviar`. Llevaban desde el 17-ago
+   sin que nadie los llamara —las escrituras pasaron a `sbEscribir`— y lo único
+   que hacían era mantener viva la URL del Apps Script de otra tienda dentro de
+   este archivo. */
 
 const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
 const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
@@ -1037,25 +1022,8 @@ function tab(id,btn){
 }
 
 /* ===== HELPERS ===== */
-function jsonp(url){
-  return new Promise((res,rej)=>{
-    const cb='_a'+Date.now(); const s=document.createElement('script');
-    const t=setTimeout(()=>{ cleanup(); rej(); },15000);
-    function cleanup(){ clearTimeout(t); delete window[cb]; s.remove(); }
-    window[cb]=d=>{ cleanup(); res(d); };
-    s.onerror=()=>{ cleanup(); rej(); };
-    s.src=url+(url.includes('?')?'&':'?')+'callback='+cb;
-    document.head.appendChild(s);
-  });
-}
-function apiUrl(modo,extra){
-  // Antes mandaba pin:PIN_OK, una variable que no existe en este archivo: las
-  // llamadas que pasan por aquí (bundle_add, bundle_del, notificar) reventaban
-  // con ReferenceError. Ahora va el token, que es lo que el script espera.
-  const p = {modo, ...extra};
-  if (GAS_TOKEN) p.t = GAS_TOKEN;
-  return API+'?'+new URLSearchParams(p).toString();
-}
+/* Aquí vivían `jsonp` y `apiUrl`, las dos formas de armar una llamada al Apps
+   Script. Tampoco las llamaba nadie. */
 
 /* Escrituras a Supabase (etapa 2 de apagar la hoja, 7-ago-2026).
    Reutiliza el cliente `sb` que ya monta initSB para los empleados, en vez de
@@ -1721,7 +1689,7 @@ async function subirCatalogo(){
        segunda llamada para "confirmar": existian porque el Apps Script contesta
        antes de terminar de escribir. Aqui la funcion no vuelve hasta que la
        transaccion cerro, y si algo falla, lanza. */
-    const rc = await sbCargaAdmin('carga_catalogo', { p_filas: parsedCat, p_by: 'Admin 1217' });
+    const rc = await sbCargaAdmin('carga_catalogo', { p_filas: parsedCat, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?') });
     showResult('resCat',true,`✅ Catálogo actualizado: <b>${rc.skus}</b> productos. El tablero ya lo está viendo.`);
   }catch(err){ showResult('resCat',false,'Error al subir: '+err.message); }
   btn.textContent='Subir y actualizar'; btn.disabled=false;
@@ -2159,7 +2127,7 @@ async function subirPromos(){
   btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
   document.getElementById('resPromos').className='result';
   try{
-    const rp = await sbCargaAdmin('carga_promos', { p_filas: parsedPromos.rows, p_by: 'Admin 1217' });
+    const rp = await sbCargaAdmin('carga_promos', { p_filas: parsedPromos.rows, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?') });
     const est = { promoCount: rp.promos, promoVig: parsedPromos.vig };
     const eolCount=parsedPromos.rows.filter(r=>r.est==='EOL').length;
     /* Las que la base no admite se cuentan y se dicen: sin fecha de vigencia, o
@@ -3622,8 +3590,6 @@ document.getElementById('fboxGar').addEventListener('paste', function(e){ alPega
    vacio que, al guardarse, borra lo que habia. */
 function loadConfig(){
   const cfg = _cfg || {};
-  document.getElementById('cfgGas').value   = cfg.gas_url   || '';
-  document.getElementById('cfgSheet').value = cfg.sheet_url || '';
   document.getElementById('cfgHoja').value  = cfg.hoja_auth || '';
   document.getElementById('cfgVend').value  = (cfg.vendedores||[]).join('\n');
   document.getElementById('cfgSkuRep').value = cfg.sku_reparacion || '';
@@ -3637,12 +3603,10 @@ async function refrescarConfig(){
     const storeId = (_cfg && _cfg.store_id) || '';
     if(!storeId) return;
     const { data, error } = await sb.from('tiendas')
-      .select('gas_url,sheet_url,hoja_auth,vendedores,sku_reparacion')
+      .select('hoja_auth,vendedores,sku_reparacion')
       .eq('store_id', storeId).maybeSingle();
     if(error || !data) return;      // sin red o sin permiso: se queda lo pintado
 
-    document.getElementById('cfgGas').value   = data.gas_url   || '';
-    document.getElementById('cfgSheet').value = data.sheet_url || '';
     document.getElementById('cfgHoja').value  = data.hoja_auth || '';
     document.getElementById('cfgVend').value  = (data.vendedores||[]).join('\n');
     document.getElementById('cfgSkuRep').value = data.sku_reparacion || '';
@@ -3659,8 +3623,6 @@ async function refrescarConfig(){
 }
 
 async function guardarConfig(){
-  const gas_url    = document.getElementById('cfgGas').value.trim();
-  const sheet_url  = document.getElementById('cfgSheet').value.trim();
   const hoja_auth  = document.getElementById('cfgHoja').value.trim();
   const vendedores = document.getElementById('cfgVend').value
     .split('\n').map(s=>s.trim()).filter(Boolean);
@@ -3676,7 +3638,7 @@ async function guardarConfig(){
 
   try{
     const stored = JSON.parse(localStorage.getItem('hes_store')||'{}');
-    const updated = Object.assign({}, stored, {gas_url, sheet_url, hoja_auth, vendedores, sku_reparacion});
+    const updated = Object.assign({}, stored, {hoja_auth, vendedores, sku_reparacion});
     localStorage.setItem('hes_store', JSON.stringify(updated));
   }catch(e){}   // cuota llena: lo que importa es que quede en Supabase, abajo
 
@@ -3695,7 +3657,7 @@ async function guardarConfig(){
         problema = 'no hay tienda en la sesión; vuelve a entrar desde el menú';
       }else{
         const { error } = await sb.from('tiendas')
-          .update({gas_url, sheet_url, hoja_auth, vendedores, sku_reparacion})
+          .update({hoja_auth, vendedores, sku_reparacion})
           .eq('store_id', storeId);
         if(error) problema = error.message || 'Supabase rechazó el cambio';
       }

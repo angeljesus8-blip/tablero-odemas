@@ -1,0 +1,25 @@
+# Los datos reales de TU equipo. Este archivo se copia a datos_equipo.txt
+# (sin el .ejemplo) y ese NO se sube: `_privado/` esta en .gitignore.
+#
+# Para que sirve: `verificar.py` compara todo lo que git va a publicar contra
+# esta lista y detiene el commit si un apellido o un numero de empleado se
+# coló en un archivo del repo. El repo es publico.
+#
+# Formato, una persona por linea:
+#
+#     apellido | numero de empleado
+#
+# El numero es opcional. Los acentos dan igual: se comparan sin ellos.
+#
+# ⚠️ Escribe tambien las grafias MALAS que circulan. En la tienda donde nacio
+# esto, un apellido con una letra de mas paso el filtro y llego a produccion
+# —y esa misma letra fue la que descuadro las comisiones del mes—. Si el
+# apellido aparece mal escrito en algun lado, ponlo en su propia linea.
+#
+# Ejemplo (borra estas lineas y pon las tuyas):
+
+Medina    | 1000004
+Ortega    | 1000005
+Navarro   | 1000006
+# la misma persona, tal y como la escribe mal el reporte regional:
+Navvarro

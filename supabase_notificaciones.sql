@@ -4,6 +4,7 @@
 -- ============================================================
 --
 --  Depende de supabase_preventa_series.sql (guardia `escritura_ok_`).
+--  Y crea `tiendas.app_url`: a donde lleva el aviso al tocarlo.
 --
 --  ------------------------------------------------------------
 --  POR QUÉ ESTE ERA "EL NUDO", Y POR QUÉ AL FINAL NO LO FUE
@@ -42,6 +43,19 @@
 -- Tabla aparte de `tiendas` a propósito: `login_asesor` devuelve campos de
 -- `tiendas` al navegador, y una llave de OneSignal ahí acabaría saliendo por esa
 -- puerta el día que alguien añada un `SELECT *`.
+-- ── 0 · A dónde lleva el aviso ──────────────────────────────
+-- Cada tienda publica su copia en su propia dirección. Se guarda entera y con
+-- el https delante, tal cual se pega en el navegador. Ejemplo:
+--   update public.tiendas
+--      set app_url = 'https://usuario.github.io/tablero-odemas/tablero.html'
+--    where store_id = '9999';
+ALTER TABLE public.tiendas
+  ADD COLUMN IF NOT EXISTS app_url text;
+
+COMMENT ON COLUMN public.tiendas.app_url IS
+  'URL del tablero de esta tienda. La usan las notificaciones push como destino '
+  'al tocarlas. Vacio = el aviso se manda sin enlace.';
+
 CREATE TABLE IF NOT EXISTS public.notif_config (
   store_id    text        PRIMARY KEY REFERENCES public.tiendas(store_id) ON DELETE CASCADE,
   app_id      text        NOT NULL,
@@ -96,13 +110,22 @@ BEGIN
     INTO v_titulo FROM public.tiendas t WHERE t.store_id = p_store;
   v_titulo := coalesce(nullif(trim(coalesce(p_titulo,'')),''), v_titulo, 'HES');
 
-  -- La URL va fija, igual que en el Apps Script. Se pensó en sacarla de una
-  -- columna de `tiendas`, pero esa columna NO EXISTE: se comprobó antes de
-  -- escribirla y habría reventado la función en la primera llamada, con el
-  -- mismo error que dio `carga_catalogo` hace un rato («column ... does not
-  -- exist»). Cuando haya una segunda tienda, se añade la columna y se cambia
-  -- esta línea — no antes.
-  v_url := 'https://angeljesus8-blip.github.io/tablero-hes1217/tablero.html';
+  -- La URL sale de la tienda. Iba fija, con un comentario que decía «cuando
+  -- haya una segunda tienda se añade la columna y se cambia esta línea». Este
+  -- archivo ES esa segunda tienda: con la URL fija, el aviso de CUALQUIER
+  -- tienda abriría el tablero de otra — y el asesor vería stock y precios que
+  -- no son los suyos, sin nada que se lo diga.
+  SELECT nullif(trim(coalesce(t.app_url,'')), '')
+    INTO v_url FROM public.tiendas t WHERE t.store_id = p_store;
+
+  -- Sin URL configurada se manda el aviso IGUAL, solo que sin enlace: OneSignal
+  -- abre la app y ya. Callar el aviso entero por un campo vacío sería perder la
+  -- notificación —que es lo que se quería mandar— por un detalle de forma.
+  IF v_url IS NOT NULL AND v_url !~* '^https://' THEN
+    -- Un enlace que no es https no lo abre el navegador desde una push, y
+    -- ademas seria el sitio donde alguien mandaria a los asesores.
+    v_url := NULL;
+  END IF;
 
   -- La extensión corta sola; sin esto una caída de OneSignal dejaría la
   -- transacción esperando y con ella al gerente mirando un botón girando.
@@ -194,7 +217,7 @@ GRANT EXECUTE ON FUNCTION public.notificar(text,text,text,text) TO anon, authent
 -- Se pega DIRECTAMENTE en el SQL Editor, nunca en un archivo del repo.
 /*
 INSERT INTO public.notif_config (store_id, app_id, api_key)
-VALUES ('1217', 'db32a1ef-d484-4be3-adfc-2a9e17f7e4f1', 'PEGA_AQUI_LA_REST_API_KEY')
+VALUES ('<tu-tienda>', 'PEGA_AQUI_EL_APP_ID', 'PEGA_AQUI_LA_REST_API_KEY')
 ON CONFLICT (store_id) DO UPDATE
   SET app_id = excluded.app_id, api_key = excluded.api_key, actualizado = now();
 */

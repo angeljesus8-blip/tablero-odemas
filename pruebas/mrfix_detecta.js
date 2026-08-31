@@ -29,7 +29,7 @@ const codigos = fs.readFileSync(path.join(__dirname, '..', 'acc_codigos.js'), 'u
    `SKUS_REP` se saca del propio HTML y no se reescribe aqui: si se copiara, el
    dia que cambie como se parte la lista —hoy por coma, espacio o salto— esta
    prueba seguiria probando la version vieja y diria que todo va bien. */
-function motor(skusRep){
+function motor(skusRep, storeId){
   const trozo = (nombre) => {
     const i = html.indexOf('function ' + nombre + '(');
     if(i < 0) throw new Error('no encuentro ' + nombre + ' en captura_series.html');
@@ -40,6 +40,16 @@ function motor(skusRep){
     }
     return html.slice(i, k + 1);
   };
+  /* Igual que SKUS_REP y ACC_SKUS: las declaraciones se traen del HTML en vez
+     de copiarse. `ACC_RE_PIE` es el ancla del pie del ticket y se construye con
+     el numero de tienda; copiarla aqui seria probar una version congelada que
+     seguiria diciendo que todo va bien el dia que cambie. */
+  const declConst = (nombre) => {
+    const i = html.indexOf('const ' + nombre + ' =');
+    if(i < 0) throw new Error('no encuentro `const ' + nombre + '` en captura_series.html');
+    return html.slice(i, html.indexOf(';', i) + 1);
+  };
+
   const decl = html.indexOf('var SKUS_REP =');
   if(decl < 0) throw new Error('no encuentro `var SKUS_REP =` en captura_series.html');
   const finDecl = html.indexOf(';', decl);
@@ -51,12 +61,19 @@ function motor(skusRep){
   if(dAcc < 0) throw new Error('no encuentro `var ACC_SKUS =` en captura_series.html');
   const finAcc = html.indexOf(';', dAcc);
 
-  const caja = { _cfgCS: { sku_reparacion: skusRep }, _accTipo: 'acc' };
+  /* `store_id` va aqui porque el ancla del pie del ticket se construye con el
+     numero de tienda, no con un `1217` escrito en el codigo: cada tienda lo
+     tiene distinto. Los tickets de `pruebas/` son de la 1217, asi que la sesion
+     simulada tiene que decir 1217 o no casaria el pie — y sin pie no hay fecha
+     ni folio. Ese es justo el caso que cubre `sin sesion de tienda` mas abajo. */
+  const caja = { _cfgCS: { sku_reparacion: skusRep, store_id: storeId || '1217' },
+                 _accTipo: 'acc', RegExp, String };
   vm.createContext(caja);
   /* `accPartirSkus` va aparte desde el 24-ago: SKUS_REP dejo de ser constante
      porque `abrirAcc` lo refresca del servidor, y partir la lista se saco a su
      propia funcion. Se traen las dos del HTML, sin copiar ninguna. */
   vm.runInContext(codigos + '\n' +
+    declConst('ACC_TIENDA') + '\n' + declConst('ACC_RE_PIE') + '\n' +
     trozo('accPartirSkus') + '\n' +
     html.slice(dAcc, finAcc + 1) + '\n' + html.slice(decl, finDecl + 1) + '\n' +
     /* `accCodigos` se carga aunque `accQueEs` ya no lo use: si alguien vuelve
@@ -434,6 +451,29 @@ if(flojo.precio === 1013 || (flojo.precio != null && flojo.precio < 100)){
   }
   if(Math.abs((rep.importe || 0) - 1145.47) > 0.01){
     fallos.push('mixto/reparacion: importe ' + rep.importe + ' y la reparacion vale 1145.47');
+  }
+}
+
+/* ── Con el numero de OTRA tienda, la fecha se salva por el respaldo ────
+   `ACC_RE_PIE` se arma con el numero de tienda de la sesion, asi que el pie del
+   ticket —«1217 2 23/8/26 11:44 AM 33671»— no casa si la sesion dice 9999. Es
+   el caso normal en una copia que usan varias tiendas, y tambien lo que pasa
+   cuando el OCR lee mal un digito de ese numero.
+
+   Lo que se comprueba es que ahi entre el RESPALDO. Sin el, la fecha se queda
+   vacia y la venta se guarda con la de HOY: en un corte mensual, un ticket de
+   fin de mes se contabiliza en el mes siguiente y esa comision se paga en el
+   periodo equivocado. */
+{
+  const otra = motor(REP_A + ',' + REP_B, '9999');
+  const r = otra.extraer(T_REAL_REP, 'rep');
+  if(r.fecha !== '23/8/26'){
+    fallos.push('numero de tienda distinto: perdio la fecha ("' + r.fecha + '"). ' +
+                'La venta se guardaria con la de hoy');
+  }
+  if(!r.importe || Math.abs(r.importe - 1124.39) > 0.01){
+    fallos.push('numero de tienda distinto: perdio el importe (' + r.importe + '). ' +
+                'La linea del articulo no depende del pie y no deberia caerse con el');
   }
 }
 

@@ -265,6 +265,50 @@ function renderMenuCards(role) {
   document.getElementById('menuCards').innerHTML = html;
 }
 
+/* Entrar a OTRA tienda en el mismo teléfono (29-ago-2026)
+   ────────────────────────────────────────────────────────
+   En la tienda donde nació esto no podía pasar: había una sola. Aquí sí — un
+   gerente que cubre dos, un teléfono que se hereda, una demo.
+
+   El problema es que los cachés no llevan la tienda en el nombre: son
+   `odemas_catalogo`, `odemas_promos`, `odemas_inv_cache`… Sin limpiarlos, el
+   asesor entra a su tienda y ve el catálogo, los precios y el stock de la
+   anterior. Y no da error de nada: cotiza, promete una pieza y la pieza no
+   está. Se limpian al entrar, que es el único momento en que se sabe que la
+   tienda cambió.
+
+   Las COLAS no se tocan. Son ventas capturadas que aún no llegaron a Supabase,
+   y borrarlas es perder ventas — el fallo del 1-ago otra vez. Se avisa, porque
+   quien puede subirlas es alguien con la sesión de la tienda que las capturó. */
+function olvidarCachesDeOtraTienda(nuevoStoreId) {
+  let anterior = null;
+  // Sesión ilegible: se trata como "no había ninguna" y no se borra nada. Sin
+  // saber de qué tienda venían los cachés, tirarlos sería tirar los de la
+  // tienda a la que se está entrando.
+  try { anterior = (JSON.parse(localStorage.getItem('hes_store') || 'null') || {}).store_id; }
+  catch (e) {}   // ilegible = "no había tienda anterior", y no se borra nada
+  if (!anterior || String(anterior) === String(nuevoStoreId)) return;
+
+  ['odemas_catalogo', 'odemas_promos', 'odemas_eol_venta', 'odemas_inv_cache',
+   'odemas_promos_cache', 'odemas_bundles_cache', 'odemas_series_v1',
+   'odemas_vend', 'odemas_captura_borrador', 'odemas_venta_abierta',
+   'hes' + anterior + '_comisiones'
+    // Una clave que no se deja borrar no detiene a las demás: quedarse a medias
+    // es peor que seguir, porque mezcla datos de las dos tiendas.
+  ].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+
+  const pendientes = ['odemas_sb_pend', 'odemas_pending', 'odemas_cola_a_supabase']
+    .reduce(function (n, k) {
+      try { const v = JSON.parse(localStorage.getItem(k) || '[]');
+            return n + (Array.isArray(v) ? v.length : 0); } catch (e) { return n; }
+    }, 0);
+  if (pendientes) {
+    alert('Ojo: quedan ' + pendientes + ' captura(s) sin subir de la tienda ' +
+          anterior + '. No se han borrado, pero desde esta sesión no se pueden ' +
+          'subir. Vuelve a entrar como ' + anterior + ' para mandarlas.');
+  }
+}
+
 function applyStoreConfig(cfg, role) {
   document.getElementById('storeLabel').textContent = 'HES ' + cfg.store_id + ' · ' + cfg.nombre;
   // Si entró con su número de empleado, se le saluda por su nombre
@@ -369,7 +413,7 @@ async function pinCheck(auto) {
     const porTienda = await sb.rpc('login_asesor', { p_pin: pin });
     if (porTienda.error) {
       console.warn('login_asesor no disponible, usando el modo anterior:', porTienda.error.message);
-      const vieja = await sb.from('tiendas').select('store_id,nombre,ciudad,gas_url,gas_token,vendedores,sku_reparacion').eq('store_id', pin).eq('activo', true).maybeSingle();
+      const vieja = await sb.from('tiendas').select('store_id,nombre,ciudad,gas_token,vendedores,sku_reparacion').eq('store_id', pin).eq('activo', true).maybeSingle();
       data = vieja.data;
     } else {
       data = uno(porTienda.data);
@@ -383,10 +427,23 @@ async function pinCheck(auto) {
     pinLimpiar();
     return;
   }
-  // gas_token: sin esto el Apps Script rechaza cada llamada del tablero. Lo
-  // devuelven login_asesor y login_empleado; se arma el objeto campo por campo,
-  // asi que hay que nombrarlo o se pierde en silencio.
-  const cfg = { store_id:data.store_id, nombre:data.nombre, ciudad:data.ciudad||'', gas_url:data.gas_url||'', gas_token:data.gas_token||'', hoja_auth:data.hoja_auth||'', sheet_url:data.sheet_url||'', vendedores:Array.isArray(data.vendedores)?data.vendedores:[], sku_reparacion:data.sku_reparacion||'' };
+  /* OJO al tocar esto: la sesión se arma CAMPO POR CAMPO, así que un campo que
+     devuelvan `login_asesor`/`login_empleado` y no esté nombrado aquí se pierde
+     en silencio. Ya pasó con `gas_token`, y dejó el tablero sin datos en
+     producción sin dar un solo error. Hay DOS `cfg` (este y el del gerente) más
+     las `COLS` de más abajo: los tres van juntos.
+
+     · gas_token — credencial de ESCRITURA de Supabase. El nombre es herencia
+       del Apps Script, que ya no existe; la exigen 36 funciones vía
+       `escritura_ok_`, así que sin esto la tienda no guarda nada.
+     · hoja_auth — quién está autorizado a abrir el concentrado de ventas
+       (`captura_series.html`, DESCARGA_AUTORIZADA).
+     · sku_reparacion — sin él, Captura de Series no distingue una reparación de
+       un accesorio al leer el ticket y la detección se apaga sin avisar. */
+  const cfg = { store_id:data.store_id, nombre:data.nombre, ciudad:data.ciudad||'', gas_token:data.gas_token||'', hoja_auth:data.hoja_auth||'', vendedores:Array.isArray(data.vendedores)?data.vendedores:[], sku_reparacion:data.sku_reparacion||'' };
+  // Antes de pisar la sesion: si la tienda cambia, los caches de la
+  // anterior no valen (ver olvidarCachesDeOtraTienda).
+  olvidarCachesDeOtraTienda(cfg.store_id);
   localStorage.setItem('hes_store', JSON.stringify(cfg));
   localStorage.setItem('hes_role', 'asesor');
   // Quién entró: lo usan el tablero y Captura de Series para no preguntar el nombre
@@ -415,7 +472,7 @@ async function doLogin() {
   // de Series distinguir sola una reparacion de un accesorio al leer el ticket.
   // Sin el en esta lista llega vacio al telefono del asesor, la deteccion se
   // apaga y el asesor vuelve a elegir a mano — sin que nada diga por que.
-  const COLS = 'store_id,nombre,ciudad,gas_url,gas_token,sheet_url,hoja_auth,vendedores,sku_reparacion';
+  const COLS = 'store_id,nombre,ciudad,gas_token,hoja_auth,vendedores,sku_reparacion';
   let tienda = (await sb.from('tiendas').select(COLS).eq('user_id', data.user.id).maybeSingle()).data;
   let ficha = null;
 
@@ -435,9 +492,13 @@ async function doLogin() {
       : 'Este correo no está dado de alta en ninguna tienda. Pide al gerente que registre tu correo en Admin → Equipo.');
     return;
   }
-  const cfg = { store_id:tienda.store_id, nombre:tienda.nombre, ciudad:tienda.ciudad||'', gas_url:tienda.gas_url||'', gas_token:tienda.gas_token||'', sheet_url:tienda.sheet_url||'', hoja_auth:tienda.hoja_auth||'', vendedores:Array.isArray(tienda.vendedores)?tienda.vendedores:[], sku_reparacion:tienda.sku_reparacion||'' };
+  // El segundo `cfg`: mismos campos que el del asesor, y por el mismo motivo.
+  const cfg = { store_id:tienda.store_id, nombre:tienda.nombre, ciudad:tienda.ciudad||'', gas_token:tienda.gas_token||'', hoja_auth:tienda.hoja_auth||'', vendedores:Array.isArray(tienda.vendedores)?tienda.vendedores:[], sku_reparacion:tienda.sku_reparacion||'' };
   // Quien entra por su ficha se identifica igual que si hubiera usado su número
   const rol = (!ficha || ficha.admin) ? 'gerente' : 'asesor';
+  // Antes de pisar la sesion: si la tienda cambia, los caches de la
+  // anterior no valen (ver olvidarCachesDeOtraTienda).
+  olvidarCachesDeOtraTienda(cfg.store_id);
   localStorage.setItem('hes_store', JSON.stringify(cfg));
   localStorage.setItem('hes_role', rol);
   /* El puesto viaja igual que por el otro login (9-ago-2026). El tablero decide
@@ -495,7 +556,13 @@ async function doRegister() {
   btn.disabled = false; btn.textContent = 'Crear cuenta';
   if (error) { showErr('regErr', error.message.includes('already')?'Este correo ya está registrado. Inicia sesión.':error.message); return; }
   if (data.user && !_modoEquipo) {
-    const { error:eT } = await sb.from('tiendas').insert({ user_id:data.user.id, store_id:storeId, nombre, ciudad, gas_url:'', vendedores:[], admin_pin:storeId });
+    /* El token de escritura NO se manda desde aquí: lo pone la base sola
+       (`tiendas.gas_token` tiene DEFAULT, ver supabase_token_alta.sql). Escrito
+       por el navegador acabaría siendo el número de tienda o algo igual de
+       adivinable, y esa cadena es lo único que separa a quien puede guardar
+       ventas de quien no. Sin esto la tienda se registra y no puede vender:
+       `escritura_ok_` rechaza todo lo que llegue sin token. */
+    const { error:eT } = await sb.from('tiendas').insert({ user_id:data.user.id, store_id:storeId, nombre, ciudad, vendedores:[], admin_pin:storeId });
     if (eT && eT.code==='23505') { showErr('regErr','El ID de tienda '+storeId+' ya está registrado.'); return; }
   }
   const ok = document.getElementById('regOk');

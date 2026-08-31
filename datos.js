@@ -1,15 +1,15 @@
 /* ============================================================
-   TABLERO DEL EQUIPO — HES 1217 Angelópolis
+   TABLERO DEL EQUIPO — Odemás
    Archivo de estructura. INTENCIONALMENTE VACÍO.
 
    Este archivo es público: cualquiera puede pedirlo en
-   angeljesus8-blip.github.io/tablero-hes1217/datos.js
+   usuario.github.io/tablero-odemas/datos.js
    Hasta el 1-ago-2026 traía 105 SKUs con stock, los 24 EOL con sus precios
    y las referencias a los comunicados internos que los sustentaban.
 
    Los datos ahora llegan del Apps Script, que exige token desde que se cerró
    el endpoint, y el tablero los guarda en el celular de quien entró
-   (localStorage, clave hes1217_inv_cache, con caducidad de 72 h).
+   (localStorage, clave odemas_inv_cache, con caducidad de 72 h).
 
    El código ya sabía trabajar así: aplicarInventario, aplicarEol,
    aplicarPromos y aplicarAvisos agregan lo que no está local, así que partir

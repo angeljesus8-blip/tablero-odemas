@@ -259,7 +259,7 @@ END $do$;
 --   n_faltan > 0
 --     -> ESAS ventas están en la hoja y NO en Supabase. Es lo grave: el
 --        inventario del tablero está mostrando piezas de más. Mirar la cola de
---        Captura de Series (localStorage.hes1217_sb_pend) en los celulares.
+--        Captura de Series (localStorage.odemas_sb_pend) en los celulares.
 --
 --   n_sobran > 0
 --     -> están aquí y no en la hoja. Suele ser una prueba sin borrar. Las

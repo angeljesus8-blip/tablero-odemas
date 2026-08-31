@@ -62,13 +62,19 @@
 
 <header>
   <h1>Accesorios y reparaciones</h1>
-  <p id="sub">HES Angelópolis 1217</p>
+  <p id="sub">Consulta para técnicos</p>
 </header>
 
 <main>
   <!-- Entrada -->
   <div class="caja" id="cajaClave">
-    <label for="clave">Tu clave de acceso</label>
+    <!-- La tienda se pregunta porque esta pantalla NO tiene sesion: el tecnico
+         entra solo con su clave, desde su propio telefono, sin pasar por el
+         menu. Antes iba escrita en el codigo, que con una sola tienda daba
+         igual y con varias dejaria fuera a todas menos una. -->
+    <label for="tienda">Número de tienda</label>
+    <input id="tienda" type="text" inputmode="numeric" autocomplete="off" placeholder="ej: 1217">
+    <label for="clave" style="margin-top:12px;display:block">Tu clave de acceso</label>
     <input id="clave" type="password" autocomplete="off" placeholder="la que te dieron en la tienda">
     <p class="nota" style="margin:8px 0 10px">Solo da acceso a esta consulta.</p>
     <button class="btn" onclick="entrar()">Entrar</button>
@@ -102,13 +108,17 @@
   </div>
 </main>
 
-<footer>Odemás · Grupo Gigante — HES 1217</footer>
+<footer>Odemás · Grupo Gigante</footer>
 
 <script>
 const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
 const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
-const TIENDA = '1217';
+/* La tienda ya no va escrita aqui: la teclea el tecnico junto con su clave y
+   se guarda con ella. Con una sola tienda daba igual; con varias, un numero
+   fijo dejaria fuera a todas menos una. */
 const CKEY = 'mrfix_clave';
+const TKEY = 'mrfix_tienda';
+let TIENDA = '';
 const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO',
                'AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 const $ = id => document.getElementById(id);
@@ -169,8 +179,16 @@ function llenarMeses(){
 
 async function entrar(){
   const c = $('clave').value.trim();
+  const tn = $('tienda').value.trim();
   if(!c) return;
-  CLAVE = c;
+  if(!tn){
+    // Sin tienda la consulta iria contra una cadena vacia y devolveria cero
+    // filas: se leeria como "clave mala" y el tecnico cambiaria lo que no es.
+    $('errClave').textContent = 'Falta el número de tienda.';
+    $('errClave').style.display = 'block';
+    return;
+  }
+  CLAVE = c; TIENDA = tn;
   $('errClave').style.display = 'none';
 
   /* Se comprueba pidiendo datos: con clave mala la función devuelve cero filas
@@ -189,7 +207,7 @@ async function entrar(){
   const b = a.hay ? a : await mesDe(ant);
 
   if(a.roto || (!a.hay && !b.hay)){
-    CLAVE = '';
+    CLAVE = ''; TIENDA = '';
     $('errClave').textContent = a.roto
       ? porQue(falloA)
       : 'Esa clave no es válida, o no hay nada registrado todavía.';
@@ -197,16 +215,17 @@ async function entrar(){
     return;
   }
 
-  try{ localStorage.setItem(CKEY, CLAVE); }catch(e){}   // si no se puede guardar, se pedirá otra vez
+  // La tienda se guarda con la clave: van juntas o no sirve ninguna.
+  try{ localStorage.setItem(CKEY, CLAVE); localStorage.setItem(TKEY, TIENDA); }catch(e){}   // si no se puede guardar, se pedirá otra vez
   $('cajaClave').style.display = 'none';
   $('cajaDatos').style.display = 'block';
   cargar();
 }
 
 function salir(){
-  try{ localStorage.removeItem(CKEY); }catch(e){}   // igual: peor caso, sigue pidiendo la clave
-  CLAVE = ''; FILAS = []; REPS = [];   // las dos: si no, el siguiente que entre vería lo del anterior
-  $('clave').value = '';
+  try{ localStorage.removeItem(CKEY); localStorage.removeItem(TKEY); }catch(e){}   // igual: peor caso, sigue pidiendo la clave
+  CLAVE = ''; TIENDA = ''; FILAS = []; REPS = [];   // todas: si no, el siguiente que entre vería lo del anterior
+  $('clave').value = ''; $('tienda').value = '';
   $('cajaDatos').style.display = 'none';
   $('cajaClave').style.display = 'block';
 }
@@ -313,11 +332,17 @@ function esc(s){
     .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
-// Si ya entró antes, no se le vuelve a pedir la clave.
+/* Si ya entró antes, no se le vuelve a pedir nada. Hacen falta LAS DOS cosas:
+   con la clave sola y sin tienda, `entrar()` se cortaría pidiendo el número, y
+   el técnico vería su clave ya escrita junto a un error — como si la clave
+   fuera el problema. Guardar una sin la otra no sirve de nada. */
 (function(){
-  let g = '';
-  try{ g = localStorage.getItem(CKEY) || ''; }catch(e){}   // sin localStorage se pide y ya
-  if(g){ $('clave').value = g; entrar(); }
+  let g = '', tn = '';
+  try{
+    g  = localStorage.getItem(CKEY) || '';
+    tn = localStorage.getItem(TKEY) || '';
+  }catch(e){}   // sin localStorage se pide y ya: no hay nada que avisar
+  if(g && tn){ $('clave').value = g; $('tienda').value = tn; entrar(); }
 })();
 </script>
 </body>

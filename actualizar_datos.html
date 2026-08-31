@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#D12026">
-<title>Actualizar datos de tienda · HES 1217</title>
+<title>Actualizar datos de tienda</title>
 <link rel="apple-touch-icon" href="logo_odemas.png">
 <style>
   /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
@@ -77,14 +77,14 @@
 <div id="gate">
   <img src="logo_odemas.png" alt="Odemás">
   <h1>Actualizar datos</h1>
-  <div class="sub">HES 1217 · Catálogo e inventario</div>
+  <div class="sub">Catálogo e inventario</div>
   <div class="q">¿Quién actualiza?</div>
   <div class="names" id="gateNames"></div>
 </div>
 
 <header>
   <img src="logo_odemas.png" alt="Odemás">
-  <div class="h-txt"><h1>Actualizar datos de tienda</h1><p>HES 1217 · Angelópolis</p></div>
+  <div class="h-txt"><h1>Actualizar datos de tienda</h1><p id="subTienda"></p></div>
 </header>
 
 <main>
@@ -121,58 +121,29 @@
 </main>
 
 <script>
-const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbwbZFsiDqZrNitPKNLqr4r6xOFu3VKprtXJacScftIJmcQdAl_yytjxK8BymWvy8I1gjA/exec';
-
 // Config de la sesión. Antes había aquí una lista de nombres completos, en un
 // archivo público, y elegir uno era todo el "control de acceso". Ahora la
 // identidad sale del login que ya validó Supabase.
 const _cfgAD = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
 
-/* Sesión de antes del candado (1-ago-2026): no trae gas_token. Hoy el Apps
-   Script todavía la deja pasar porque GAS_ESTRICTO está en false, pero en cuanto
-   se cierre, CADA llamada se rechaza. Se avisa desde que abre la app, no a media
-   captura, y sin sacar a nadie a la fuerza: el enlace lo decide la persona. */
-(function(){
-  var _c = _cfgAD;
-  if(!_c || !_c.store_id || _c.gas_token) return;
-  function _pintar(){
-    var b = document.createElement('div');
-    b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
-      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
-      + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
-    b.innerHTML = '⚠ Tu sesión es de antes y va a dejar de funcionar. '
-      + '<a href="index.html" style="color:#D12026">Vuelve a entrar</a>'
-      + ' — no se pierde nada de lo que tengas capturado.';
-    document.body.insertBefore(b, document.body.firstChild);
-  }
-  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', _pintar);
-  else _pintar();
-})();
-
+/* Esta pantalla SUBE datos, asi que sin clave de escritura no hace nada: el
+   inventario, las promos y el catalogo se rechazan uno por uno. Se avisa al
+   abrir y no despues de esperar a que suba un Excel de 200 SKU. */
 const GAS_TOKEN = (_cfgAD && _cfgAD.gas_token) || '';
-const gasQS = qs => CLOUD_URL + '?' + qs + (GAS_TOKEN ? '&t=' + encodeURIComponent(GAS_TOKEN) : '');
-const gasPost = () => CLOUD_URL + (GAS_TOKEN ? '?t=' + encodeURIComponent(GAS_TOKEN) : '');
 
-/* Sube al Apps Script y DICE si funcionó. Antes iba con mode:'no-cors', que deja
-   la respuesta opaca: el navegador no permite leerla, así que la app daba por
-   bueno cualquier envío — incluso uno rechazado. Así se perdieron ventas el
-   1-ago-2026 sin que nadie lo notara hasta el día siguiente.
-   El Apps Script responde con Access-Control-Allow-Origin:*, o sea que no-cors
-   nunca hizo falta: solo nos dejaba ciegos. Lanza si algo salió mal; quien llama
-   ya tiene su try/catch y lo muestra en pantalla. */
-async function gasEnviar(payload){
-  const res = await fetch(gasPost(), { method:'POST',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify(payload) });
-  let r = null;
-  try{ r = JSON.parse(await res.text()); }catch(e){}   // no-JSON: cae en los if de abajo
-  if(!res.ok) throw new Error('la nube respondió ' + res.status);
-  if(r && r.error === 'no_autorizado')
-    throw new Error('la nube rechazó la sesión — sal y vuelve a entrar desde el menú');
-  if(!r || r.ok === false)
-    throw new Error((r && r.error) ? String(r.error) : 'la nube no confirmó el guardado');
-  return r;
-}
+// Que tienda se esta actualizando. Subir el inventario a la tienda equivocada
+// no da error: cambia los precios y el stock de otra gente.
+(function(){
+  var el = document.getElementById('subTienda');
+  if(!el) return;
+  var id = (_cfgAD && _cfgAD.store_id) || '';
+  el.textContent = id ? ('HES ' + id + ((_cfgAD && _cfgAD.nombre) ? ' · ' + _cfgAD.nombre : ''))
+                      : 'Sin sesión de tienda';
+})();
+/* Aqui vivian `gasQS`, `gasPost` y `gasEnviar`, la subida al Apps Script.
+   Las cargas pasaron a Supabase el 7-ago y desde entonces no las llamaba
+   nadie: lo unico que seguían haciendo era conservar la URL del Apps Script
+   de otra tienda dentro de un archivo publico. */
 
 /* ---- Las cargas van a Supabase desde el 7-ago-2026 ----
    Subir el Excel ya no pasa por la hoja. Lo que se gana no es velocidad: es que
@@ -190,7 +161,7 @@ const SB_KEY_AD = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
 async function sbCarga(fn, params){
   const store = (_cfgAD && _cfgAD.store_id) || '';
   if(!store) throw new Error('no hay sesión — entra desde el menú');
-  if(!GAS_TOKEN) throw new Error('tu sesión es vieja — sal y vuelve a entrar desde el menú');
+  if(!GAS_TOKEN) throw new Error('tu tienda no tiene clave de escritura — nada de lo que subas se va a guardar');
 
   let res;
   try{
@@ -430,18 +401,8 @@ $('btnPromo').onclick = async () => {
   $('btnPromo').textContent=prev; $('btnPromo').disabled=false;
 };
 function showResultP(ok, html){ const r=$('resultPromo'); r.innerHTML=html; r.className='result show '+(ok?'ok':'bad'); }
-function jsonp(url){
-  return new Promise((res, rej) => {
-    const cb = 'cb_' + Date.now();
-    const s = document.createElement('script');
-    const t = setTimeout(() => { cleanup(); rej(new Error('timeout')); }, 15000);
-    function cleanup(){ clearTimeout(t); delete window[cb]; s.remove(); }
-    window[cb] = d => { cleanup(); res(d); };
-    s.onerror = () => { cleanup(); rej(new Error('error')); };
-    s.src = url + (url.includes('?')?'&':'?') + 'callback=' + cb;
-    document.head.appendChild(s);
-  });
-}
+/* Aqui vivia `jsonp`, la unica forma que quedaba de leer del Apps Script.
+   Ninguna funcion la llamaba. */
 </script>
 </body>
 </html>

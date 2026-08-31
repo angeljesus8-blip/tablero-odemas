@@ -19,20 +19,16 @@
 
 
 -- ── 1 · Los cupos (12 SKUs, 37 piezas) ──────────────────
-INSERT INTO public.preventa_cupo (store_id, sku, cupo) VALUES
-  ('1217', '100307448', 4),   -- Graphite Black
-  ('1217', '100307464', 5),   -- Blush Gold
-  ('1217', '100307481', 2),   -- Blaze Purple
-  ('1217', '100307499', 6),   -- Orange Ocean
-  ('1217', '100307501', 3),   -- Coconut White
-  ('1217', '100307510', 4),   -- Mulberry Black
-  ('1217', '100307536', 2),   -- Guava Soda
-  ('1217', '100307641', 4),   -- Orange Soda
-  ('1217', '100307544', 2),   -- Mulberry Black
-  ('1217', '100307561', 2),   -- Coconut White
-  ('1217', '100307595', 2),   -- Orange Soda
-  ('1217', '100307616', 1)   -- Guava Soda
-ON CONFLICT (store_id, sku) DO UPDATE SET cupo = EXCLUDED.cupo;
+-- Aqui iban los cupos de un embarque concreto: doce SKU con las piezas que le
+-- tocaron a esa tienda. No se siembran. El cupo es lo que impide apartar mas
+-- piezas de las que van a llegar, asi que un cupo heredado de otra tienda hace
+-- exactamente el dano que esta tabla existe para evitar: prometerle a un
+-- cliente una pieza que no viene.
+--
+--   INSERT INTO public.preventa_cupo (store_id, sku, cupo)
+--   VALUES ('<tu-tienda>', '<sku>', <piezas>)
+--   ON CONFLICT (store_id, sku) DO UPDATE SET cupo = excluded.cupo;
+
 
 
 -- ── 2 · Que cancelar no cuente contra el cupo ───────────────

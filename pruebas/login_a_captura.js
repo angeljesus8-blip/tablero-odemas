@@ -17,8 +17,11 @@
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const raiz = path.join(__dirname, '..');
 
-/* Respuesta real de login_empleado (9-ago-2026), sin el gas_token ni las URLs:
-   este repo es público. Lo que importa es la FORMA.
+/* Respuesta real de login_empleado (9-ago-2026), con el token cambiado: este
+   repo es público. Lo que importa es la FORMA.
+
+   La tienda también es inventada. `gas_url` y `sheet_url` ya no salen de aquí
+   ni se guardan en la sesión: no hay Apps Script ni hoja de Google.
 
    Los nombres son INVENTADOS desde el 28-ago-2026 — antes eran los del equipo,
    que es justo lo que este comentario decía estar evitando. Lo que se conserva
@@ -26,13 +29,12 @@ const raiz = path.join(__dirname, '..');
    acentos— y una que difiere del nombre oficial en UNA letra («bravvo» contra
    «Bravo»), que es el caso que descuadró las comisiones de agosto. */
 const RESPUESTA_ASESOR = [{
-  store_id: '1217', nombre: 'Angelópolis', ciudad: 'Puebla',
-  gas_url: 'https://script.google.com/macros/s/XXXX/exec',
+  store_id: '9999', nombre: 'Tienda de prueba', ciudad: 'Ciudad',
   vendedores: ['Jorge Medina Rejon', 'Luis de Jesus Ortega Vidal',
                'Elena Navarro Galvez', 'Maria Fuentes bravvo', 'Ana Ramirez solis'],
   emp_no: '1000004', emp_nombre: 'Jorge Medina Rejón',
   emp_puesto: 'Asesor de Tienda', emp_admin: false,
-  gas_token: 'xxxx', hoja_auth: 'Elena Navarro Galvez', sheet_url: 'https://docs.google.com/x',
+  gas_token: 'xxxx', hoja_auth: 'Elena Navarro Galvez',
 }];
 
 const fallos = [];
@@ -55,7 +57,7 @@ vm.createContext(cajaMenu);
 vm.runInContext(lineaCfg + "\nglobalThis.__cfg = cfg;", cajaMenu, { filename:'index-cfg.js' });
 const cfg = cajaMenu.__cfg;
 
-ok('la sesión guarda la tienda',        cfg.store_id === '1217', JSON.stringify(cfg.store_id));
+ok('la sesión guarda la tienda',        cfg.store_id === '9999', JSON.stringify(cfg.store_id));
 ok('la sesión guarda el token',         !!cfg.gas_token);
 ok('la sesión guarda los 5 del equipo', Array.isArray(cfg.vendedores) && cfg.vendedores.length === 5,
    (cfg.vendedores || []).length + ' nombres');

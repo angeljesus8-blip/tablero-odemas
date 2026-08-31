@@ -697,10 +697,23 @@ def r_personales():
     que es precisamente lo que hizo falta para llegar hasta aquí.)"""
     datos = _datos_equipo()
     if datos is None:
-        falla('datos', 'no se pudo leer %s, así que no hay contra qué comparar. '
-                       'Créalo (ver MAPA.md) o esta regla no comprueba nada — y '
-                       'callar aquí es dar permiso para publicar los nombres.'
-              % PRIVADO)
+        # `_privado/` está en .gitignore, así que en GitHub Actions NUNCA existe:
+        # ahí esta regla no puede comprobar nada, y fallar por ello dejaría el
+        # job en rojo en cada push. Un rojo permanente no se lee, y entonces
+        # tampoco se leen los rojos que sí importan.
+        #
+        # La protección de verdad corre en la máquina de quien commitea, que es
+        # donde el archivo existe y donde el pre-commit puede detener el envío.
+        # Es el mismo reparto que la regla `copia`.
+        if os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI'):
+            aviso('datos', 'aquí no existe %s (no se versiona), así que los '
+                           'nombres del equipo no se comprueban. Eso pasa en tu '
+                           'máquina, antes del commit.' % PRIVADO)
+        else:
+            falla('datos', 'no se pudo leer %s, así que no hay contra qué '
+                           'comparar. Cópialo de %s.ejemplo y pon los datos de '
+                           'tu equipo — callar aquí es dar permiso para '
+                           'publicar los nombres.' % (PRIVADO, PRIVADO))
         return
     apellidos, numeros = datos
 
@@ -831,8 +844,12 @@ def r_cadenas():
         if len(cfgs) < 2:
             aviso('cadena', 'index.html: esperaba dos "const cfg"; revisa a mano '
                             'que ambos caminos de login guarden lo mismo')
+        # `gas_url` ya no está en la lista: no hay Apps Script al que apuntar.
+        # `gas_token` SÍ sigue, y no por herencia: es la credencial de escritura
+        # de Supabase (`escritura_ok_`, 36 funciones). Sin ella en la sesión, la
+        # tienda consulta bien y pierde en silencio todo lo que capture.
         for n, bloque in enumerate(cfgs, 1):
-            for campo in ('store_id', 'gas_url', 'gas_token', 'vendedores'):
+            for campo in ('store_id', 'gas_token', 'hoja_auth', 'vendedores'):
                 if campo not in bloque:
                     falla('cadena', 'index.html: el cfg #%d no guarda "%s"; quien '
                                     'entre por ahí se queda sin él (MAPA cadena 1)'

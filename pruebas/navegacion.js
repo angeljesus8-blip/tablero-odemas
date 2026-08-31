@@ -30,7 +30,7 @@ function abrirPagina(pagina, hash, tipoNav){
   global.innerHeight = 800;
   global.scrollTo = (x, y) => { global.scrollY = y; };
   global.location = {
-    pathname:'/tablero-hes1217/' + pagina, search:'', hash:hash || '',
+    pathname:'/tablero-odemas/' + pagina, search:'', hash:hash || '',
     replace(u){ global.__irA = { modo:'replace', url:u }; },
     set href(u){ global.__irA = { modo:'href', url:u }; }, get href(){ return ''; }
   };
