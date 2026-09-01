@@ -47,9 +47,22 @@ CREATE TABLE IF NOT EXISTS public.tiendas (
   -- `vendedores`: se compara letra por letra.
   hoja_auth  text,
 
-  -- El equipo, para los desplegables. Array de verdad y no "a,b,c": partir una
-  -- cadena por comas rompe con los nombres compuestos.
-  vendedores text[] NOT NULL DEFAULT '{}',
+  /* El equipo, para los desplegables. Array de verdad y no "a,b,c": partir una
+     cadena por comas rompe con los nombres compuestos.
+
+     jsonb y NO text[]. Los dos aguantan lo que hace la app —PostgREST convierte
+     el array de JavaScript a cualquiera de los dos, y `to_jsonb()` de vuelta
+     tambien—, asi que la diferencia no se ve al usarla: se ve al pegar el SQL.
+     `supabase_hoja_auth.sql` comprueba el nombre con
+     `jsonb_array_elements_text(vendedores)`, que con text[] truena con
+     «function jsonb_array_elements_text(text[]) does not exist» y **corta el
+     pegado a la mitad** (31-ago-2026, montando la primera copia).
+
+     jsonb es ademas lo que hay en la tienda de origen: ahi ya se intento
+     `unnest(vendedores)` dando por hecho que era text[] y fallo al reves
+     («function unnest(jsonb) does not exist», 4-ago-2026). Que las dos bases
+     tengan el mismo tipo es lo que permite copiar un SQL de una a otra. */
+  vendedores jsonb NOT NULL DEFAULT '[]'::jsonb,
 
   -- Codigos con los que el POS cobra una reparacion, separados por coma. Los
   -- lee Captura de Series del ticket para saber sola si la linea es reparacion
@@ -71,6 +84,46 @@ CREATE TABLE IF NOT EXISTS public.tiendas (
 
   creada_en  timestamptz NOT NULL DEFAULT now()
 );
+
+/* ── 1-bis · Y para una base que YA tiene la tabla ──────────
+   `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya existe: no anade
+   columnas ni cambia tipos. Asi que en una base donde `tiendas` se creo antes
+   —la tienda de origen, o un pegado que se corto a la mitad— todo lo de arriba
+   no hace NADA, y el pegado sigue como si estuviera puesto.
+
+   Paso el 31-ago-2026: el primer intento creo `tiendas` con `vendedores
+   text[]`, y al repegar el archivo corregido la columna seguia siendo text[]
+   —el CREATE no se aplica— y volvia a morir en el mismo sitio.
+
+   Por eso cada columna se repite aqui como ALTER. Es redundante a proposito:
+   el CREATE describe la tabla, esto la arregla donde ya estaba. */
+ALTER TABLE public.tiendas
+  ADD COLUMN IF NOT EXISTS user_id        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS ciudad         text,
+  ADD COLUMN IF NOT EXISTS gas_token      text NOT NULL DEFAULT replace(gen_random_uuid()::text, '-', ''),
+  ADD COLUMN IF NOT EXISTS hoja_auth      text,
+  ADD COLUMN IF NOT EXISTS vendedores     jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS sku_reparacion text,
+  ADD COLUMN IF NOT EXISTS admin_pin      text,
+  ADD COLUMN IF NOT EXISTS asesor_pin     text,
+  ADD COLUMN IF NOT EXISTS app_url        text,
+  ADD COLUMN IF NOT EXISTS activo         boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS creada_en      timestamptz NOT NULL DEFAULT now();
+
+/* El tipo, no solo la existencia. Si la columna ya estaba como `text[]`, el
+   ADD COLUMN de arriba no hace nada y se queda mal. Con `USING to_jsonb(...)`
+   la convierte sin perder los nombres, y si ya es jsonb no cambia nada. */
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'tiendas'
+                AND column_name = 'vendedores' AND data_type <> 'jsonb') THEN
+    ALTER TABLE public.tiendas
+      ALTER COLUMN vendedores DROP DEFAULT,
+      ALTER COLUMN vendedores TYPE jsonb USING to_jsonb(vendedores),
+      ALTER COLUMN vendedores SET DEFAULT '[]'::jsonb;
+  END IF;
+END $$;
 
 COMMENT ON TABLE public.tiendas IS
   'Una fila por tienda. Todo lo demas cuelga de store_id.';

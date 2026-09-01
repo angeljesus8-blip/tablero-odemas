@@ -31,12 +31,38 @@ No hace falta Google Apps Script ni hoja de cálculo. **Todo vive en Supabase.**
 
 ## Montar la base
 
+**1. Crea el proyecto** en supabase.com → *New project*. Guarda la contraseña de
+la base: no la usa la app, pero es el único acceso por fuera y **Supabase no la
+vuelve a enseñar**.
+
+**2. Activa la extensión `http`** — Database → Extensions → `http`. La usa
+`notificar()` para hablarle a OneSignal. Sin ella el pegado del SQL **revienta a
+la mitad** con `schema "extensions" does not exist`, y la base queda montada
+a medias.
+
+**3. Pega el SQL:**
+
 ```powershell
 python armar_sql.py -v     # genera supabase_TODO.sql y dice por qué va en ese orden
 ```
 
-Y se pega **entero** en el SQL Editor de Supabase. Luego se cambian `SUPABASE_URL`
-y `SUPABASE_KEY` en las páginas por las del proyecto nuevo.
+Se pega **entero** en el SQL Editor, de una vez.
+
+**4. Apunta las páginas a tu proyecto** — Settings → API, copia el *Project URL*
+y la clave **publicable** (`sb_publishable_…`, nunca la `service_role`):
+
+```powershell
+python configurar.py                                    # a qué proyecto apunta hoy
+python configurar.py https://xxxx.supabase.co sb_publishable_xxxx
+```
+
+La URL está escrita en **diez archivos**, con cinco nombres de variable
+distintos. Cambiarlos a mano y olvidar uno no da error: esa pantalla sigue
+funcionando **contra la base equivocada**, y una venta capturada ahí descuenta
+stock de otra tienda. `verificar.py` no deja publicar mientras alguno siga
+apuntando al proyecto de origen.
+
+**5. Sube `VERSION` en `sw.js`** — cambiaron los `.html`.
 
 **No pegues los `.sql` sueltos a ojo.** No son un esquema: son la historia de
 parches de una tienda, y **14 funciones están definidas en más de un archivo**

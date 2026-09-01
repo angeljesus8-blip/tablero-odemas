@@ -150,8 +150,45 @@ CREATE TABLE IF NOT EXISTS public.apartados (
   con_seguro boolean     NOT NULL DEFAULT false,
   estatus    text        NOT NULL DEFAULT 'Apartado',
   vendedor   text,
-  creado_en  timestamptz NOT NULL DEFAULT now()
+  creado_en  timestamptz NOT NULL DEFAULT now(),
+
+  /* 31-ago-2026 · Las ocho de abajo estaban en la base de la tienda de origen
+     y NO aquí, igual que le pasó a `tiendas.vendedores`. Tres de ellas
+     —color, precio, transaccion— no las creaba ningún archivo: se añadieron a
+     mano en el panel y el `create table` nunca se actualizó, así que la tabla
+     versionada llevaba meses sin describir la tabla de verdad.
+
+     Las otras cinco sí se añaden más abajo (preventa_series, apartados_traspaso)
+     pero DESPUÉS de que `inventario_vivo` las use, y una función `LANGUAGE sql`
+     se valida al crearse: el pegado moría en «column a.venta_id does not
+     exist», con la base a medio montar.
+
+     Declararlas aquí no rompe nada donde ya existen —este CREATE es IF NOT
+     EXISTS y los ALTER de más abajo son IF NOT EXISTS— y quita la dependencia
+     de orden, que es la que no se ve venir. */
+  color       text,         -- el producto entero, tal como se apartó
+  precio      numeric(12,2),
+  transaccion text,         -- ticket del POS: el enlace con la venta
+
+  serie         text,       -- la pieza concreta, al asignarla del embarque
+  asignado_en   timestamptz,
+  entregado_en  timestamptz,
+  entregado_por text,       -- quien la entregó, que no siempre es el vendedor
+  venta_id      bigint      -- la venta que la entregó; sin ella se contaría dos veces
 );
+
+-- Y las mismas como ALTER, por la misma razón que en supabase_00_tiendas.sql:
+-- donde `apartados` ya existe —la tienda de origen, o un pegado que se cortó a
+-- la mitad— el CREATE de arriba no hace nada y las columnas seguirían faltando.
+ALTER TABLE public.apartados
+  ADD COLUMN IF NOT EXISTS color         text,
+  ADD COLUMN IF NOT EXISTS precio        numeric(12,2),
+  ADD COLUMN IF NOT EXISTS transaccion   text,
+  ADD COLUMN IF NOT EXISTS serie         text,
+  ADD COLUMN IF NOT EXISTS asignado_en   timestamptz,
+  ADD COLUMN IF NOT EXISTS entregado_en  timestamptz,
+  ADD COLUMN IF NOT EXISTS entregado_por text,
+  ADD COLUMN IF NOT EXISTS venta_id      bigint;
 
 CREATE OR REPLACE FUNCTION public.apartado_cabe()
 RETURNS trigger LANGUAGE plpgsql AS $$

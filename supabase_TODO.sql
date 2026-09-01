@@ -63,9 +63,22 @@ CREATE TABLE IF NOT EXISTS public.tiendas (
   -- `vendedores`: se compara letra por letra.
   hoja_auth  text,
 
-  -- El equipo, para los desplegables. Array de verdad y no "a,b,c": partir una
-  -- cadena por comas rompe con los nombres compuestos.
-  vendedores text[] NOT NULL DEFAULT '{}',
+  /* El equipo, para los desplegables. Array de verdad y no "a,b,c": partir una
+     cadena por comas rompe con los nombres compuestos.
+
+     jsonb y NO text[]. Los dos aguantan lo que hace la app —PostgREST convierte
+     el array de JavaScript a cualquiera de los dos, y `to_jsonb()` de vuelta
+     tambien—, asi que la diferencia no se ve al usarla: se ve al pegar el SQL.
+     `supabase_hoja_auth.sql` comprueba el nombre con
+     `jsonb_array_elements_text(vendedores)`, que con text[] truena con
+     «function jsonb_array_elements_text(text[]) does not exist» y **corta el
+     pegado a la mitad** (31-ago-2026, montando la primera copia).
+
+     jsonb es ademas lo que hay en la tienda de origen: ahi ya se intento
+     `unnest(vendedores)` dando por hecho que era text[] y fallo al reves
+     («function unnest(jsonb) does not exist», 4-ago-2026). Que las dos bases
+     tengan el mismo tipo es lo que permite copiar un SQL de una a otra. */
+  vendedores jsonb NOT NULL DEFAULT '[]'::jsonb,
 
   -- Codigos con los que el POS cobra una reparacion, separados por coma. Los
   -- lee Captura de Series del ticket para saber sola si la linea es reparacion
@@ -87,6 +100,46 @@ CREATE TABLE IF NOT EXISTS public.tiendas (
 
   creada_en  timestamptz NOT NULL DEFAULT now()
 );
+
+/* ── 1-bis · Y para una base que YA tiene la tabla ──────────
+   `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya existe: no anade
+   columnas ni cambia tipos. Asi que en una base donde `tiendas` se creo antes
+   —la tienda de origen, o un pegado que se corto a la mitad— todo lo de arriba
+   no hace NADA, y el pegado sigue como si estuviera puesto.
+
+   Paso el 31-ago-2026: el primer intento creo `tiendas` con `vendedores
+   text[]`, y al repegar el archivo corregido la columna seguia siendo text[]
+   —el CREATE no se aplica— y volvia a morir en el mismo sitio.
+
+   Por eso cada columna se repite aqui como ALTER. Es redundante a proposito:
+   el CREATE describe la tabla, esto la arregla donde ya estaba. */
+ALTER TABLE public.tiendas
+  ADD COLUMN IF NOT EXISTS user_id        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS ciudad         text,
+  ADD COLUMN IF NOT EXISTS gas_token      text NOT NULL DEFAULT replace(gen_random_uuid()::text, '-', ''),
+  ADD COLUMN IF NOT EXISTS hoja_auth      text,
+  ADD COLUMN IF NOT EXISTS vendedores     jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS sku_reparacion text,
+  ADD COLUMN IF NOT EXISTS admin_pin      text,
+  ADD COLUMN IF NOT EXISTS asesor_pin     text,
+  ADD COLUMN IF NOT EXISTS app_url        text,
+  ADD COLUMN IF NOT EXISTS activo         boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS creada_en      timestamptz NOT NULL DEFAULT now();
+
+/* El tipo, no solo la existencia. Si la columna ya estaba como `text[]`, el
+   ADD COLUMN de arriba no hace nada y se queda mal. Con `USING to_jsonb(...)`
+   la convierte sin perder los nombres, y si ya es jsonb no cambia nada. */
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'tiendas'
+                AND column_name = 'vendedores' AND data_type <> 'jsonb') THEN
+    ALTER TABLE public.tiendas
+      ALTER COLUMN vendedores DROP DEFAULT,
+      ALTER COLUMN vendedores TYPE jsonb USING to_jsonb(vendedores),
+      ALTER COLUMN vendedores SET DEFAULT '[]'::jsonb;
+  END IF;
+END $$;
 
 COMMENT ON TABLE public.tiendas IS
   'Una fila por tienda. Todo lo demas cuelga de store_id.';
@@ -151,9 +204,10 @@ SELECT store_id, nombre FROM public.tiendas
      · la app sabe QUIÉN entró (sirve para autollenar el vendedor en
        Captura de Series y para firmar los apartados de preventa).
 
-   Nota: los números de empleado son casi consecutivos (747851, 747854),
-   así que quien conozca uno puede probar los vecinos. Es mucho mejor
-   que el PIN impreso en el cartel, pero no es un secreto fuerte.
+   Nota: los números de empleado de una misma tienda suelen ser casi
+   consecutivos, así que quien conozca uno puede probar los vecinos. Es
+   mucho mejor que el PIN impreso en el cartel, pero no es un secreto
+   fuerte.
    ============================================================ */
 
 -- ── 1. Tabla de empleados por tienda ────────────────────────────────
@@ -184,6 +238,14 @@ create policy "el dueno administra a su gente"
 
 -- ── 2. Login por número de empleado ─────────────────────────────────
 -- Devuelve la config de la tienda MÁS quién es la persona. Nunca el admin_pin.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.login_empleado(text);
+
 create or replace function public.login_empleado(p_pin text)
 returns table (
   store_id   text,
@@ -211,41 +273,59 @@ $$;
 
 grant execute on function public.login_empleado(text) to anon, authenticated;
 
--- ── 3. El equipo de la 1217 ─────────────────────────────────────────
--- Números del reporte "Comisiones HES" de Sonar; el de Laura lo dio Ángel
--- (ojo: el de Laura es de 5 dígitos, no de 6 como el resto).
-insert into public.empleados (store_id, empno, nombre, puesto) values
-  ('1217', '749608', 'Ángel de Jesús Perea Arias',    'Gerente de Tienda'),
-  ('1217', '973345', 'Miguel Ángel García Gutiérrez', 'Subgerente de Tienda'),
-  ('1217', '747854', 'Arnulfo González Arrieta',      'Asesor de Tienda'),
-  ('1217', '747851', 'Arturo Aguilar Rosete',         'Asesor de Tienda'),
-  ('1217', '11857',  'Laura Bonilla Galán',           'Asesor de Tienda')
-on conflict (store_id, empno) do nothing;
+-- ── 3. El equipo ────────────────────────────────────────────────────
+/* AQUÍ NO VAN NOMBRES. Este repo es público, y una lista de empleados con
+   nombre completo y número lo es de las dos formas que importan: identifica
+   a personas, y el número ES la llave con la que entran a la app.
 
--- Cinthya Nelly Saldaña Hernández (970431) YA NO trabaja en la tienda
--- (confirmado por Ángel el 30-jul-2026), aunque siga apareciendo en el
--- reporte de comisiones de Sonar. No se registra.
+   El alta se hace en **Admin → 👥 Equipo**, que escribe en esta misma tabla
+   y no exige tocar SQL. Es el camino normal: no hace falta ningún empleado
+   registrado para abrir Admin la primera vez —el gerente entra con su sesión
+   de Supabase, la del correo con el que registró la tienda—.
+
+   Si aun así prefieres darlos de alta de golpe (un equipo grande, una
+   migración), esta es la forma. Escríbela en `_privado/equipo.sql`, que el
+   .gitignore deja fuera, y pégala después de este archivo — igual que el
+   mapeo de nombres del reporte, en supabase_accesorios_reporte.sql:
+
+     insert into public.empleados (store_id, empno, nombre, puesto) values
+       ('<tienda>', '<empno>', 'NOMBRE APELLIDOS', 'Gerente de Tienda'),
+       ('<tienda>', '<empno>', 'NOMBRE APELLIDOS', 'Asesor de Tienda')
+     on conflict (store_id, empno) do nothing;
+
+   El `puesto` se escribe tal cual: de él salen el permiso de corregir ventas
+   (`puede_gestionar_`) y lo que la app enseña a cada quien.
+
+   Ojo con los números: no todos tienen la misma longitud. En la tienda donde
+   nació esto había uno de 5 dígitos entre cuatro de 6, y el teclado de la app
+   —que entra solo al llegar a 6— tuvo que aprender a esperar. Copia el número
+   del reporte de comisiones, sin rellenarlo con ceros.
+
+   Y a quien ya no trabaje en la tienda, NO lo registres: aunque siga saliendo
+   en el reporte regional, aquí un número registrado es una puerta abierta. */
 
 -- ── 4. Comprobación ─────────────────────────────────────────────────
--- Cada uno debe poder entrar con su número:
-select emp_no, emp_nombre, emp_puesto, store_id from public.login_empleado('747851');
-select emp_no, emp_nombre from public.login_empleado('11857');   -- Laura, 5 dígitos
+-- Sustituye <empno> por el número de alguien ya dado de alta en Admin.
+-- Debe devolver su nombre, su puesto y su tienda:
+--   select emp_no, emp_nombre, emp_puesto, store_id
+--     from public.login_empleado('<empno>');
 
 -- Y un número que no existe no debe devolver nada:
 select count(*) as debe_ser_cero from public.login_empleado('123456');
 
--- Quién está registrado:
-select empno, nombre, puesto, activo from public.empleados where store_id='1217' order by nombre;
+-- Quién está registrado (todas las tiendas de esta base):
+select store_id, empno, nombre, puesto, activo
+  from public.empleados order by store_id, nombre;
 
 /* ============================================================
    CUANDO CONFIRMES QUE TODOS ENTRAN CON SU NÚMERO, se cierra la
    puerta compartida (el PIN de tienda) con esto:
 
-   -- update public.tiendas set asesor_pin = null where store_id = '1217';
+   -- update public.tiendas set asesor_pin = null where store_id = '<tienda>';
    -- drop function if exists public.login_asesor(text);
 
-   Mientras no lo hagas, el PIN 1217 sigue funcionando como respaldo,
-   para que nadie se quede fuera a media jornada.
+   Mientras no lo hagas, el PIN de tienda sigue funcionando como
+   respaldo, para que nadie se quede fuera a media jornada.
    ============================================================ */
 
 
@@ -284,6 +364,14 @@ comment on column public.tiendas.asesor_pin is
 -- ── 2. Login del asesor: valida el PIN y entrega solo lo necesario ───
 -- SECURITY DEFINER = corre con permisos del dueño de la función, así que
 -- puede leer la tabla aunque quien la llame no tenga permiso de lectura.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.login_asesor(text);
+
 create or replace function public.login_asesor(p_pin text)
 returns table (
   store_id   text,
@@ -370,10 +458,10 @@ where schemaname='public' and tablename='tiendas' order by cmd, policyname;
    Hoy Admin se abre con el PIN 1217, que está impreso en el QR: quien
    tenga el link puede editar promos, precios, EOL y comisiones.
    Con esto Admin se habilita según QUIÉN entró:
-     · Ángel, con su correo y contraseña (como hasta ahora), o con su
-       número de empleado;
-     · Miguel, con su número de empleado (es subgerente y también
-       necesita subir archivos);
+     · el gerente, con su correo y contraseña (como hasta ahora), o con
+       su número de empleado;
+     · el subgerente, con su número de empleado (también necesita subir
+       archivos);
      · el resto del equipo, no.
    El teclado del PIN desaparece de Admin.
 
@@ -388,8 +476,19 @@ alter table public.empleados add column if not exists admin boolean not null def
 comment on column public.empleados.admin is
   'true = esta persona puede abrir Admin (subir catálogo, promos, EOL, comisiones).';
 
-update public.empleados set admin = true
-where store_id = '1217' and empno in ('749608', '973345');   -- Ángel (gerente) y Miguel (subgerente)
+/* Quién administra se reparte desde **Admin → 👥 Equipo**, con un botón por
+   persona. Aquí no van números de empleado: este repo es público y el número
+   es la llave con la que esa persona entra a la app.
+
+   La primera vez no hace falta: el gerente abre Admin con su sesión de
+   Supabase —la del correo con el que registró la tienda— y desde ahí se lo da
+   a quien toque. Si alguna vez hay que hacerlo a mano, la forma es:
+
+     -- update public.empleados set admin = true
+     --  where store_id = '<tienda>' and empno in ('<empno>', '<empno>');
+
+   Dáselo a quien de verdad suba archivos. Admin carga inventario, promos y
+   comisiones de toda la tienda; no es una pantalla de consulta. */
 
 -- ── 2. El login ahora dice si la persona administra ─────────────────
 -- Se recrea porque cambia lo que devuelve (Postgres no deja cambiarlo al vuelo).
@@ -444,19 +543,18 @@ $$;
 grant execute on function public.puede_admin(text, text) to anon, authenticated;
 
 -- ── 4. Verificación ─────────────────────────────────────────────────
--- Ángel y Miguel deben dar true; Arturo, Arnulfo y Laura, false:
-select public.puede_admin('1217','749608') as angel_gerente,
-       public.puede_admin('1217','973345') as miguel_subgerente,
-       public.puede_admin('1217','747851') as arturo,
-       public.puede_admin('1217','11857')  as laura,
-       public.puede_admin('1217','999999') as inventado;
+-- Un número inventado NO puede administrar. Esto corre en una base recién
+-- montada, sin nadie dado de alta todavía, y tiene que dar false:
+select public.puede_admin('0000','999999') as inventado_no_administra;
 
--- El login debe traer ya la marca de admin:
-select emp_no, emp_nombre, emp_admin from public.login_empleado('973345');
-select emp_no, emp_nombre, emp_admin from public.login_empleado('11857');
+-- Con el equipo ya cargado desde Admin, quien administre debe dar true y el
+-- resto false. Sustituye <tienda> y <empno>:
+--   select public.puede_admin('<tienda>','<empno>') as administra;
+--   select emp_no, emp_nombre, emp_admin from public.login_empleado('<empno>');
 
--- Quién administra:
-select empno, nombre, puesto, admin from public.empleados where store_id='1217' order by admin desc, nombre;
+-- Quién administra hoy, en todas las tiendas de esta base:
+select store_id, empno, nombre, puesto, admin
+  from public.empleados order by admin desc, store_id, nombre;
 
 /* ============================================================
    PARA QUITAR O DAR ADMIN A ALGUIEN después:
@@ -475,11 +573,11 @@ select empno, nombre, puesto, admin from public.empleados where store_id='1217' 
    Correr en Supabase → SQL Editor → New query → Run.
    ------------------------------------------------------------
    HOY: solo el dueño de la tienda (el correo de tienda) puede
-   administrar. Miguel entra con su número, pero no puede tocar la
-   tabla del equipo.
+   administrar. El subgerente entra con su número, pero no puede tocar
+   la tabla del equipo.
 
-   CON ESTO: Miguel se registra con SU correo y, al entrar, la app lo
-   reconoce como parte del equipo de la 1217 con permiso de Admin.
+   CON ESTO: se registra con SU correo y, al entrar, la app lo reconoce
+   como parte del equipo de la tienda con permiso de Admin.
    Queda claro quién hizo cada cambio, y si se va se le quita el
    permiso sin cambiarle la contraseña a nadie más.
 
@@ -582,19 +680,24 @@ create policy "gerente o admin editan la tienda"
 
 -- Equipo: dar de alta, dar de baja y repartir permisos
 drop policy if exists "el dueno administra a su gente" on public.empleados;
+-- Y la de aquí mismo: sin esto, repegar el SQL falla con «policy already
+-- exists». Las dos de `tiendas` se libran porque el bloque de arriba las borra
+-- por nombre desde pg_policies, sean las que sean.
+drop policy if exists "gerente o admin administran al equipo" on public.empleados;
 create policy "gerente o admin administran al equipo"
   on public.empleados for all to authenticated
   using (public.admin_de(store_id))
   with check (public.admin_de(store_id));
 
--- ── 5. El correo de Miguel (cámbialo por el suyo real) ──────────────
--- Escríbelo aquí o, más fácil, desde Admin → 👥 Equipo.
--- update public.empleados set email = 'correo.de.miguel@ejemplo.com'
---  where store_id = '1217' and empno = '973345';
+-- ── 5. El correo de quien vaya a administrar ────────────────────────
+-- Lo normal es ponerlo desde Admin → 👥 Equipo (✉️ Poner correo). A mano:
+-- update public.empleados set email = 'su.correo@ejemplo.com'
+--  where store_id = '<tienda>' and empno = '<empno>';
 
 -- ── 6. Comprobación ─────────────────────────────────────────────────
-select empno, nombre, admin, activo, email, (user_id is not null) as ya_vinculo_su_cuenta
-from public.empleados where store_id='1217' order by admin desc, nombre;
+select store_id, empno, nombre, admin, activo, email,
+       (user_id is not null) as ya_vinculo_su_cuenta
+from public.empleados order by store_id, admin desc, nombre;
 
 select policyname, cmd from pg_policies
 where schemaname='public' and tablename in ('tiendas','empleados') order by tablename, cmd;
@@ -742,21 +845,35 @@ GRANT EXECUTE ON FUNCTION public.login_empleado(text) TO anon, authenticated;
 -- ------------------------------------------------------------
 -- PASO 5 · Comprobar que quedó, sin escribir el PIN aquí
 -- ------------------------------------------------------------
-SELECT
+-- Una fila por tienda registrada. En una base recién montada no hay ninguna
+-- todavía: cero filas aquí es lo normal, y el alta se hace desde la app
+-- (menú → Registrar tienda).
+SELECT t.store_id,
   (SELECT count(*) FROM public.login_asesor(coalesce(nullif(t.asesor_pin,''), t.store_id)))
     AS el_login_responde,
   (SELECT (l.hoja_auth IS NOT NULL) FROM public.login_asesor(coalesce(nullif(t.asesor_pin,''), t.store_id)) l)
     AS ya_entrega_hoja_auth,
   (SELECT (l.gas_token IS NOT NULL) FROM public.login_asesor(coalesce(nullif(t.asesor_pin,''), t.store_id)) l)
     AS sigue_trayendo_token
-FROM public.tiendas t WHERE t.store_id = '1217';
+FROM public.tiendas t ORDER BY t.store_id;
 
--- Y que el login del gerente tampoco se haya roto:
-SELECT count(*) AS empleados_que_entran,
-       count(*) FILTER (WHERE (SELECT l.hoja_auth FROM public.login_empleado(e.empno) l) IS NOT NULL)
-         AS con_hoja_auth,
-       count(*) FILTER (WHERE (SELECT l.gas_token FROM public.login_empleado(e.empno) l) IS NOT NULL)
-         AS con_token
+/* Y que el login por número de empleado tampoco se haya roto.
+
+   Dice en palabras si no hay a quién preguntarle: con la tabla `empleados`
+   vacía, la versión anterior devolvía «0, 0, 0» y eso se lee igual que «los
+   tres empleados que entran perdieron el token», que es un incendio. Una
+   comprobación que devuelve lo mismo cuando todo va bien y cuando todo va mal
+   no está comprobando nada. */
+SELECT CASE
+    WHEN count(*) = 0
+      THEN 'todavía no hay nadie dado de alta — normal en una base nueva; '
+           'se registran en Admin → Equipo'
+    WHEN count(*) FILTER (WHERE (SELECT l.gas_token FROM public.login_empleado(e.empno) l) IS NOT NULL) = count(*)
+      THEN 'los ' || count(*) || ' entran y todos reciben su clave de escritura'
+    ELSE '⚠ ' || count(*) FILTER (WHERE (SELECT l.gas_token FROM public.login_empleado(e.empno) l) IS NULL)
+         || ' de ' || count(*) || ' entran SIN clave de escritura: la app se '
+         || 'les ve entera y no guarda nada'
+  END AS login_por_numero
 FROM public.empleados e
 WHERE e.activo = true
   AND (SELECT count(*) FROM public.login_empleado(e.empno)) = 1;
@@ -782,7 +899,8 @@ WHERE e.activo = true
             login_empleado → 5 empleados entran, los 5 con hoja_auth y token,
                              2 admins. Nada se rompió.
 
-   FALTA: que Laura SALGA y vuelva a ENTRAR en Captura de Series. La sesión
+   FALTA: que la persona autorizada SALGA y vuelva a ENTRAR en Captura de
+   Series. La sesión
    se guarda en el aparato al entrar; con la vieja sigue sin hoja_auth y el
    botón sigue oculto aunque aquí ya esté todo bien.
    ============================================================ */
@@ -947,8 +1065,45 @@ CREATE TABLE IF NOT EXISTS public.apartados (
   con_seguro boolean     NOT NULL DEFAULT false,
   estatus    text        NOT NULL DEFAULT 'Apartado',
   vendedor   text,
-  creado_en  timestamptz NOT NULL DEFAULT now()
+  creado_en  timestamptz NOT NULL DEFAULT now(),
+
+  /* 31-ago-2026 · Las ocho de abajo estaban en la base de la tienda de origen
+     y NO aquí, igual que le pasó a `tiendas.vendedores`. Tres de ellas
+     —color, precio, transaccion— no las creaba ningún archivo: se añadieron a
+     mano en el panel y el `create table` nunca se actualizó, así que la tabla
+     versionada llevaba meses sin describir la tabla de verdad.
+
+     Las otras cinco sí se añaden más abajo (preventa_series, apartados_traspaso)
+     pero DESPUÉS de que `inventario_vivo` las use, y una función `LANGUAGE sql`
+     se valida al crearse: el pegado moría en «column a.venta_id does not
+     exist», con la base a medio montar.
+
+     Declararlas aquí no rompe nada donde ya existen —este CREATE es IF NOT
+     EXISTS y los ALTER de más abajo son IF NOT EXISTS— y quita la dependencia
+     de orden, que es la que no se ve venir. */
+  color       text,         -- el producto entero, tal como se apartó
+  precio      numeric(12,2),
+  transaccion text,         -- ticket del POS: el enlace con la venta
+
+  serie         text,       -- la pieza concreta, al asignarla del embarque
+  asignado_en   timestamptz,
+  entregado_en  timestamptz,
+  entregado_por text,       -- quien la entregó, que no siempre es el vendedor
+  venta_id      bigint      -- la venta que la entregó; sin ella se contaría dos veces
 );
+
+-- Y las mismas como ALTER, por la misma razón que en supabase_00_tiendas.sql:
+-- donde `apartados` ya existe —la tienda de origen, o un pegado que se cortó a
+-- la mitad— el CREATE de arriba no hace nada y las columnas seguirían faltando.
+ALTER TABLE public.apartados
+  ADD COLUMN IF NOT EXISTS color         text,
+  ADD COLUMN IF NOT EXISTS precio        numeric(12,2),
+  ADD COLUMN IF NOT EXISTS transaccion   text,
+  ADD COLUMN IF NOT EXISTS serie         text,
+  ADD COLUMN IF NOT EXISTS asignado_en   timestamptz,
+  ADD COLUMN IF NOT EXISTS entregado_en  timestamptz,
+  ADD COLUMN IF NOT EXISTS entregado_por text,
+  ADD COLUMN IF NOT EXISTS venta_id      bigint;
 
 CREATE OR REPLACE FUNCTION public.apartado_cabe()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -1150,6 +1305,14 @@ $$;
 --
 -- `exhib_restante` descuenta de la exhibición únicamente las ventas que se
 -- pasaron del almacén — las que solo pudieron salir del piso.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.eol_precio_venta(text);
+
 CREATE OR REPLACE FUNCTION public.eol_precio_venta(p_store text)
 RETURNS TABLE (sku text, precio50 numeric)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
@@ -1207,6 +1370,14 @@ $$;
 -- ------------------------------------------------------------
 -- 5 · AVISOS VIGENTES  ←  leerAvisos_
 -- ------------------------------------------------------------
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.avisos_vigentes(text);
+
 CREATE OR REPLACE FUNCTION public.avisos_vigentes(p_store text)
 RETURNS TABLE (id bigint, titulo text, detalle text, prioridad text,
                vigente_hasta date, creado_en timestamptz)
@@ -1246,6 +1417,14 @@ $$;
 -- ------------------------------------------------------------
 -- Sin fecha, las de hoy. Aquí el parámetro ya es DATE de verdad: se acabó
 -- mandar "2/8/2026" como texto y rezar que coincida letra por letra.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.ventas_detalle(text,date);
+
 CREATE OR REPLACE FUNCTION public.ventas_detalle(p_store text, p_fecha date DEFAULT NULL)
 RETURNS TABLE (serie text, sku text, descripcion text, precio numeric,
                vendedor text, con_seguro boolean, vendida_en timestamptz)
@@ -1416,6 +1595,14 @@ $$;
 --
 -- Los cancelados NO cuentan para el cupo pero SÍ se devuelven: el gerente tiene
 -- que poder ver que existieron.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.apartados_lista(text);
+
 CREATE OR REPLACE FUNCTION public.apartados_lista(p_store text)
 RETURNS TABLE (id bigint, sku text, cliente text, telefono text,
                piezas integer, con_seguro boolean, estatus text,
@@ -1927,6 +2114,11 @@ CREATE TRIGGER ventas_dia_venta_trg
 BEGIN;
 
 ALTER TABLE public.ventas DROP CONSTRAINT IF EXISTS ventas_store_id_serie_key;
+
+-- Y la propia, para poder repegar el SQL: `ADD CONSTRAINT` no tiene IF NOT
+-- EXISTS y la segunda vez falla con «constraint already exists». Va DENTRO de
+-- la transacción, así que no hay ni un instante sin la protección puesta.
+ALTER TABLE public.ventas DROP CONSTRAINT IF EXISTS ventas_serie_por_dia;
 
 ALTER TABLE public.ventas
   ADD CONSTRAINT ventas_serie_por_dia UNIQUE (store_id, serie, dia_venta);
@@ -4619,8 +4811,8 @@ GRANT EXECUTE ON FUNCTION public.ventas_hoy(text) TO anon, authenticated;
 
 
 -- ── 1 · Los nombres viejos, a su forma oficial ──────────────
--- Hasta hoy el vendedor del apartado se tecleaba a mano y quedaron "Maria",
--- "Jorge", "Miguel", mientras las ventas guardan el nombre completo desde la
+-- Hasta hoy el vendedor del apartado se tecleaba a mano y quedaron nombres
+-- sueltos —"Maria", "Jorge"—, mientras las ventas guardan el completo desde la
 -- sesión. Sumar unos con otros pondría a la misma persona dos veces en el
 -- leaderboard, como si fueran dos.
 --
@@ -4720,14 +4912,14 @@ GRANT EXECUTE ON FUNCTION public.ventas_hoy(text) TO anon, authenticated;
      · número de empleado → login_empleado() devuelve emp_puesto  ✅
      · correo y contraseña → vincular_mi_cuenta() NO lo devuelve   ❌
 
-   O sea que Miguel ve una cosa entrando con su número y otra
+   O sea que el subgerente ve una cosa entrando con su número y otra
    entrando con su correo, siendo la misma persona con el mismo
    puesto. Eso es exactamente el fallo de la cadena 1 del MAPA: el
    cliente puede nombrar el campo todo lo que quiera, si el servidor
    no lo entrega llega vacío y nadie se entera.
 
    MIENTRAS ESTO NO SE APLIQUE no se rompe nada: el tablero se apoya
-   en el rol de la sesión, así que Miguel sigue viendo Resurtir por
+   en el rol de la sesión, así que el subgerente sigue viendo Resurtir por
    su correo. Lo que esto arregla es que deje de depender de que
    además tenga el permiso de Admin marcado.
 
@@ -4778,23 +4970,23 @@ grant execute on function public.vincular_mi_cuenta() to authenticated;
 -- 1) Que nadie del equipo se haya quedado sin puesto. Si aparece algún
 --    NULL o vacío, esa persona NO vería Resurtir aunque sea subgerente:
 --    se arregla desde Admin → 👥 Equipo, o con el update de abajo.
-select empno, nombre, coalesce(nullif(trim(puesto),''), '⚠ SIN PUESTO') as puesto,
+select store_id, empno,
+       coalesce(nullif(trim(puesto),''), '⚠ SIN PUESTO') as puesto,
        admin, activo
   from public.empleados
- where store_id = '1217'
- order by activo desc, nombre;
+ order by store_id, activo desc, empno;
 
--- 2) Que el login por número siga trayéndolo (esta puerta ya funcionaba):
---    tiene que decir 'Subgerente de Tienda'.
-select emp_nombre, emp_puesto from public.login_empleado('973345');
+-- 2) Que el login por número siga trayéndolo (esta puerta ya funcionaba).
+--    Con el número del subgerente tiene que decir 'Subgerente de Tienda':
+--    select emp_nombre, emp_puesto from public.login_empleado('<empno>');
 
 -- 3) `vincular_mi_cuenta` NO se puede probar desde el SQL Editor: necesita
 --    una sesión de usuario (auth.uid()), y aquí no hay ninguna. Se comprueba
---    en la app: Miguel entra con su CORREO y tiene que ver 🔄 Resurtir.
+--    en la app: el subgerente entra con su CORREO y tiene que ver 🔄 Resurtir.
 
 -- Si a alguien le falta el puesto, se pone así (ejemplo):
 -- update public.empleados set puesto = 'Subgerente de Tienda'
---  where store_id = '1217' and empno = '973345';
+--  where store_id = '<tienda>' and empno = '<empno>';
 
 /* ============================================================
    Los puestos que la app reconoce como "lleva la tienda" son los
@@ -6836,6 +7028,9 @@ CREATE INDEX IF NOT EXISTS ventas_grupo ON public.ventas (store_id, grupo);
 -- Postgres deja las dos y PostgREST responde PGRST203 — o sea, DEJA DE GUARDAR
 -- VENTAS. Ya paso con esta misma funcion.
 DROP FUNCTION IF EXISTS public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean);
+-- 1-sep-2026 · Y la de la firma sin `p_token`, que es la que quedo en las bases
+-- montadas antes de que esta funcion pidiera la clave de escritura.
+DROP FUNCTION IF EXISTS public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text);
 
 CREATE OR REPLACE FUNCTION public.venta_guardar(
   p_store      text,
@@ -6852,7 +7047,22 @@ CREATE OR REPLACE FUNCTION public.venta_guardar(
   p_de_exhibicion boolean DEFAULT false,
   -- Con DEFAULT: una app en cache que aun no lo mande sigue guardando bien, y
   -- esa venta simplemente queda sin agrupar.
-  p_grupo      text    DEFAULT NULL
+  p_grupo      text    DEFAULT NULL,
+
+  /* LA CLAVE DE ESCRITURA (1-sep-2026). Esta era la unica escritura que no la
+     pedia: las otras 14 pasan por `escritura_ok_` desde el 4-ago. Sin ella,
+     cualquiera con la clave publicable —que va escrita en el HTML, que es
+     publico— podia insertar ventas en CUALQUIER tienda: descontar stock ajeno
+     y acreditarle comisiones a quien quisiera. En una tienda sola se notaba
+     poco; en una copia donde cada tienda tiene su `store_id`, es la puerta de
+     al lado.
+
+     Lleva DEFAULT NULL a proposito, y NO para dejar pasar a quien no lo manda:
+     sin DEFAULT, una app vieja en cache recibe un 404 de PostgREST («no
+     matches were found in the schema cache»), que se lee como «se cayo
+     Supabase». Con DEFAULT llega hasta el IF de abajo y le contesta que no
+     tiene permiso, que es lo que de verdad le pasa. */
+  p_token      text    DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $fn$
@@ -6862,6 +7072,11 @@ DECLARE
   m text[];
   nuevo bigint;
 BEGIN
+  -- Antes que nada: quien no trae la clave de la tienda, no escribe en ella.
+  IF NOT public.escritura_ok_(p_store, p_token) THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'sin permiso de escritura');
+  END IF;
+
   IF coalesce(trim(p_serie),'') = '' THEN
     RETURN jsonb_build_object('ok', false, 'error', 'sin serie');
   END IF;
@@ -6902,8 +7117,8 @@ EXCEPTION
     RETURN jsonb_build_object('ok', false, 'error', SQLSTATE || ': ' || left(SQLERRM, 140));
 END $fn$;
 
-REVOKE ALL ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text) FROM public;
-GRANT EXECUTE ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text)
+REVOKE ALL ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text,text) FROM public;
+GRANT EXECUTE ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text,text)
   TO anon, authenticated;
 
 

@@ -131,21 +131,35 @@ GRANT EXECUTE ON FUNCTION public.login_empleado(text) TO anon, authenticated;
 -- ------------------------------------------------------------
 -- PASO 5 · Comprobar que quedó, sin escribir el PIN aquí
 -- ------------------------------------------------------------
-SELECT
+-- Una fila por tienda registrada. En una base recién montada no hay ninguna
+-- todavía: cero filas aquí es lo normal, y el alta se hace desde la app
+-- (menú → Registrar tienda).
+SELECT t.store_id,
   (SELECT count(*) FROM public.login_asesor(coalesce(nullif(t.asesor_pin,''), t.store_id)))
     AS el_login_responde,
   (SELECT (l.hoja_auth IS NOT NULL) FROM public.login_asesor(coalesce(nullif(t.asesor_pin,''), t.store_id)) l)
     AS ya_entrega_hoja_auth,
   (SELECT (l.gas_token IS NOT NULL) FROM public.login_asesor(coalesce(nullif(t.asesor_pin,''), t.store_id)) l)
     AS sigue_trayendo_token
-FROM public.tiendas t WHERE t.store_id = '1217';
+FROM public.tiendas t ORDER BY t.store_id;
 
--- Y que el login del gerente tampoco se haya roto:
-SELECT count(*) AS empleados_que_entran,
-       count(*) FILTER (WHERE (SELECT l.hoja_auth FROM public.login_empleado(e.empno) l) IS NOT NULL)
-         AS con_hoja_auth,
-       count(*) FILTER (WHERE (SELECT l.gas_token FROM public.login_empleado(e.empno) l) IS NOT NULL)
-         AS con_token
+/* Y que el login por número de empleado tampoco se haya roto.
+
+   Dice en palabras si no hay a quién preguntarle: con la tabla `empleados`
+   vacía, la versión anterior devolvía «0, 0, 0» y eso se lee igual que «los
+   tres empleados que entran perdieron el token», que es un incendio. Una
+   comprobación que devuelve lo mismo cuando todo va bien y cuando todo va mal
+   no está comprobando nada. */
+SELECT CASE
+    WHEN count(*) = 0
+      THEN 'todavía no hay nadie dado de alta — normal en una base nueva; '
+           'se registran en Admin → Equipo'
+    WHEN count(*) FILTER (WHERE (SELECT l.gas_token FROM public.login_empleado(e.empno) l) IS NOT NULL) = count(*)
+      THEN 'los ' || count(*) || ' entran y todos reciben su clave de escritura'
+    ELSE '⚠ ' || count(*) FILTER (WHERE (SELECT l.gas_token FROM public.login_empleado(e.empno) l) IS NULL)
+         || ' de ' || count(*) || ' entran SIN clave de escritura: la app se '
+         || 'les ve entera y no guarda nada'
+  END AS login_por_numero
 FROM public.empleados e
 WHERE e.activo = true
   AND (SELECT count(*) FROM public.login_empleado(e.empno)) = 1;
@@ -171,7 +185,8 @@ WHERE e.activo = true
             login_empleado → 5 empleados entran, los 5 con hoja_auth y token,
                              2 admins. Nada se rompió.
 
-   FALTA: que Laura SALGA y vuelva a ENTRAR en Captura de Series. La sesión
+   FALTA: que la persona autorizada SALGA y vuelva a ENTRAR en Captura de
+   Series. La sesión
    se guarda en el aparato al entrar; con la vieja sigue sin hoja_auth y el
    botón sigue oculto aunque aquí ya esté todo bien.
    ============================================================ */

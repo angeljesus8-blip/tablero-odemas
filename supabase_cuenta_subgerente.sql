@@ -3,11 +3,11 @@
    Correr en Supabase → SQL Editor → New query → Run.
    ------------------------------------------------------------
    HOY: solo el dueño de la tienda (el correo de tienda) puede
-   administrar. Miguel entra con su número, pero no puede tocar la
-   tabla del equipo.
+   administrar. El subgerente entra con su número, pero no puede tocar
+   la tabla del equipo.
 
-   CON ESTO: Miguel se registra con SU correo y, al entrar, la app lo
-   reconoce como parte del equipo de la 1217 con permiso de Admin.
+   CON ESTO: se registra con SU correo y, al entrar, la app lo reconoce
+   como parte del equipo de la tienda con permiso de Admin.
    Queda claro quién hizo cada cambio, y si se va se le quita el
    permiso sin cambiarle la contraseña a nadie más.
 
@@ -110,19 +110,24 @@ create policy "gerente o admin editan la tienda"
 
 -- Equipo: dar de alta, dar de baja y repartir permisos
 drop policy if exists "el dueno administra a su gente" on public.empleados;
+-- Y la de aquí mismo: sin esto, repegar el SQL falla con «policy already
+-- exists». Las dos de `tiendas` se libran porque el bloque de arriba las borra
+-- por nombre desde pg_policies, sean las que sean.
+drop policy if exists "gerente o admin administran al equipo" on public.empleados;
 create policy "gerente o admin administran al equipo"
   on public.empleados for all to authenticated
   using (public.admin_de(store_id))
   with check (public.admin_de(store_id));
 
--- ── 5. El correo de Miguel (cámbialo por el suyo real) ──────────────
--- Escríbelo aquí o, más fácil, desde Admin → 👥 Equipo.
--- update public.empleados set email = 'correo.de.miguel@ejemplo.com'
---  where store_id = '1217' and empno = '973345';
+-- ── 5. El correo de quien vaya a administrar ────────────────────────
+-- Lo normal es ponerlo desde Admin → 👥 Equipo (✉️ Poner correo). A mano:
+-- update public.empleados set email = 'su.correo@ejemplo.com'
+--  where store_id = '<tienda>' and empno = '<empno>';
 
 -- ── 6. Comprobación ─────────────────────────────────────────────────
-select empno, nombre, admin, activo, email, (user_id is not null) as ya_vinculo_su_cuenta
-from public.empleados where store_id='1217' order by admin desc, nombre;
+select store_id, empno, nombre, admin, activo, email,
+       (user_id is not null) as ya_vinculo_su_cuenta
+from public.empleados order by store_id, admin desc, nombre;
 
 select policyname, cmd from pg_policies
 where schemaname='public' and tablename in ('tiendas','empleados') order by tablename, cmd;

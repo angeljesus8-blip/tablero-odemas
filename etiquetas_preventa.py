@@ -23,8 +23,8 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
-SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co'
-SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z'
+SB_URL = 'https://ecuqtqxmdehzbbsmlxrh.supabase.co'
+SB_KEY = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce'
 STORE  = '1217'
 
 BASE  = os.path.dirname(os.path.abspath(__file__))

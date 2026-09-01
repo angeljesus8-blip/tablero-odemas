@@ -11,14 +11,14 @@
      · número de empleado → login_empleado() devuelve emp_puesto  ✅
      · correo y contraseña → vincular_mi_cuenta() NO lo devuelve   ❌
 
-   O sea que Miguel ve una cosa entrando con su número y otra
+   O sea que el subgerente ve una cosa entrando con su número y otra
    entrando con su correo, siendo la misma persona con el mismo
    puesto. Eso es exactamente el fallo de la cadena 1 del MAPA: el
    cliente puede nombrar el campo todo lo que quiera, si el servidor
    no lo entrega llega vacío y nadie se entera.
 
    MIENTRAS ESTO NO SE APLIQUE no se rompe nada: el tablero se apoya
-   en el rol de la sesión, así que Miguel sigue viendo Resurtir por
+   en el rol de la sesión, así que el subgerente sigue viendo Resurtir por
    su correo. Lo que esto arregla es que deje de depender de que
    además tenga el permiso de Admin marcado.
 
@@ -69,23 +69,23 @@ grant execute on function public.vincular_mi_cuenta() to authenticated;
 -- 1) Que nadie del equipo se haya quedado sin puesto. Si aparece algún
 --    NULL o vacío, esa persona NO vería Resurtir aunque sea subgerente:
 --    se arregla desde Admin → 👥 Equipo, o con el update de abajo.
-select empno, nombre, coalesce(nullif(trim(puesto),''), '⚠ SIN PUESTO') as puesto,
+select store_id, empno,
+       coalesce(nullif(trim(puesto),''), '⚠ SIN PUESTO') as puesto,
        admin, activo
   from public.empleados
- where store_id = '1217'
- order by activo desc, nombre;
+ order by store_id, activo desc, empno;
 
--- 2) Que el login por número siga trayéndolo (esta puerta ya funcionaba):
---    tiene que decir 'Subgerente de Tienda'.
-select emp_nombre, emp_puesto from public.login_empleado('973345');
+-- 2) Que el login por número siga trayéndolo (esta puerta ya funcionaba).
+--    Con el número del subgerente tiene que decir 'Subgerente de Tienda':
+--    select emp_nombre, emp_puesto from public.login_empleado('<empno>');
 
 -- 3) `vincular_mi_cuenta` NO se puede probar desde el SQL Editor: necesita
 --    una sesión de usuario (auth.uid()), y aquí no hay ninguna. Se comprueba
---    en la app: Miguel entra con su CORREO y tiene que ver 🔄 Resurtir.
+--    en la app: el subgerente entra con su CORREO y tiene que ver 🔄 Resurtir.
 
 -- Si a alguien le falta el puesto, se pone así (ejemplo):
 -- update public.empleados set puesto = 'Subgerente de Tienda'
---  where store_id = '1217' and empno = '973345';
+--  where store_id = '<tienda>' and empno = '<empno>';
 
 /* ============================================================
    Los puestos que la app reconoce como "lleva la tienda" son los

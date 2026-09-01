@@ -6,10 +6,10 @@
    Hoy Admin se abre con el PIN 1217, que está impreso en el QR: quien
    tenga el link puede editar promos, precios, EOL y comisiones.
    Con esto Admin se habilita según QUIÉN entró:
-     · Ángel, con su correo y contraseña (como hasta ahora), o con su
-       número de empleado;
-     · Miguel, con su número de empleado (es subgerente y también
-       necesita subir archivos);
+     · el gerente, con su correo y contraseña (como hasta ahora), o con
+       su número de empleado;
+     · el subgerente, con su número de empleado (también necesita subir
+       archivos);
      · el resto del equipo, no.
    El teclado del PIN desaparece de Admin.
 
@@ -24,8 +24,19 @@ alter table public.empleados add column if not exists admin boolean not null def
 comment on column public.empleados.admin is
   'true = esta persona puede abrir Admin (subir catálogo, promos, EOL, comisiones).';
 
-update public.empleados set admin = true
-where store_id = '1217' and empno in ('749608', '973345');   -- Ángel (gerente) y Miguel (subgerente)
+/* Quién administra se reparte desde **Admin → 👥 Equipo**, con un botón por
+   persona. Aquí no van números de empleado: este repo es público y el número
+   es la llave con la que esa persona entra a la app.
+
+   La primera vez no hace falta: el gerente abre Admin con su sesión de
+   Supabase —la del correo con el que registró la tienda— y desde ahí se lo da
+   a quien toque. Si alguna vez hay que hacerlo a mano, la forma es:
+
+     -- update public.empleados set admin = true
+     --  where store_id = '<tienda>' and empno in ('<empno>', '<empno>');
+
+   Dáselo a quien de verdad suba archivos. Admin carga inventario, promos y
+   comisiones de toda la tienda; no es una pantalla de consulta. */
 
 -- ── 2. El login ahora dice si la persona administra ─────────────────
 -- Se recrea porque cambia lo que devuelve (Postgres no deja cambiarlo al vuelo).
@@ -80,19 +91,18 @@ $$;
 grant execute on function public.puede_admin(text, text) to anon, authenticated;
 
 -- ── 4. Verificación ─────────────────────────────────────────────────
--- Ángel y Miguel deben dar true; Arturo, Arnulfo y Laura, false:
-select public.puede_admin('1217','749608') as angel_gerente,
-       public.puede_admin('1217','973345') as miguel_subgerente,
-       public.puede_admin('1217','747851') as arturo,
-       public.puede_admin('1217','11857')  as laura,
-       public.puede_admin('1217','999999') as inventado;
+-- Un número inventado NO puede administrar. Esto corre en una base recién
+-- montada, sin nadie dado de alta todavía, y tiene que dar false:
+select public.puede_admin('0000','999999') as inventado_no_administra;
 
--- El login debe traer ya la marca de admin:
-select emp_no, emp_nombre, emp_admin from public.login_empleado('973345');
-select emp_no, emp_nombre, emp_admin from public.login_empleado('11857');
+-- Con el equipo ya cargado desde Admin, quien administre debe dar true y el
+-- resto false. Sustituye <tienda> y <empno>:
+--   select public.puede_admin('<tienda>','<empno>') as administra;
+--   select emp_no, emp_nombre, emp_admin from public.login_empleado('<empno>');
 
--- Quién administra:
-select empno, nombre, puesto, admin from public.empleados where store_id='1217' order by admin desc, nombre;
+-- Quién administra hoy, en todas las tiendas de esta base:
+select store_id, empno, nombre, puesto, admin
+  from public.empleados order by admin desc, store_id, nombre;
 
 /* ============================================================
    PARA QUITAR O DAR ADMIN A ALGUIEN después:

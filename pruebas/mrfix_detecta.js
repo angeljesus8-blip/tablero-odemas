@@ -252,7 +252,7 @@ const T_REAL_ACC = [
   'MICA HR',
   '000043739        1      149.000    $149.00  I',
   'IMEI / SERIE / SERVICIO: 43739-MICAHR',
-  'Atendido por:GARCIA SOTO,ANA'
+  'Atendido por:VARGAS SOTO,ANA'
 ].join('\n');
 
 const T_MIX = [
@@ -263,7 +263,7 @@ const T_MIX = [
   '100175545        1      1124.390   $1,124.39  I'
 ].join('\n');
 
-const T_NADA = 'ATENDIDO POR ARTURO\nTOTAL 149.00';
+const T_NADA = 'ATENDIDO POR ADRIAN\nTOTAL 149.00';
 
 const CASOS = [
   ['ticket REAL de reparacion',     queEs,         T_REAL_REP,  'rep', true ],
@@ -371,7 +371,7 @@ if(rota.fecha !== '23/8/26'){
    quedo en la parte del accesorio: en una reparacion se salia antes de llegar
    y el campo no se rellenaba nunca, con el nombre impreso en el papel. */
 const vend = queEs.extraer(T_REAL_REP).vend;
-if(!vend || vend.toUpperCase().indexOf('GARCIA') < 0){
+if(!vend || vend.toUpperCase().indexOf('VARGAS') < 0){
   fallos.push('no leyo quien atendio del ticket de reparacion (leyo "' + vend + '")');
 }
 {

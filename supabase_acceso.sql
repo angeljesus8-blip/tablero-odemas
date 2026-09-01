@@ -31,6 +31,14 @@ comment on column public.tiendas.asesor_pin is
 -- ── 2. Login del asesor: valida el PIN y entrega solo lo necesario ───
 -- SECURITY DEFINER = corre con permisos del dueño de la función, así que
 -- puede leer la tabla aunque quien la llame no tenga permiso de lectura.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.login_asesor(text);
+
 create or replace function public.login_asesor(p_pin text)
 returns table (
   store_id   text,

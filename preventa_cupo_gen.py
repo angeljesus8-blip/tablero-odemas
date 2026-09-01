@@ -64,7 +64,7 @@ PLANTILLA = u'''-- ============================================================
 --  Al correr esto, el tope empieza a aplicarse DE VERDAD: un apartado que se
 --  pase se rechaza con "Cupo agotado: X de Y piezas ya apartadas".
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto "HES" (ecuqtqxmdehzbbsmlxrh).
 --  Es idempotente.
 -- ============================================================
 

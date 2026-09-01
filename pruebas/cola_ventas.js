@@ -398,6 +398,54 @@ const ok = (t, c, extra) => { if(!c) fallos.push(t + (extra ? ' -> ' + extra : '
   }
 }
 
+/* ── 5 · La clave de escritura viaja con cada venta ─────────────────────
+   1-sep-2026: `venta_guardar` era la única escritura que no pedía token, así
+   que cualquiera con la clave publicable —que va en el HTML— podía insertar
+   ventas en cualquier tienda. Ahora el servidor la exige.
+
+   Esto se prueba porque el fallo sería MUDO al revés: si el cliente deja de
+   mandarlo, Supabase responde «sin permiso de escritura», la venta se queda en
+   la cola y el asesor no ve nada raro hasta que alguien mira el inventario.
+
+   Aquí `fetch` SÍ responde —al contrario que en los casos de arriba— para
+   poder mirar lo que se manda. */
+{
+  const enviados = [];
+  const ent = crearEntorno({
+    html,
+    ruta: '/t/captura_series.html',
+    ls: { hes_store: JSON.stringify(STORE), hes_empleado: JSON.stringify(EMP) },
+    fetch: (url, opciones) => {
+      if(String(url).indexOf('/rpc/venta_guardar') >= 0){
+        enviados.push(JSON.parse((opciones && opciones.body) || '{}'));
+        return Promise.resolve({ ok:true, status:200,
+                                 json: () => Promise.resolve({ ok:true, id:1 }) });
+      }
+      return Promise.reject(new Error('sin red'));
+    }
+  });
+  ok('la pantalla arranca con red', !ent.err, ent.err);
+  if(!ent.err){
+    ent.caja.setVend(EQUIPO[1]);
+    ent.el('serie').value = 'S-TOKEN-1'; ent.el('sku').value = '900001';
+    ent.el('precio').value = '999';
+    ent.el('btnAdd').onclick(); ent.caja.finalizarVenta(true);
+
+    ok('la venta se manda a Supabase', enviados.length >= 1,
+       'se mandaron ' + enviados.length);
+    if(enviados.length){
+      ok('y lleva la clave de escritura de la tienda',
+         enviados[0].p_token === STORE.gas_token,
+         'llegó ' + JSON.stringify(enviados[0].p_token));
+      /* El token se pone al ENVIAR, no al encolar: en la cola no debe quedar
+         una copia, que se guarda en el celular hasta que haya red. */
+      const cola = ent.lsJson('odemas_sb_pend') || [];
+      ok('y la cola no guarda copias del token',
+         cola.every(c => !c.p_token), 'quedó un token en la cola');
+    }
+  }
+}
+
 if(fallos.length){
   console.log('cola de ventas: ' + fallos.length + ' fallo(s)');
   fallos.forEach(f => console.log('   · ' + f));

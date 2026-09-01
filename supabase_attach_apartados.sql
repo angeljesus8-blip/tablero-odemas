@@ -23,8 +23,8 @@
 
 
 -- ── 1 · Los nombres viejos, a su forma oficial ──────────────
--- Hasta hoy el vendedor del apartado se tecleaba a mano y quedaron "Maria",
--- "Jorge", "Miguel", mientras las ventas guardan el nombre completo desde la
+-- Hasta hoy el vendedor del apartado se tecleaba a mano y quedaron nombres
+-- sueltos —"Maria", "Jorge"—, mientras las ventas guardan el completo desde la
 -- sesión. Sumar unos con otros pondría a la misma persona dos veces en el
 -- leaderboard, como si fueran dos.
 --

@@ -7,7 +7,7 @@
 
 Cada regla existe porque un error real llegó a producción. La fecha dice cuál.
 """
-import glob, io, json, os, re, subprocess, sys, tempfile
+import collections, glob, io, json, os, re, subprocess, sys, tempfile
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 HTML = ['index.html', 'tablero.html', 'captura_series.html', 'admin.html',
@@ -25,6 +25,20 @@ SUELTOS = ['prueba_ticket.html', 'accesorios_tecnico.html']
 # demás: si traen una llave, queda expuesta lo mismo que en un .html.
 GS = ['GAS_Codigo.gs', 'GAS_ventas_detalle.gs', 'GAS_arreglo_apartados.gs',
       'GAS_fechas.gs', 'GAS_guardian.gs', 'GAS_exportar.gs']
+
+# El proyecto de Supabase de la tienda de la que salió esta copia. Está escrito
+# aquí a propósito: es un identificador público —va en la URL de cada llamada
+# desde el navegador— y lo que hace falta es reconocerlo para no publicar una
+# copia que le escriba encima. Ver r_proyecto().
+ORIGEN = 'rjdrljtujbwooejrpyqv'
+
+# Lo que puede abrir una línea dentro de un CREATE TABLE sin ser una columna.
+# El tipo NO se compara contra una lista de tipos conocidos: `imagen bytea` no
+# estaba en la que había y esa columna quedaba invisible, que es peor —una
+# columna que la regla no ve, la da por inexistente—. Se acepta cualquier tipo
+# y se descartan estas palabras.
+NO_COLUMNA = {'primary', 'unique', 'constraint', 'foreign', 'check', 'exclude',
+              'like', 'references', 'deferrable', 'initially', 'not', 'default', 'on'}
 
 fallas, avisos = [], []
 def falla(regla, msg): fallas.append((regla, msg))
@@ -869,8 +883,8 @@ def r_cadenas():
     # 7a-bis · Lo que el cliente lee de la sesión, el login lo tiene que dar.
     # 2-ago-2026: index.html leía data.hoja_auth y login_asesor no lo devolvía.
     # Quedaba '' y `currentVend === DESCARGA_AUTORIZADA` era falso siempre, así
-    # que el botón de las ventas del día estuvo oculto para todos —incluida
-    # Laura, la única que lo usa— sin que nada fallara a la vista. El 1-ago se
+    # que el botón de las ventas del día estuvo oculto para todos —incluida la
+    # única persona que lo usa— sin que nada fallara a la vista. El 1-ago se
     # arregló el nombre del campo en el cliente y se dio por cerrado; el lado
     # del servidor nunca se tocó.
     if idx:
@@ -1439,11 +1453,421 @@ def r_funcion_repetida():
               % (fn, len(otros), ', '.join(otros)))
 
 
+def r_columna_nueva():
+    """Una columna añadida a un CREATE TABLE necesita ADEMÁS su ALTER.
+
+    31-ago-2026: se le añadieron ocho columnas a `apartados` y tres a `tiendas`
+    para que el SQL se pudiera montar desde cero. Pero `CREATE TABLE IF NOT
+    EXISTS` no toca una tabla que ya existe —ni añade columnas ni cambia
+    tipos—, así que en la base de la tienda de origen, y en la del intento que
+    se cortó a la mitad, esas columnas seguían sin aparecer y el pegado moría
+    exactamente igual que antes. El arreglo parecía puesto y no lo estaba.
+
+    Compara contra el último commit: columna que no estaba y ahora sí, tiene que
+    tener su `ADD COLUMN IF NOT EXISTS` en algún .sql. Solo mira lo que cambia,
+    que es cuando se comete el error."""
+    staged = '--staged' in sys.argv
+    cambiados = [c for c in git_cambiados(staged) if c.endswith('.sql')
+                 and c != 'supabase_TODO.sql']
+    if not cambiados: return
+
+    todo = '\n'.join(_sql_sin_comentarios(leer(p) or '')
+                     for p in sorted(os.listdir(BASE))
+                     if re.match(r'supabase_.*\.sql$', p) and p != 'supabase_TODO.sql')
+    con_alter = set()
+    for m in re.finditer(r'alter\s+table\s+(?:if\s+exists\s+)?(?:public\.)?(\w+)([^;]*);',
+                         todo, re.I | re.S):
+        for c in re.finditer(r'add\s+column\s+if\s+not\s+exists\s+(\w+)', m.group(2), re.I):
+            con_alter.add((m.group(1).lower(), c.group(1).lower()))
+
+    def columnas(texto):
+        out = collections.defaultdict(set)
+        for m in re.finditer(r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?(\w+)\s*\((.*?)\n\s*\);',
+                             _sql_sin_comentarios(texto), re.I | re.S):
+            for linea in m.group(2).split('\n'):
+                c = re.match(r'(\w+)\s+\w', linea.strip())
+                if c and c.group(1).lower() not in NO_COLUMNA:
+                    out[m.group(1).lower()].add(c.group(1).lower())
+        return out
+
+    for arch in cambiados:
+        ahora = leer(arch)
+        if ahora is None: continue
+        try:
+            r = subprocess.run(['git', 'show', 'HEAD:./' + arch], cwd=BASE,
+                               capture_output=True, timeout=20,
+                               encoding='utf-8', errors='replace')
+            if r.returncode != 0: continue          # archivo nuevo
+            antes = r.stdout or ''
+        except (OSError, subprocess.SubprocessError):
+            continue
+        viejas, nuevas = columnas(antes), columnas(ahora)
+        for tabla, cols in nuevas.items():
+            if tabla not in viejas: continue        # tabla nueva: nada que arreglar
+            for col in sorted(cols - viejas[tabla]):
+                if (tabla, col) not in con_alter:
+                    falla('columna-nueva',
+                          '%s añade `%s.%s` al CREATE TABLE, pero ningún .sql la '
+                          'añade con ALTER ... ADD COLUMN IF NOT EXISTS. Donde la '
+                          'tabla ya existe, el CREATE no hace nada y la columna '
+                          'no aparece — el arreglo parece puesto y no lo está.'
+                          % (arch, tabla, col))
+
+
+def r_repegable():
+    """Que el SQL se pueda pegar DOS veces. La segunda es la que importa.
+
+    31-ago-2026, montando la primera copia: el pegado murió tres veces, y la
+    tercera fue por esto — «42P13: cannot change return type of existing
+    function ... DROP FUNCTION login_empleado(text) first».
+
+    Es el error que solo aparece cuando ya hubo un intento. Un pegado que se
+    corta a la mitad deja media base creada, y el SQL Editor de Supabase no
+    siempre lo deshace; a partir de ahí, arreglar el archivo no basta: hay que
+    poder repegarlo entero sobre lo que quedó. Seis funciones se redefinen más
+    abajo con otras columnas y su PRIMERA definición no llevaba `DROP` delante,
+    así que chocaba con la versión que había dejado el intento anterior.
+
+    Lo mismo valía para una policy y un constraint, que tampoco tienen
+    `IF NOT EXISTS`.
+
+    Excepción reconocida: un bloque `DO $$ … execute format('drop policy …')`
+    que borra las políticas de una tabla por nombre desde `pg_policies`. Eso ya
+    deja limpio, sean las que sean, y es lo que hace `cuenta_subgerente`."""
+    try:
+        import armar_sql
+        fuentes = armar_sql.LISTA
+    except Exception:
+        aviso('repegar', 'no se pudo leer el orden de armar_sql.py; no se '
+                         'comprobó que el SQL se pueda pegar dos veces.')
+        return
+
+    texto, marcas, pos = [], [], 0
+    for n in fuentes:
+        s = leer(n)
+        if s is None: continue
+        marcas.append((pos, n)); texto.append(s + '\n'); pos += len(s) + 1
+    junto = ''.join(texto)
+    limpio = re.sub(r'--[^\n]*', lambda m: ' ' * len(m.group(0)), junto)
+    limpio = re.sub(r'/\*.*?\*/', lambda m: ' ' * len(m.group(0)), limpio, flags=re.S)
+
+    def archivo_de(p):
+        q = '?'
+        for ini, n in marcas:
+            if ini <= p: q = n
+            else: break
+        return q
+
+    def hay_antes(rx, hasta):
+        return bool(re.search(rx, limpio[:hasta], re.I))
+
+    # 1 · Funciones que cambian de tipo de retorno: TODAS sus definiciones
+    #     necesitan DROP delante, no solo las de después de la primera.
+    firmas = collections.defaultdict(list)
+    for m in re.finditer(r'create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\('
+                         r'(.*?)\)\s*returns\s+(.*?)(?:language|as\s*\$\$)',
+                         limpio, re.I | re.S):
+        firmas[m.group(1).lower()].append((m.start(), ' '.join(m.group(3).split()).lower()))
+    for fn, apariciones in sorted(firmas.items()):
+        if len({r for _, r in apariciones}) < 2: continue
+        for p, _ in apariciones:
+            if not hay_antes(r'drop\s+function\s+if\s+exists\s+(?:public\.)?%s\s*\('
+                             % re.escape(fn), p):
+                falla('repegar', '%s define `%s`, que en este mismo pegado se '
+                                 'redefine con otras columnas, y no lleva DROP '
+                                 'delante. Repegar da 42P13 y muere ahí.'
+                      % (archivo_de(p), fn))
+                break
+
+    # 2 · Policies: o DROP POLICY IF EXISTS por nombre, o el borrado dinámico.
+    for m in re.finditer(r'create\s+policy\s+("[^"]+"|\w+)\s+on\s+(?:public\.)?(\w+)',
+                         limpio, re.I):
+        nom, tabla = m.group(1).strip('"'), m.group(2)
+        if hay_antes(r'drop\s+policy\s+if\s+exists\s+"?%s"?\s+on\s+(?:public\.)?%s\b'
+                     % (re.escape(nom), re.escape(tabla)), m.start()):
+            continue
+        if hay_antes(r"execute\s+format\s*\(\s*'drop\s+policy[^']*'\s*,", m.start()):
+            continue                      # el bloque DO las borra todas por nombre
+        falla('repegar', '%s crea la policy «%s» sobre %s sin borrarla antes. '
+                         'Repegar da «policy already exists».'
+              % (archivo_de(m.start()), nom, tabla))
+
+    # 3 · Lo que no tiene IF NOT EXISTS y hay que borrar a mano.
+    for m in re.finditer(r'add\s+constraint\s+(\w+)', limpio, re.I):
+        nom = m.group(1)
+        if not hay_antes(r'drop\s+constraint\s+if\s+exists\s+%s\b' % re.escape(nom), m.start()):
+            falla('repegar', '%s añade el constraint `%s` sin borrarlo antes. '
+                             'Repegar da «constraint already exists».'
+                  % (archivo_de(m.start()), nom))
+    for m in re.finditer(r'create\s+(?:unique\s+)?index\s+(?!concurrently)'
+                         r'(if\s+not\s+exists\s+)?(\w+)', limpio, re.I):
+        if not m.group(1):
+            falla('repegar', '%s crea el índice `%s` sin IF NOT EXISTS.'
+                  % (archivo_de(m.start()), m.group(2)))
+    for m in re.finditer(r'create\s+table\s+(if\s+not\s+exists\s+)?(?:public\.)?(\w+)',
+                         limpio, re.I):
+        if not m.group(1):
+            falla('repegar', '%s crea la tabla `%s` sin IF NOT EXISTS.'
+                  % (archivo_de(m.start()), m.group(2)))
+    for m in re.finditer(r'create\s+(?:constraint\s+)?trigger\s+(\w+)', limpio, re.I):
+        nom = m.group(1)
+        if not hay_antes(r'drop\s+trigger\s+if\s+exists\s+%s\b' % re.escape(nom), m.start()):
+            falla('repegar', '%s crea el trigger `%s` sin borrarlo antes.'
+                  % (archivo_de(m.start()), nom))
+
+
+def r_columna_existe():
+    """Simula el pegado y comprueba que cada columna exista YA cuando se usa.
+
+    31-ago-2026, montando la primera copia. El pegado murió dos veces seguidas,
+    las dos por lo mismo y las dos a mitad del archivo:
+
+      · «column a.venta_id does not exist» — la columna se añade en
+        `supabase_preventa_series.sql`, veinte archivos DESPUÉS de que
+        `inventario_vivo` la use.
+      · Y al mirar la tabla entera: `apartados.color`, `.precio` y
+        `.transaccion` no las creaba NINGÚN archivo. Estaban puestas a mano en
+        el panel de la tienda de origen, como `tiendas.vendedores`.
+
+    Por qué no se veía: una función `LANGUAGE sql` se valida al crearse, así que
+    esto solo revienta montando desde cero. En la tienda que ya funciona, las
+    columnas existen y todo pasa.
+
+    Recorre el SQL en el orden en que se pega, va construyendo el esquema con
+    los CREATE TABLE / ALTER ADD COLUMN según aparecen, y comprueba cada
+    `alias.columna` contra lo que existe en ese punto.
+
+    No es un parser de SQL. Solo mira alias que apuntan a una tabla conocida, y
+    descarta el alias que en el mismo cuerpo nombra también a un CTE o a una
+    subconsulta —`aparador a` junto a `public.apartados a`, que es real y sale
+    en `supabase_venta_exhibicion.sql`—. Prefiere callar a acusar en falso: lo
+    que no puede resolver, no lo reporta."""
+    try:
+        import armar_sql
+        fuentes = armar_sql.LISTA
+    except Exception:
+        # Sin el orden real no se puede simular el pegado: el orden ES la
+        # comprobación. Mejor no mirar que mirar en un orden inventado.
+        aviso('columna', 'no se pudo leer el orden de armar_sql.py, así que no '
+                         'se comprobó que las columnas existan al usarse.')
+        return
+
+    texto, marcas = [], []
+    pos = 0
+    for n in fuentes:
+        s = leer(n)
+        if s is None: continue
+        marcas.append((pos, n))
+        texto.append(s + '\n')
+        pos += len(s) + 1
+    junto = ''.join(texto)
+    # Los comentarios se blanquean, no se borran: si se movieran las posiciones,
+    # cada hallazgo señalaría al archivo de al lado.
+    limpio = re.sub(r'--[^\n]*', lambda m: ' ' * len(m.group(0)), junto)
+    limpio = re.sub(r'/\*.*?\*/', lambda m: ' ' * len(m.group(0)), limpio, flags=re.S)
+
+    def archivo_de(p):
+        q = '?'
+        for ini, n in marcas:
+            if ini <= p: q = n
+            else: break
+        return q
+
+    NO_ALIAS = {'set', 'where', 'on', 'using', 'select', 'values', 'group', 'order',
+                'limit', 'returning', 'left', 'inner', 'outer', 'join', 'and', 'as'}
+
+    esquema = collections.defaultdict(set)
+    eventos = []
+    for m in re.finditer(r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?(\w+)\s*\((.*?)\n\s*\);',
+                         limpio, re.I | re.S):
+        eventos.append((m.start(), 'tabla', m.group(1).lower(), m.group(2), 0))
+    for m in re.finditer(r'alter\s+table\s+(?:if\s+exists\s+)?(?:public\.)?(\w+)([^;]*);',
+                         limpio, re.I | re.S):
+        eventos.append((m.start(), 'alter', m.group(1).lower(), m.group(2), 0))
+    cuerpos = [(x.start(), x.end()) for x in re.finditer(r'\$\$.*?\$\$', limpio, re.S)]
+    for m in re.finditer(r'\$\$(.*?)\$\$', limpio, re.S):
+        eventos.append((m.start(), 'uso', None, m.group(1), m.start(1)))
+    for m in re.finditer(r'(?m)^\s*(select\s.*?);', limpio, re.I | re.S):
+        if not any(a <= m.start() < b for a, b in cuerpos):
+            eventos.append((m.start(), 'uso', None, m.group(1), m.start(1)))
+    eventos.sort(key=lambda e: e[0])
+
+    rotas = {}
+    for _, clase, tabla, cuerpo, base in eventos:
+        if clase == 'tabla':
+            for linea in cuerpo.split('\n'):
+                c = re.match(r'(\w+)\s+\w', linea.strip())
+                if c and c.group(1).lower() not in NO_COLUMNA:
+                    esquema[tabla].add(c.group(1).lower())
+        elif clase == 'alter':
+            for m in re.finditer(r'add\s+column\s+(?:if\s+not\s+exists\s+)?(\w+)', cuerpo, re.I):
+                esquema[tabla].add(m.group(1).lower())
+            for m in re.finditer(r'rename\s+column\s+(\w+)\s+to\s+(\w+)', cuerpo, re.I):
+                esquema[tabla].discard(m.group(1).lower())
+                esquema[tabla].add(m.group(2).lower())
+            for m in re.finditer(r'drop\s+column\s+(?:if\s+exists\s+)?(\w+)', cuerpo, re.I):
+                esquema[tabla].discard(m.group(1).lower())
+        else:
+            alias, ambiguos = {}, set()
+            for m in re.finditer(r'\b(?:from|join|update|into)\s+(?:public\.)?(\w+)\s+'
+                                 r'(?:as\s+)?(\w+)\b', cuerpo, re.I):
+                fuente, al = m.group(1).lower(), m.group(2).lower()
+                if al in NO_ALIAS: continue
+                if fuente in esquema:
+                    if al in alias and alias[al] != fuente: ambiguos.add(al)
+                    alias[al] = fuente
+                else:
+                    # CTE o tabla que no conocemos: el alias deja de ser fiable.
+                    ambiguos.add(al)
+            for al, tabla in alias.items():
+                if al in ambiguos: continue
+                for m in re.finditer(r'\b%s\.(\w+)\b' % re.escape(al), cuerpo):
+                    col = m.group(1).lower()
+                    if col in esquema[tabla]: continue
+                    p = base + m.start()
+                    rotas.setdefault((tabla, col), (archivo_de(p), al))
+
+    for (tabla, col), (arch, al) in sorted(rotas.items()):
+        falla('columna', '%s usa `%s.%s`, que en ese punto del pegado no existe. '
+                         'O la columna no la crea ningún .sql —está puesta a mano '
+                         'en la base de origen— o el ALTER que la añade va '
+                         'después. El pegado muere ahí y deja la base a medias.'
+              % (arch, tabla, col))
+
+
+def r_tipo_columna():
+    """Que una columna se use con el tipo con el que está declarada.
+
+    31-ago-2026, montando la primera copia: `tiendas.vendedores` se declaró
+    `text[]` y `supabase_hoja_auth.sql` la comprueba con
+    `jsonb_array_elements_text(vendedores)`. El pegado del SQL se cortó a la
+    mitad —línea 666 de 7.400— con «function jsonb_array_elements_text(text[])
+    does not exist», con la base a medio montar.
+
+    Lo insidioso es que la app no lo habría notado: PostgREST convierte el array
+    de JavaScript a `text[]` o a `jsonb` indistintamente, y `to_jsonb()` lo
+    devuelve igual en los dos casos. Todo el camino que se prueba desde el
+    navegador funciona con el tipo equivocado; lo que truena es el SQL, y solo
+    al montarlo desde cero — o sea, en la tienda nueva y no en la que ya
+    funciona.
+
+    Mira las tres formas que distinguen un tipo de otro: las funciones de jsonb,
+    `unnest()` (que pide array de verdad) y el operador `->>`.
+
+    No entiende SQL: empareja por nombre de columna, así que dos tablas con
+    columnas del mismo nombre y distinto tipo la confundirían. Hoy no las hay, y
+    cuando las haya vale más un falso positivo que un pegado a medias."""
+    fuentes = sorted(p for p in os.listdir(BASE)
+                     if re.match(r'supabase_.*\.sql$', p) and p != 'supabase_TODO.sql')
+    s = '\n'.join(_sql_sin_comentarios(leer(p) or '') for p in fuentes)
+
+    tipos = {}
+    def anotar(col, tipo):
+        tipos.setdefault(col.lower(), set()).add(tipo.lower())
+    for m in re.finditer(r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?\w+\s*\((.*?)\n\s*\);',
+                         s, re.I | re.S):
+        for linea in m.group(1).split('\n'):
+            c = re.match(r'(\w+)\s+(\w+(?:\[\])?)', linea.strip())
+            if c and c.group(1).lower() not in NO_COLUMNA:
+                anotar(c.group(1), c.group(2))
+    for m in re.finditer(r'alter\s+table\s+(?:public\.)?\w+\s+add\s+column\s+'
+                         r'(?:if\s+not\s+exists\s+)?(\w+)\s+(\w+(?:\[\])?)', s, re.I):
+        anotar(m.group(1), m.group(2))
+
+    def tipo(c):
+        return tipos.get(c.lower(), set())
+
+    def es_json(t): return bool(t & {'jsonb', 'json'})
+    def es_array(t): return any('[]' in x for x in t)
+
+    for rx, quiere, como in [
+        (r'jsonb_array_elements(?:_text)?\s*\(\s*(?:\w+\.)?(\w+)\s*\)',
+         es_json, 'jsonb'),
+        (r'unnest\s*\(\s*(?:\w+\.)?(\w+)\s*\)', es_array, 'un array (text[])'),
+        (r'\b(?:\w+\.)?(\w+)\s*->>?\s*[\'"\w]', es_json, 'jsonb'),
+    ]:
+        for m in re.finditer(rx, s, re.I):
+            col = m.group(1)
+            t = tipo(col)
+            if t and not quiere(t):
+                falla('tipo', '`%s` está declarada %s y se usa como %s. El SQL '
+                              'truena al pegarlo en una base nueva («function ... '
+                              'does not exist») y deja la base a medio montar; '
+                              'desde la app no se nota.'
+                      % (col, '/'.join(sorted(t)), como))
+
+
+def r_proyecto():
+    """Que esta copia no apunte a la base de la tienda de la que salió.
+
+    31-ago-2026: el clon se hizo «sin nada de la tienda de origen», pero la URL
+    y la clave de Supabase estaban escritas en diez archivos con cinco nombres
+    de variable distintos (`SB_URL`, `SB_URL_AD`, `SB_URL_CS`, `SB_URL_CO`,
+    `SUPABASE_URL`) y se quedaron las de la 1217. Publicado así, el tablero de
+    otra tienda abre, entra y **guarda ventas en la base que está vendiendo**:
+    descuenta stock ajeno y mete comisiones a nombre de gente de otra tienda.
+    No da ningún error — funciona, contra la base equivocada.
+
+    Se apoya en `configurar.py`, que es quien sabe dónde están escritas; tener
+    dos listas de archivos sería tener una desactualizada.
+
+    Con remoto FALLA y sin remoto avisa. Sin remoto el commit es local y no
+    expone nada, y bloquearlo dejaría al repo sin poder guardar trabajo antes
+    de que exista el proyecto nuevo. En cuanto hay a dónde publicar, el push
+    llega a los celulares del equipo y entonces sí es un error que para todo.
+    """
+    try:
+        import configurar
+    except Exception as e:                      # noqa: BLE001 — da igual el motivo
+        falla('proyecto', 'no se pudo leer configurar.py (%s). Es quien sabe a '
+                          'qué base apunta cada pantalla; sin él, nadie lo mira.'
+              % str(e)[:70])
+        return
+
+    refs, claves, faltan = configurar.estado()
+    if faltan:
+        falla('proyecto', 'configurar.py espera archivos que no están: %s'
+              % ', '.join(faltan))
+    if not refs:
+        falla('proyecto', 'ninguna pantalla tiene URL de Supabase escrita: la '
+                          'app no tiene con qué hablar con la base.')
+        return
+
+    if len(refs) > 1:
+        falla('proyecto', 'las pantallas apuntan a %d proyectos distintos (%s). '
+                          'Unas escribirían en una base y otras en otra, sin '
+                          'error. Corre: python configurar.py <URL> <clave>'
+              % (len(refs), '; '.join('%s: %s' % (r, ', '.join(ps))
+                                      for r, ps in sorted(refs.items()))))
+    if len(claves) > 1:
+        falla('proyecto', 'hay %d claves publicables distintas en uso. La que no '
+                          'corresponda al proyecto da «Invalid API key» en esa '
+                          'pantalla y en ninguna otra.' % len(claves))
+
+    if ORIGEN not in refs:
+        return
+    hay_remoto = False
+    try:
+        r = subprocess.run(['git', 'remote'], cwd=BASE, capture_output=True,
+                           timeout=20, encoding='utf-8', errors='replace')
+        hay_remoto = r.returncode == 0 and bool((r.stdout or '').strip())
+    except (OSError, subprocess.SubprocessError):
+        pass                # sin git ya falla r_git; aquí basta con no publicar
+    aviso_o_falla = falla if hay_remoto else aviso
+    aviso_o_falla('proyecto',
+                  'esta copia sigue apuntando a la base de la tienda de origen '
+                  '(%s), en %d archivos. Una venta capturada desde aquí se '
+                  'escribe en la tienda que está vendiendo. Corre: '
+                  'python configurar.py <URL> <clave publicable>'
+                  % (ORIGEN, len(refs[ORIGEN])))
+
+
 def main():
     staged = '--staged' in sys.argv
     # Va PRIMERA: si git no contesta, las reglas que lo consultan no corren, y
     # conviene saberlo antes de leer 24 «ok» que no cubren lo que parecen.
     r_git()
+    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva()
     r_sintaxis(); r_helpers(); r_version(staged); r_copias(); r_cupo()
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()
     r_porteros(); r_contrato_sql(); r_join_sql()

@@ -101,6 +101,14 @@ $$;
 --
 -- `exhib_restante` descuenta de la exhibición únicamente las ventas que se
 -- pasaron del almacén — las que solo pudieron salir del piso.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.eol_precio_venta(text);
+
 CREATE OR REPLACE FUNCTION public.eol_precio_venta(p_store text)
 RETURNS TABLE (sku text, precio50 numeric)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
@@ -158,6 +166,14 @@ $$;
 -- ------------------------------------------------------------
 -- 5 · AVISOS VIGENTES  ←  leerAvisos_
 -- ------------------------------------------------------------
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.avisos_vigentes(text);
+
 CREATE OR REPLACE FUNCTION public.avisos_vigentes(p_store text)
 RETURNS TABLE (id bigint, titulo text, detalle text, prioridad text,
                vigente_hasta date, creado_en timestamptz)
@@ -197,6 +213,14 @@ $$;
 -- ------------------------------------------------------------
 -- Sin fecha, las de hoy. Aquí el parámetro ya es DATE de verdad: se acabó
 -- mandar "2/8/2026" como texto y rezar que coincida letra por letra.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.ventas_detalle(text,date);
+
 CREATE OR REPLACE FUNCTION public.ventas_detalle(p_store text, p_fecha date DEFAULT NULL)
 RETURNS TABLE (serie text, sku text, descripcion text, precio numeric,
                vendedor text, con_seguro boolean, vendida_en timestamptz)

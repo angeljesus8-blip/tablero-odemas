@@ -2045,8 +2045,8 @@ function rowResurtir(x){
     ? `<span class="exh" style="background:#fdeaea;color:var(--rojo);font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;">📭 sin piso</span>`
     : `<span class="exh" style="background:#fff5ee;color:var(--naranja);font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;">🪟 ${x.exhibe} piso</span>`;
   /* Mismo criterio que la sección entera, no `ROLE==='gerente'`. Con el rol,
-     Miguel perdía el botón por entrar con su número de empleado en vez de con
-     su correo — la misma persona y el mismo puesto, distinta puerta. */
+     el subgerente perdía el botón por entrar con su número de empleado en vez
+     de con su correo — la misma persona y el mismo puesto, distinta puerta. */
   const btnEol = PUEDE_GESTIONAR
     ? `<button onclick="marcarNoResurtir('${x.sku}','${x.producto.replace(/'/g,'')}',this)"
          title="Ya no se resurte — quitar del listado"
@@ -2721,8 +2721,8 @@ async function cargarVentasNube(){
    escribir una sola línea aquí: 215 SKUs sin diferencia en onhand, vendido,
    exhibición ni exh_vendida; 117 promos; los 9 apartados con su número de
    ticket. Si algo de esto se toca, se vuelve a comparar. */
-const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
-const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+const SB_URL = 'https://ecuqtqxmdehzbbsmlxrh.supabase.co';
+const SB_KEY = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce';
 
 /* Una llamada a Supabase con los parámetros que hagan falta. `p_store` va
    siempre: ninguna función de la base contesta sin saber de qué tienda habla.

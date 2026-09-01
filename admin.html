@@ -617,7 +617,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       </div>
       <div class="field">
         <label>Vendedores del equipo (uno por línea)</label>
-        <textarea id="cfgVend" rows="6" placeholder="Ana García&#10;Luis Pérez&#10;María López"></textarea>
+        <textarea id="cfgVend" rows="6" placeholder="Ana Ramírez&#10;Luis Pérez&#10;María López"></textarea>
         <p style="font-size:11px;color:#aaa;margin-top:4px">Escritos <b>igual</b> que en 👥 Equipo. Con una letra de diferencia la comisión de ese asesor no se suma a nadie en el Excel regional.</p>
         <div id="divergCfg" class="note" style="display:none;margin-top:8px;background:#fff1f1;border-color:#ffc9c9;color:#8a1f1f"></div>
       </div>
@@ -692,8 +692,8 @@ const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
    que hacían era mantener viva la URL del Apps Script de otra tienda dentro de
    este archivo. */
 
-const SB_URL = 'https://rjdrljtujbwooejrpyqv.supabase.co';
-const SB_KEY = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+const SB_URL = 'https://ecuqtqxmdehzbbsmlxrh.supabase.co';
+const SB_KEY = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce';
 let sb = null;
 function initSB(){ try{ if(!window.supabase) return false; sb=window.supabase.createClient(SB_URL,SB_KEY); return true; }catch(e){ return false; } }
 
@@ -794,7 +794,7 @@ window.addEventListener('load', async function(){
 /* ================= EQUIPO: quién entra a la app =================
    Escribe directo en la tabla `empleados`, que solo el gerente dueño puede
    tocar (política RLS). Por eso esta pantalla pide sesión: si entraste con tu
-   número de empleado —como Miguel— puedes usar el resto de Admin, pero dar
+   número de empleado —como el subgerente— puedes usar el resto de Admin, pero dar
    accesos es cosa del gerente. */
 let _equipo = [];
 

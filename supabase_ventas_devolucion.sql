@@ -87,6 +87,11 @@ BEGIN;
 
 ALTER TABLE public.ventas DROP CONSTRAINT IF EXISTS ventas_store_id_serie_key;
 
+-- Y la propia, para poder repegar el SQL: `ADD CONSTRAINT` no tiene IF NOT
+-- EXISTS y la segunda vez falla con «constraint already exists». Va DENTRO de
+-- la transacción, así que no hay ni un instante sin la protección puesta.
+ALTER TABLE public.ventas DROP CONSTRAINT IF EXISTS ventas_serie_por_dia;
+
 ALTER TABLE public.ventas
   ADD CONSTRAINT ventas_serie_por_dia UNIQUE (store_id, serie, dia_venta);
 

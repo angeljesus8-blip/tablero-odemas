@@ -58,6 +58,9 @@ CREATE INDEX IF NOT EXISTS ventas_grupo ON public.ventas (store_id, grupo);
 -- Postgres deja las dos y PostgREST responde PGRST203 — o sea, DEJA DE GUARDAR
 -- VENTAS. Ya paso con esta misma funcion.
 DROP FUNCTION IF EXISTS public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean);
+-- 1-sep-2026 · Y la de la firma sin `p_token`, que es la que quedo en las bases
+-- montadas antes de que esta funcion pidiera la clave de escritura.
+DROP FUNCTION IF EXISTS public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text);
 
 CREATE OR REPLACE FUNCTION public.venta_guardar(
   p_store      text,
@@ -74,7 +77,22 @@ CREATE OR REPLACE FUNCTION public.venta_guardar(
   p_de_exhibicion boolean DEFAULT false,
   -- Con DEFAULT: una app en cache que aun no lo mande sigue guardando bien, y
   -- esa venta simplemente queda sin agrupar.
-  p_grupo      text    DEFAULT NULL
+  p_grupo      text    DEFAULT NULL,
+
+  /* LA CLAVE DE ESCRITURA (1-sep-2026). Esta era la unica escritura que no la
+     pedia: las otras 14 pasan por `escritura_ok_` desde el 4-ago. Sin ella,
+     cualquiera con la clave publicable —que va escrita en el HTML, que es
+     publico— podia insertar ventas en CUALQUIER tienda: descontar stock ajeno
+     y acreditarle comisiones a quien quisiera. En una tienda sola se notaba
+     poco; en una copia donde cada tienda tiene su `store_id`, es la puerta de
+     al lado.
+
+     Lleva DEFAULT NULL a proposito, y NO para dejar pasar a quien no lo manda:
+     sin DEFAULT, una app vieja en cache recibe un 404 de PostgREST («no
+     matches were found in the schema cache»), que se lee como «se cayo
+     Supabase». Con DEFAULT llega hasta el IF de abajo y le contesta que no
+     tiene permiso, que es lo que de verdad le pasa. */
+  p_token      text    DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $fn$
@@ -84,6 +102,11 @@ DECLARE
   m text[];
   nuevo bigint;
 BEGIN
+  -- Antes que nada: quien no trae la clave de la tienda, no escribe en ella.
+  IF NOT public.escritura_ok_(p_store, p_token) THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'sin permiso de escritura');
+  END IF;
+
   IF coalesce(trim(p_serie),'') = '' THEN
     RETURN jsonb_build_object('ok', false, 'error', 'sin serie');
   END IF;
@@ -124,8 +147,8 @@ EXCEPTION
     RETURN jsonb_build_object('ok', false, 'error', SQLSTATE || ': ' || left(SQLERRM, 140));
 END $fn$;
 
-REVOKE ALL ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text) FROM public;
-GRANT EXECUTE ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text)
+REVOKE ALL ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text,text) FROM public;
+GRANT EXECUTE ON FUNCTION public.venta_guardar(text,text,text,text,numeric,text,boolean,text,text,text,text,boolean,text,text)
   TO anon, authenticated;
 
 

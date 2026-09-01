@@ -275,7 +275,7 @@
   .vd.show{ display:flex; }
   .vd-box{ background:#fff; width:100%; max-width:560px; max-height:86vh;
     border-radius:20px 20px 0 0; display:flex; flex-direction:column; }
-  /* Laura las copia desde su laptop: en pantalla grande el panel se centra y
+  /* Se copian desde una laptop: en pantalla grande el panel se centra y
      se ve completo, en vez de quedar pegado abajo como hoja de celular. */
   @media (min-width:760px){
     .vd{ align-items:center; }
@@ -289,7 +289,7 @@
   .vd-top .n{ font-size:12px; color:var(--gris); font-weight:700; }
   .vd-cerrar{ background:none; border:none; font-size:26px; color:#bbb;
     cursor:pointer; line-height:1; padding:0 4px; }
-  /* Barra de días: Laura no siempre sube las series el mismo día que se venden,
+  /* Barra de días: las series no siempre se suben el mismo día que se venden,
      así que tiene que poder regresarse. Adelante de hoy no hay nada que ver. */
   .vd-nav{ display:flex; align-items:center; gap:8px; padding:9px 12px;
     border-bottom:1px solid var(--linea); background:#fafafa; }
@@ -472,7 +472,10 @@
 <div class="footbar">
   <button class="btn btn-acc" id="btnAcc" title="Accesorios y reparaciones de Mr Fix">🔧 Mr Fix</button>
   <button class="btn btn-csv" id="btnCsv">📋 Ventas del día</button>
-  <div class="lock-msg" id="lockMsg">🔒 Solo <b>Laura</b> abre la hoja de ventas</div>
+  <!-- El nombre lo pone updateDownloadAccess() con el de `hoja_auth`. Aquí iba
+       escrito a mano, y en una copia para otra tienda nombraba a alguien que no
+       trabaja ahí. -->
+  <div class="lock-msg" id="lockMsg">🔒 La hoja de ventas la abre solo el asesor autorizado</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -642,10 +645,15 @@ function _sbCuerpo(row){
 async function _sbInsertar(cuerpo){
   try{
     if(!SB_STORE) return false;
+    /* La clave de escritura se pone AQUÍ y no en `_sbCuerpo` (1-sep-2026).
+       Los cuerpos de la cola se guardan en el celular hasta que hay red, a
+       veces días: metida en el cuerpo viajaría una copia del token por cada
+       venta pendiente, y si el token se cambia, esas ventas ya no entrarían
+       nunca. Puesta al enviar, siempre sale la de la sesión de ahora. */
     const r = await fetch(SB_URL_CS + '/rest/v1/rpc/venta_guardar', {
       method:'POST',
       headers:{ apikey:SB_KEY_CS, Authorization:'Bearer '+SB_KEY_CS, 'Content-Type':'application/json' },
-      body: JSON.stringify(cuerpo)
+      body: JSON.stringify(Object.assign({}, cuerpo, { p_token: GAS_TOKEN }))
     });
     const d = await r.json();
     if(d && d.ok === true) return true;
@@ -766,8 +774,8 @@ try{ const c = JSON.parse(localStorage.getItem(CATKEY) || 'null'); if(esCatalogo
    MISMAS validaciones de siempre (esCatalogoValido, esPromosValido…) y si no
    las pasa, se ignora y se pide al Apps Script como toda la vida. Ante la duda,
    el camino viejo. */
-const SB_URL_CS = 'https://rjdrljtujbwooejrpyqv.supabase.co';
-const SB_KEY_CS = 'sb_publishable_mELjDmCaFpNOxcwPi5MB2A_qSZ5ZA2z';
+const SB_URL_CS = 'https://ecuqtqxmdehzbbsmlxrh.supabase.co';
+const SB_KEY_CS = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce';
 const SB_STORE  = (_cfgCS && _cfgCS.store_id) || '';
 
 async function sbRpcCS(fn, ms){
@@ -1545,8 +1553,8 @@ function fechaBonita(d){
   return _VD_DIAS[d.getDay()] + ' ' + d.getDate() + ' de ' + _VD_MESES[d.getMonth()];
 }
 
-/* Qué series ya copió, por día. Vive en este aparato: si Laura se distrae, cambia
-   de día y regresa, no pierde el hilo de dónde iba. Es una ayuda, no un registro:
+/* Qué series ya copió, por día. Vive en este aparato: si quien las sube se
+   distrae, cambia de día y regresa, no pierde el hilo de dónde iba. Es una ayuda, no un registro:
    si se borra, se vuelven a ver todas — nunca se pierde una venta por esto. */
 const VDKEY = 'hes' + (_cfgCS && _cfgCS.store_id || '') + '_vd_copiadas';
 function _vdLeerMarcas(){
@@ -3301,8 +3309,8 @@ function vdIrHoy(){ cargarVentasDia(new Date()); }
 
 function cerrarVentasDia(){ $('vdPanel').classList.remove('show'); }
 
-/* Se copia UNA serie por toque: Laura las sube de una en una a la otra
-   plataforma, así que copiar todas juntas no le sirve. La fila copiada se marca
+/* Se copia UNA serie por toque: se suben de una en una a la otra plataforma,
+   así que copiar todas juntas no sirve. La fila copiada se marca
    para no perder el hilo cuando son muchas. */
 async function copiarSerie(i){
   const v = _vdVentas[i];
@@ -3392,7 +3400,7 @@ const VKEY = 'odemas_vend';
 // Quién puede abrir la hoja de ventas. Antes era un nombre escrito aquí; sale
 // de la config de tienda, campo hoja_auth (se edita en Admin -> Configuración).
 // OJO: se llamó "descarga_autorizada" por error del 1-ago-2026 y ese campo no
-// existe, así que el botón quedó oculto para todos, incluida Laura.
+// existe, así que el botón quedó oculto para todos, incluido quien sí podía.
 const DESCARGA_AUTORIZADA = (_cfgCS && _cfgCS.hoja_auth) || '';
 let currentVend = '';
 
@@ -3421,6 +3429,11 @@ function updateDownloadAccess(){
   const ok = puedeVerVentas_();
   $('btnCsv').style.display = ok ? '' : 'none';
   $('lockMsg').style.display = ok ? 'none' : '';
+  // Quién es se dice con el nombre de `hoja_auth`, no con uno escrito en el
+  // HTML: sin configurar, el mensaje se queda en genérico y sigue siendo cierto.
+  if(!ok) $('lockMsg').textContent = DESCARGA_AUTORIZADA
+    ? '🔒 Solo ' + DESCARGA_AUTORIZADA + ' abre la hoja de ventas'
+    : '🔒 La hoja de ventas la abre solo el asesor autorizado';
 }
 function setVend(n){
   currentVend = n || '';

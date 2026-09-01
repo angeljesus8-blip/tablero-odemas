@@ -110,6 +110,14 @@ $$;
 --
 -- Los cancelados NO cuentan para el cupo pero SÍ se devuelven: el gerente tiene
 -- que poder ver que existieron.
+-- 31-ago-2026 · DROP delante. Esta función se vuelve a definir más abajo en
+-- el pegado con OTRAS columnas, así que repegar el archivo entero sobre una
+-- base que ya tiene la versión de después falla con «42P13: cannot change
+-- return type of existing function» y deja el pegado a medias. Con el DROP,
+-- el SQL se puede volver a pegar tantas veces como haga falta. El GRANT de
+-- más abajo vuelve a abrirla: el DROP se lleva los permisos por delante.
+DROP FUNCTION IF EXISTS public.apartados_lista(text);
+
 CREATE OR REPLACE FUNCTION public.apartados_lista(p_store text)
 RETURNS TABLE (id bigint, sku text, cliente text, telefono text,
                piezas integer, con_seguro boolean, estatus text,
