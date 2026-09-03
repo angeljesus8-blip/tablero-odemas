@@ -2428,6 +2428,28 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'sin filas');
   END IF;
 
+  /* Que las filas traigan el campo que esta funcion lee (2-sep-2026).
+
+     El campo se llama `exhibe`. Una carga que lo mande con otro nombre —pasó
+     llamándolo `exhibicion`— entra por el coalesce de abajo como CERO en todo,
+     y esto respondía `ok: true, skus: 4`: cuatro SKUs guardados con cero
+     piezas en el aparador. O sea que decía que sí y dejaba el piso vacío.
+
+     Se RECHAZA en vez de avisar: si ninguna fila trae el campo, esta carga no
+     puede hacer nada útil, y lo que sí puede hacer es borrar la exhibición que
+     ya estaba puesta.
+
+     Una carga legítima que quiera vaciar el aparador manda `exhibe: 0`, que sí
+     trae la clave y pasa. La diferencia entre «ponlo en cero» y «no sé de qué
+     me hablas» tiene que notarse. */
+  IF jsonb_array_length(p_filas) > 0 AND NOT EXISTS (
+       SELECT 1 FROM jsonb_array_elements(p_filas) x WHERE x ? 'exhibe') THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'ninguna fila trae el campo `exhibe`: se guardarían ceros y se '
+               'borraría la exhibición que ya está puesta');
+  END IF;
+
   CREATE TEMP TABLE _exh (sku text PRIMARY KEY, exhibe int) ON COMMIT DROP;
   INSERT INTO _exh (sku, exhibe)
   SELECT DISTINCT ON (trim(x->>'sku'))
