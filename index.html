@@ -549,9 +549,24 @@ async function doLogin() {
     }
   }
   if (!tienda) {
-    showErr('loginErr', ficha
-      ? 'Tu cuenta quedó vinculada pero no pude leer la tienda. Avisa al gerente.'
-      : 'Este correo no está dado de alta en ninguna tienda. Pide al gerente que registre tu correo en Admin → Equipo.');
+    if (ficha) {
+      showErr('loginErr', 'Tu cuenta quedó vinculada pero no pude leer la tienda. Avisa al gerente.');
+      return;
+    }
+    /* Sin tienda y sin ficha son DOS situaciones que se ven igual desde aquí: o
+       es alguien a quien no han dado de alta, o es un gerente cuyo registro se
+       quedó a medias. Antes las dos recibían «pide al gerente que registre tu
+       correo» — que al gerente no le sirve de nada.
+
+       La misma pantalla atiende las dos: quien venía a registrar su tienda la
+       termina, y quien no, lee ahí a quién tiene que pedírselo. */
+    completarTienda(data.user);
+    const aviso = document.getElementById('regOk');
+    aviso.innerHTML = 'Tu cuenta existe, pero <b>no tiene tienda</b>. Si eres el gerente '
+      + 'y te quedaste a medias al registrarla, termínala aquí.<br><br>Si trabajas en una '
+      + 'tienda que ya existe, no es esto: pide al gerente que registre tu correo en '
+      + 'Admin → 👥 Equipo.';
+    aviso.classList.add('show');
     return;
   }
   // El segundo `cfg`: mismos campos que el del asesor, y por el mismo motivo.
@@ -600,6 +615,39 @@ function cambiarModoRegistro() {
   document.getElementById('regOk').classList.remove('show');
 }
 
+/* Cuenta creada y tienda NO (3-sep-2026).
+
+   Es un estado real y va a repetirse: la cuenta se crea en el primer paso y la
+   tienda depende de tener sesión, así que entre uno y otro cabe un correo sin
+   confirmar, un navegador cerrado o un registro hecho con una versión anterior
+   de esta página. Quien caía ahí veía «Este correo no está dado de alta en
+   ninguna tienda. Pide al gerente que registre tu correo» — siendo el gerente,
+   y sin más salida que el SQL.
+
+   Aquí se le pide lo que falta y se crea, ahora que sí hay sesión. Reusa el
+   formulario de registro sin correo ni contraseña: esos ya existen. */
+let _usuarioSinTienda = null;
+
+function completarTienda(user) {
+  _usuarioSinTienda = user;
+  _modoEquipo = false;
+  document.getElementById('scLogin').classList.add('hide');
+  document.getElementById('scRegister').classList.remove('hide');
+  document.getElementById('regTitulo').textContent = 'Termina de crear tu tienda';
+  document.getElementById('regSub').textContent =
+    'Tu cuenta ya existe (' + (user.email || '') + '). Faltan los datos de la tienda.';
+  ['regEmail','regPass','regPass2'].forEach(function(id){
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('regDatosTienda').style.display = '';
+  document.getElementById('btnReg').textContent = 'Crear mi tienda';
+  document.getElementById('regHint').textContent =
+    'Se crea al momento: ya estás dentro, no hace falta confirmar nada más.';
+  document.getElementById('regCambiar').style.display = 'none';
+  hideErr('regErr');
+  document.getElementById('regOk').classList.remove('show');
+}
+
 async function doRegister() {
   hideErr('regErr');
   document.getElementById('regOk').classList.remove('show');
@@ -622,6 +670,39 @@ async function doRegister() {
   if (pass !== pass2) { showErr('regErr','Las contraseñas no coinciden'); return; }
   if (pass.length < 6) { showErr('regErr','La contraseña debe tener mínimo 6 caracteres'); return; }
   const btn = document.getElementById('btnReg');
+
+  /* Completando la tienda de una cuenta que ya existe: no hay nada que
+     registrar, solo que crear. Y aquí SÍ hay sesión, así que la política de
+     `tiendas` deja pasar la fila. */
+  if (_usuarioSinTienda) {
+    btn.disabled = true; btn.textContent = 'Creando…';
+    const u = _usuarioSinTienda;
+    const { error:eT } = await sb.from('tiendas').insert({
+      user_id:u.id, store_id:storeId, nombre, ciudad, vendedores:[], admin_pin:storeId });
+    btn.disabled = false; btn.textContent = 'Crear mi tienda';
+    if (eT) {
+      showErr('regErr', eT.code==='23505'
+        ? 'El ID de tienda ' + storeId + ' ya está registrado.'
+        : 'No se pudo crear la tienda: ' + (eT.message||'error de Supabase'));
+      return;
+    }
+    const { error:eE } = await sb.from('empleados').insert({
+      store_id:storeId, empno:empNo, nombre:empNom,
+      puesto:'Gerente de Tienda', admin:true, activo:true });
+    if (eE && eE.code !== '23505') {
+      showErr('regErr','Tu tienda quedó creada, pero no pude darte de alta ('
+        + (eE.message||'error') + '). Entra a Admin → 👥 Equipo y date de alta ahí.');
+      return;
+    }
+    try{ localStorage.removeItem('hes_alta_pendiente'); }
+    catch(e){ /* la tienda ya está creada; el pendiente sobra y el 23505 lo cubre */ }
+    const ok = document.getElementById('regOk');
+    ok.textContent = '¡Listo! Tu tienda quedó creada y ya estás dado de alta. Vuelve a iniciar sesión.';
+    ok.classList.add('show');
+    _usuarioSinTienda = null;
+    return;
+  }
+
   btn.disabled = true; btn.textContent = 'Registrando…';
   /* A DÓNDE vuelve el enlace del correo (3-sep-2026).
 
