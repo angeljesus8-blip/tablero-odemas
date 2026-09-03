@@ -569,8 +569,30 @@ async function doLogin() {
     aviso.classList.add('show');
     return;
   }
+  /* La lista del equipo, del MISMO sitio que los otros dos caminos (3-sep-2026).
+
+     Entrar por PIN o por número pasa por `login_asesor` / `login_empleado`, que
+     desde ayer sacan los vendedores de `empleados`. Este camino —el correo— lee
+     la tabla `tiendas` directo, así que se quedó con el campo viejo: una tienda
+     recién creada entraba con «equipo 0 nombres» y Captura de Series no dejaba
+     elegir vendedor, teniendo al gerente dado de alta.
+
+     Lo mismo con `hoja_auth`: quien tenga la marca `ventas_dia` en su ficha.
+     Los dos caen al campo viejo de `tiendas` solo si no hay nadie dado de alta,
+     que es el mismo puente que hacen `vendedores_de_` y `hoja_auth_de_`. */
+  let vendedores = Array.isArray(tienda.vendedores) ? tienda.vendedores : [];
+  let responsable = tienda.hoja_auth || '';
+  const { data:eq } = await sb.from('empleados')
+    .select('nombre,ventas_dia').eq('store_id', tienda.store_id).eq('activo', true)
+    .order('nombre');
+  if (eq && eq.length) {
+    vendedores = eq.map(function(e){ return e.nombre; });
+    const marcado = eq.filter(function(e){ return e.ventas_dia; })[0];
+    if (marcado) responsable = marcado.nombre;
+  }
+
   // El segundo `cfg`: mismos campos que el del asesor, y por el mismo motivo.
-  const cfg = { store_id:tienda.store_id, nombre:tienda.nombre, ciudad:tienda.ciudad||'', gas_token:tienda.gas_token||'', hoja_auth:tienda.hoja_auth||'', vendedores:Array.isArray(tienda.vendedores)?tienda.vendedores:[] };
+  const cfg = { store_id:tienda.store_id, nombre:tienda.nombre, ciudad:tienda.ciudad||'', gas_token:tienda.gas_token||'', hoja_auth:responsable, vendedores:vendedores };
   // Quien entra por su ficha se identifica igual que si hubiera usado su número
   const rol = (!ficha || ficha.admin) ? 'gerente' : 'asesor';
   // Antes de pisar la sesion: si la tienda cambia, los caches de la
