@@ -54,6 +54,7 @@ ORDEN = [
    'supabase_venta_exhibicion.sql',
    'supabase_ventas_detalle_entrega.sql',
    'supabase_venta_grupo.sql',
+   'supabase_equipo_por_numero.sql',
    'supabase_token_alta.sql',
  ]),
 ]
@@ -87,6 +88,10 @@ POR_QUE = [
   'los dos redefinen ventas_hoy y son del MISMO dia, asi que la fecha no decide. '
   'La de apartados hace lo mismo que la otra Y ADEMAS suma los apartados '
   'cobrados hoy. Al reves se pierde esa suma y el attach del dia sale bajo'),
+ ('supabase_hoja_auth.sql', 'supabase_equipo_por_numero.sql',
+  'recrea los dos logins para que `hoja_auth` salga de la ficha de la persona '
+  'y no del texto escrito a mano. Al reves gana la version vieja y la marca no '
+  'se mira: el boton de «Ventas del dia» se queda como estaba, sin dar error'),
  ('supabase_cargas_admin.sql', 'supabase_token_alta.sql',
   'token_alta va al final: necesita la tabla y no la toca nadie despues'),
  ('supabase_preventa_series.sql', 'supabase_token_alta.sql',
@@ -97,8 +102,8 @@ POR_QUE = [
 # Escrito a mano y comprobado una por una: es lo unico que separa un sistema que
 # funciona de uno que corre una version vieja de la funcion que guarda ventas.
 ESPERADO_GANA = {
-  'login_asesor':               'supabase_hoja_auth.sql',
-  'login_empleado':             'supabase_hoja_auth.sql',
+  'login_asesor':               'supabase_equipo_por_numero.sql',
+  'login_empleado':             'supabase_equipo_por_numero.sql',
   'vincular_mi_cuenta':         'supabase_puesto_en_sesion.sql',
   'apartado_cabe':              'supabase_preventa_cupo.sql',
   'apartado_guardar':           'supabase_apartados_traspaso.sql',

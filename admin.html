@@ -205,7 +205,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
     <button onclick="tab('avisos',this);cargarListaAvisos()">📢 Avisos</button>
     <button onclick="tab('comis',this);cargarComisionesCloud()">💰 Comisiones</button>
     <button onclick="tab('equipo',this);cargarEquipo()">👥 Equipo</button>
-    <button onclick="tab('config',this);loadConfig()">⚙️ Config</button>
   </div>
 
   <!-- CATÁLOGO -->
@@ -474,38 +473,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 
   </div>
 
-  <div class="pane" id="pane-config">
-    <div class="card">
-      <h2>⚙️ Configuración de tienda</h2>
-      <p class="note">Datos necesarios para que la app de <b>Captura de Series</b> funcione en todos los dispositivos del equipo.</p>
-      <!-- El campo se llama `hoja_auth` por herencia de cuando las ventas se
-           concentraban en una hoja de Google. Ya no: «Ventas del día» lee
-           Supabase. Lo que sigue haciendo es decidir QUIÉN puede abrir ese
-           panel, y por eso se queda. -->
-      <div class="field">
-        <label>Responsable de revisar las ventas</label>
-        <input id="cfgHoja" placeholder="Nombre del asesor, tal cual">
-        <p style="font-size:11px;color:#aaa;margin-top:4px">Nombre exacto del asesor que puede abrir «Ventas del día» en Captura de Series. Tiene que coincidir letra por letra con el de la lista de vendedores. Gerente y subgerente entran siempre, sin ponerlos aquí.</p>
-      </div>
-      <!-- 2-sep-2026: esto era una caja de texto donde se escribían los nombres
-           OTRA VEZ, aparte de 👥 Equipo. Dos listas de la misma gente que nadie
-           ataba: una letra de diferencia entre ellas no da error, manda las
-           ventas de esa persona a otro sitio y se descubre a fin de mes. Ahora
-           la lista sale de quien está dado de alta, y aquí solo se enseña. -->
-      <div class="field">
-        <label>Vendedores del equipo</label>
-        <div id="cfgVendLista" class="note" style="background:#f7f7f8;border-radius:9px;
-             padding:10px 12px;line-height:1.7">Cargando…</div>
-        <p style="font-size:11px;color:#aaa;margin-top:6px">Son los que están dados de
-          alta en <b>👥 Equipo</b>, y es la lista que sale al capturar una venta.
-          Para agregar o quitar a alguien, hazlo ahí: aquí no se escribe, así no
-          hay dos listas que puedan decir cosas distintas.</p>
-      </div>
-      <button class="btn-pri" id="btnConfig" onclick="guardarConfig()">💾 Guardar configuración</button>
-      <div class="result" id="resConfig"></div>
-    </div>
-  </div>
-</div>
 
 <div id="toast"></div>
 
@@ -566,6 +533,17 @@ const _role = localStorage.getItem('hes_role');
    Apps Script no queda nada más que el nombre. Viene del login y no se escribe
    aquí: este archivo es público. */
 const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
+
+/* Quién está usando Admin, por su número de empleado. El servidor lo exige para
+   repartir permisos: `puede_admin(quien, tienda)` decide, y falsificar esto en
+   el navegador no sirve de nada —ya se probó—, porque quien contesta es la base.
+
+   Vacío cuando se entró con el correo de la tienda: ahí manda la sesión de
+   Supabase y este dato no hace falta. */
+function _miEmpno(){
+  try{ const e = JSON.parse(localStorage.getItem('hes_empleado')||'null');
+       return (e && e.empno) ? String(e.empno) : ''; }catch(e){ return ''; }
+}
 
 /* Aquí vivían `API`, `gasQS`, `gasPost` y `gasEnviar`. Llevaban desde el 17-ago
    sin que nadie los llamara —las escrituras pasaron a `sbEscribir`— y lo único
@@ -690,99 +668,80 @@ function equipoAviso(msg){
   el.innerHTML = msg || '';
 }
 
-/* ── Los nombres que no cuadran entre las dos listas (28-ago-2026) ──────
-   La lista de vendedores (Configuración) y la tabla `empleados` (Equipo) son
-   DOS listas escritas a mano, y `accesorios_reporte` las casa POR NOMBRE. Una
-   letra de diferencia y la comisión de ese asesor no se suma a nadie en el
-   Excel regional — sin que el Excel avise.
+/* Aquí vivía `pintarDivergencias`, que comparaba la lista de vendedores de
+   Config con la tabla `empleados` y avisaba si un nombre no cuadraba. Nació de
+   un caso real —un apellido con una letra de más mandó 19 ventas de accesorio y
+   32 de `ventas` a otra persona, y se vio a fin de mes—.
 
-   Pasó de verdad con un apellido escrito con una letra de más en una de las
-   dos listas: 19 ventas de accesorio y 32 en `ventas` contadas como si fueran
-   de otra persona. El aviso del reporte lo enseñó, pero a fin de mes y con el
-   daño hecho. Esto lo dice donde se causa: al editar el equipo o la lista.
+   Se va porque ya no hay dos listas que puedan diferir: desde el 2-sep-2026 los
+   vendedores SON el equipo. Arreglada la causa, el aviso sobra.
 
-   UN SOLO PORTERO para las dos pestañas, igual que `seccionVisible_` en el
-   tablero y por la misma razón: dos consultas separadas se responden distinto
-   el día que alguien toque una, y entonces una pantalla avisa y la otra no.
+   Y llevaba roto desde que se hizo esta copia: llamaba a `equipo_divergencias`,
+   una función que se quedó en el repo de origen y aquí no existe. Fallaba en
+   silencio a propósito —para no gritar cada vez que se cae la señal— así que
+   nadie se enteró. Una comprobación que no puede correr se lee igual que una
+   que no encuentra nada. */
 
-   No bloquea nada. La lista puede tener un nombre viejo sin limpiar y eso no
-   impide trabajar; solo hay que verlo. */
-async function pintarDivergencias(){
-  const dest = ['divergEquipo','divergCfg']
-    .map(function(id){ return document.getElementById(id); })
-    .filter(Boolean);
-  if(!dest.length) return;
-  function ocultar(){ dest.forEach(function(el){ el.style.display = 'none'; }); }
-
-  let filas;
-  try{
-    if(!sb) initSB();
-    if(!sb) return ocultar();
-    const { data, error } = await sb.rpc('equipo_divergencias',
-                                         { p_store: (_cfg && _cfg.store_id) || '' });
-    if(error) throw error;
-    filas = data || [];
-  }catch(e){
-    /* Sin red o sin permiso NO se dice nada. Un «no se pudo comprobar» en rojo
-       cada vez que falla la señal del centro comercial enseña a ignorar el
-       recuadro, y entonces deja de leerse el día que sí trae algo. */
-    return ocultar();
-  }
-  if(!filas.length) return ocultar();
-
-  const html = '<b>⚠️ ' + filas.length + ' nombre(s) sin cuadrar</b>' +
-    '<ul style="margin:6px 0 0;padding-left:18px">' +
-    filas.map(function(f){
-      return '<li style="margin-bottom:4px"><b>' + escHtml(f.nombre) + '</b> ' +
-             '<span style="opacity:.65">(' + escHtml(f.origen) + ')</span><br>' +
-             escHtml(f.problema) + '</li>';
-    }).join('') +
-    '</ul><p style="margin:8px 0 0;font-size:11.5px">Se arregla escribiendo el ' +
-    'nombre <b>igual</b> en las dos listas: 👥 Equipo y ⚙️ Configuración.</p>';
-
-  dest.forEach(function(el){ el.innerHTML = html; el.style.display = 'block'; });
-}
 
 async function cargarEquipo(){
   const cont = document.getElementById('equipoLista');
   const alta = document.getElementById('equipoAltaCard');
   cont.innerHTML = '<p class="note" style="text-align:center;color:#bbb">Cargando…</p>';
-  // El <select> de puestos usa la misma lista que el resto de Admin
   const sel = document.getElementById('nuevoEmpPuesto');
   if(sel && !sel.options.length)
     sel.innerHTML = PUESTOS_CONOCIDOS.map(p=>'<option value="'+p+'">'+p+'</option>').join('');
 
   if(!sb) initSB();
-  // Distinguir "no hay sesion" de "no se pudo consultar": antes los dos casos
-  // decian lo mismo y mandaban al gerente a volver a entrar aunque ya estuviera
-  // dentro y el problema fuera otro.
   let sesion = false, fallo = '';
   try{
     const { data, error } = await sb.auth.getSession();
     if(error) fallo = error.message || 'error al consultar la sesión';
     sesion = !!(data && data.session);
   }catch(e){ fallo = String(e && e.message ? e.message : e); }
-  if(!sesion){
-    alta.style.display = 'none';
+
+  /* Dos caminos para la MISMA lista (2-sep-2026).
+
+     Con sesión de gerente se lee la tabla directo, que además trae el correo y
+     si esa persona ya creó su cuenta. Sin sesión —el subgerente, que entra con
+     su número— se pide por `equipo_lista`, que comprueba en el servidor el
+     token de la tienda Y el permiso de Admin.
+
+     Antes este caso enseñaba la lista VACÍA con un aviso que solo hablaba de
+     dar de alta: parecía que no había nadie registrado, habiendo tres. */
+  if(sesion){
+    alta.style.display = '';
+    equipoAviso('');
+    const { data, error } = await sb.from('empleados')
+      .select('id,empno,nombre,puesto,activo,admin,ventas_dia,email,user_id')
+      .eq('store_id', _cfg.store_id)
+      .order('activo', { ascending:false }).order('nombre');
+    if(error){
+      cont.innerHTML = '';
+      equipoAviso(escHtml(errorEquipo(error)));
+      return;
+    }
+    _equipo = data || [];
+    pintarEquipo();
+    return;
+  }
+
+  /* Sin sesión se ve la lista y se reparten permisos, pero dar de alta no: un
+     alta es un número NUEVO que abre la app, no un permiso sobre alguien que ya
+     entra. Esa puerta se queda donde estaba. */
+  alta.style.display = 'none';
+  const filas = await sbLeer('equipo_lista', { p_quien: _miEmpno() });
+  if(!filas || !filas.length){
     cont.innerHTML = '';
     equipoAviso(fallo
-      ? 'No se pudo comprobar tu sesión (' + fallo + '). Revisa tu conexión y recarga; si sigue, vuelve a entrar con tu correo.'
-      : 'Para dar de alta o quitar accesos necesitas entrar como gerente, con tu correo y contraseña. Sal del menú y usa <b>“Iniciar sesión con correo”</b>.');
+      ? 'No se pudo comprobar tu sesión (' + fallo + '). Revisa tu conexión y recarga.'
+      : 'No pude leer el equipo con tu número. Si acabas de recibir el permiso de '
+        + 'Admin, sal y vuelve a entrar para que tu teléfono lo sepa.');
     return;
   }
-  alta.style.display = '';
-  equipoAviso('');
-
-  const { data, error } = await sb.from('empleados')
-    .select('id,empno,nombre,puesto,activo,admin,email,user_id')
-    .eq('store_id', _cfg.store_id)
-    .order('activo', { ascending:false }).order('nombre');
-  if(error){
-    cont.innerHTML = '';
-    equipoAviso(escHtml(errorEquipo(error)));
-    return;
-  }
-  _equipo = data || [];
+  equipoAviso('Estás viendo el equipo con tu <b>número de empleado</b>. Puedes '
+    + 'repartir permisos y dar de baja; para <b>dar de alta</b> a alguien nuevo '
+    + 'hace falta entrar con el correo de la tienda.');
+  _equipo = filas;
   pintarEquipo();
 }
 
@@ -791,7 +750,6 @@ function pintarEquipo(){
   /* Va ANTES del return de la lista vacía y sin `await`: la comprobación de los
      nombres no depende de que haya alguien pintado, y esperarla dejaría la
      lista en blanco mientras contesta el servidor. */
-  pintarDivergencias();
   if(!_equipo.length){
     cont.innerHTML = '<p class="note" style="text-align:center;color:#bbb">Todavía no hay nadie dado de alta.</p>';
     return;
@@ -805,9 +763,15 @@ function pintarEquipo(){
       '</span></div>' +
       '<div class="eq-tags">' +
         (e.admin ? '<span class="eq-tag admin">Admin</span>' : '') +
+        (e.ventas_dia ? '<span class="eq-tag admin" style="background:#eaf4ff;color:#24507f">Ventas del día</span>' : '') +
         (e.activo ? '' : '<span class="eq-tag baja">Sin acceso</span>') +
         '<button class="eq-btn' + (e.admin?' on':'') + '" onclick="cambiarEquipo(' + e.id + ',\'admin\',' + (!e.admin) + ')">' +
           (e.admin ? 'Quitar Admin' : 'Dar Admin') + '</button>' +
+        /* Quién puede abrir «Ventas del día» en Captura. Antes era un nombre
+           escrito a mano en Config: aquí se elige de gente que existe, así que
+           no hay nada que escribir mal. */
+        '<button class="eq-btn' + (e.ventas_dia?' on':'') + '" onclick="cambiarEquipo(' + e.id + ',\'ventas_dia\',' + (!e.ventas_dia) + ')">' +
+          (e.ventas_dia ? 'Quitar Ventas del día' : 'Dar Ventas del día') + '</button>' +
         '<button class="eq-btn" onclick="cambiarEquipo(' + e.id + ',\'activo\',' + (!e.activo) + ')">' +
           (e.activo ? 'Dar de baja' : 'Reactivar') + '</button>' +
       '</div></div>';
@@ -815,10 +779,17 @@ function pintarEquipo(){
   '<p class="note" style="margin-top:12px;font-size:11.5px">Hay <b>' + admins + '</b> persona(s) con acceso a Admin. Quien esté dado de baja no puede entrar a la app con su número.</p>';
 }
 
+/* Los permisos se cambian por `empleado_permiso`, no escribiendo en la tabla
+   (2-sep-2026). Dos razones, y la segunda pesa más:
+
+   · Así funciona también para quien entró con su NÚMERO —el subgerente—, que
+     no tiene sesión de correo y antes ni siquiera veía la lista.
+   · Y las reglas —no quitar el último Admin, no quitárselo uno mismo— viven en
+     el servidor. Aquí se siguen comprobando para no hacer ir y volver, pero si
+     alguien se las salta con la consola abierta, el servidor lo rechaza igual. */
 async function cambiarEquipo(id, campo, valor){
   const e = _equipo.filter(function(x){ return x.id === id; })[0];
   if(!e) return;
-  // Nadie se queda sin llave: siempre debe haber al menos un Admin activo
   const activosAdmin = _equipo.filter(function(x){ return x.admin && x.activo && x.id !== id; }).length;
   const seQuedaSinAdmin = (campo==='admin' && valor===false) || (campo==='activo' && valor===false && e.admin);
   if(seQuedaSinAdmin && activosAdmin === 0){
@@ -827,14 +798,16 @@ async function cambiarEquipo(id, campo, valor){
   }
   if(campo==='activo' && valor===false && !confirm('¿Dar de baja a ' + e.nombre + '?\n\nYa no podrá entrar a la app con su número. Puedes reactivarlo cuando quieras.')) return;
 
-  const cambio = {}; cambio[campo] = valor;
-  const { error } = await sb.from('empleados').update(cambio).eq('id', id);
-  if(error){ toast(errorEquipo(error), false); return; }
+  const r = await sbEscribir('empleado_permiso',
+    { p_quien: _miEmpno(), p_id: id, p_campo: campo, p_valor: valor });
+  if(!r || r.ok !== true){ toast((r && r.error) || 'No se pudo cambiar', false); return; }
   e[campo] = valor;
   pintarEquipo();
   const quien = e.nombre.split(' ')[0];
   toast(campo === 'admin'
     ? (valor ? quien + ' ya puede abrir Admin ✓' : 'A ' + quien + ' se le quitó el acceso a Admin')
+    : campo === 'ventas_dia'
+    ? (valor ? quien + ' ya puede ver «Ventas del día» ✓' : quien + ' dejó de ver «Ventas del día»')
     : (valor ? quien + ' puede entrar de nuevo ✓' : quien + ' quedó sin acceso a la app'), true);
 }
 
@@ -3089,111 +3062,19 @@ document.getElementById('fboxGar').addEventListener('paste', function(e){ alPega
 /* ================================================================
    TAB CONFIG — Configuración de tienda
    ================================================================ */
-/* Pinta la config y DESPUES la refresca desde el servidor.
+/* Aquí vivía la pestaña ⚙️ Config y sus cuatro funciones (2-sep-2026).
 
-   24-ago-2026: `_cfg` sale de `hes_store`, la sesion guardada en ESTE
-   dispositivo, que se escribe una vez al entrar y nunca se refresca. El gerente
-   veia un campo VACIO teniendolo puesto en la base — y si guardaba desde ahi,
-   lo borraba de verdad.
+   Se quedó sin razón de ser a base de mudanzas: la URL del Apps Script se fue
+   con la copia, los códigos de reparación con Mr Fix, la lista de vendedores a
+   👥 Equipo. Lo último que le quedaba era el nombre de quien puede abrir
+   «Ventas del día», escrito a mano y comparado letra por letra contra el equipo
+   —una tilde y esa persona no veía el botón, sin que nada avisara—. Ahora es
+   una marca en su ficha, en Equipo, y se elige de gente que existe.
 
-   Primero se pinta lo que haya, para que la pestaña no salga en blanco si no
-   hay red; luego se pide lo bueno y se corrige lo que difiera. Si la lectura
-   falla no se toca nada: mas vale un dato viejo a la vista que un formulario
-   vacio que, al guardarse, borra lo que habia. */
-/* La lista de vendedores ya no se escribe aquí: sale de quien está dado de alta
-   en 👥 Equipo (2-sep-2026). Vacía significa algo concreto y hay que decirlo,
-   porque sin nadie en la lista Captura de Series no deja elegir vendedor y el
-   asesor se queda mirando una pantalla que no explica nada. */
-function pintarVendedores(lista){
-  const caja = document.getElementById('cfgVendLista');
-  if(!caja) return;
-  const v = Array.isArray(lista) ? lista.filter(Boolean) : [];
-  caja.innerHTML = v.length
-    ? v.map(n => '• ' + escHtml(n)).join('<br>')
-    : '<b>Todavía no hay nadie dado de alta.</b><br>Hasta que agregues a alguien en ' +
-      '👥 Equipo, al capturar una venta no se podrá elegir vendedor.';
-}
+   `tiendas.hoja_auth` y `tiendas.vendedores` siguen en la base como puente para
+   las tiendas que ya los tenían escritos; los lee `hoja_auth_de_()` y
+   `vendedores_de_()` solo mientras nadie tenga la marca. */
 
-function loadConfig(){
-  const cfg = _cfg || {};
-  document.getElementById('cfgHoja').value  = cfg.hoja_auth || '';
-  pintarVendedores(cfg.vendedores);
-  refrescarConfig();
-  pintarDivergencias();
-}
-
-async function refrescarConfig(){
-  try{
-    if(!sb && !initSB()) return;
-    const storeId = (_cfg && _cfg.store_id) || '';
-    if(!storeId) return;
-    const { data, error } = await sb.from('tiendas')
-      .select('hoja_auth')
-      .eq('store_id', storeId).maybeSingle();
-    if(error || !data) return;      // sin red o sin permiso: se queda lo pintado
-
-    document.getElementById('cfgHoja').value  = data.hoja_auth || '';
-    pintarVendedores(data.vendedores);
-
-    /* Y se pone al dia la sesion de este dispositivo, que es de donde leen las
-       demas pantallas. Sin esto, el gerente ve el dato bueno en el formulario y
-       la app sigue usando el viejo. */
-    try{
-      const stored = JSON.parse(localStorage.getItem('hes_store')||'{}');
-      localStorage.setItem('hes_store', JSON.stringify(Object.assign({}, stored, data)));
-      Object.assign(_cfg, data);
-    }catch(e){}   // cuota llena: el formulario ya enseña lo bueno, que es lo que se venia a ver
-  }catch(e){}     // nunca debe impedir abrir la pestaña
-}
-
-async function guardarConfig(){
-  const hoja_auth  = document.getElementById('cfgHoja').value.trim();
-  const btn = document.getElementById('btnConfig');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>Guardando…';
-
-  try{
-    const stored = JSON.parse(localStorage.getItem('hes_store')||'{}');
-    const updated = Object.assign({}, stored, {hoja_auth});
-    localStorage.setItem('hes_store', JSON.stringify(updated));
-  }catch(e){}   // cuota llena: lo que importa es que quede en Supabase, abajo
-
-  /* Antes esto decía "✅ Guardado" pasara lo que pasara: el catch solo escribía
-     en la consola y el error que devuelve Supabase —que NO lanza excepción, lo
-     regresa en la respuesta— ni se miraba. La config podía no guardarse y el
-     gerente se iba tranquilo. */
-  let problema = '';
-  try{
-    if(!sb) initSB();
-    if(!sb){
-      problema = 'no se pudo conectar con Supabase';
-    }else{
-      const storeId = (_cfg && _cfg.store_id) || '';
-      if(!storeId){
-        problema = 'no hay tienda en la sesión; vuelve a entrar desde el menú';
-      }else{
-        const { error } = await sb.from('tiendas')
-          .update({hoja_auth})
-          .eq('store_id', storeId);
-        if(error) problema = error.message || 'Supabase rechazó el cambio';
-      }
-    }
-  }catch(e){ problema = String(e && e.message ? e.message : e); }
-
-  btn.disabled = false;
-  btn.textContent = '💾 Guardar configuración';
-  if(problema){
-    showResult('resConfig', false,
-      '⚠ NO se guardó: ' + problema + '. Vuelve a intentar; si sigue, revisa tu sesión.');
-    return;
-  }
-  showResult('resConfig', true,
-    '✅ Guardado. El equipo verá estos datos la próxima vez que abran Captura de Series o recarguen el tablero.');
-  /* Después de guardar, no antes: el aviso tiene que hablar de la lista que
-     acaba de quedar en Supabase. Si corrigió el nombre, desaparece solo; si lo
-     escribió mal de nuevo, lo dice en el momento y no a fin de mes. */
-  pintarDivergencias();
-}
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(()=>{});
 }

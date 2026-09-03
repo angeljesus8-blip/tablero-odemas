@@ -1412,6 +1412,72 @@ def r_funcion_repetida():
               % (fn, len(otros), ', '.join(otros)))
 
 
+def r_argumentos_cruzados():
+    """Un argumento que encaja con OTRO parámetro de la misma función.
+
+    2-sep-2026: `equipo_lista` llamaba a `public.puede_admin(p_quien, p_store)`,
+    y la firma real es `puede_admin(p_store_id, p_empno)` — la tienda primero.
+    Llamarla al revés NO da error: los dos parámetros son `text`, así que
+    Postgres la acepta, compara el número de empleado contra `store_id`, no
+    encuentra nada y devuelve **false**. El permiso se niega en silencio y la
+    pantalla enseña una lista vacía, que se lee como «no hay nadie dado de
+    alta». Media hora buscándolo en el sitio equivocado.
+
+    Ayudó a equivocarse el mensaje de PostgREST, que al no encontrar una función
+    lista los parámetros en orden ALFABÉTICO —«p_empno, p_store_id»— y se lee
+    como si ese fuera el orden de la firma.
+
+    La señal es barata y no necesita entender SQL: si el argumento de la
+    posición 1 se parece al nombre del parámetro 2 (o al revés), están
+    cruzados. `escritura_ok_(p_store, p_token)` contra `(p_store, p_token)`
+    encaja en su sitio y no dice nada."""
+    try:
+        import armar_sql
+        fuentes = armar_sql.LISTA
+    except Exception:
+        return
+    s = '\n'.join(_sql_sin_comentarios(leer(p) or '') for p in fuentes)
+
+    firmas = {}
+    for m in re.finditer(r'create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\((.*?)\)\s*returns',
+                         s, re.I | re.S):
+        params = []
+        for trozo in m.group(2).split(','):
+            t = trozo.strip().split()
+            if t and re.match(r'^\w+$', t[0]):
+                params.append(t[0].lower())
+        if params:
+            firmas[m.group(1).lower()] = params
+
+    def raiz(n):
+        return re.sub(r'^p_', '', n.lower())
+
+    for fn, params in sorted(firmas.items()):
+        if len(params) < 2: continue
+        for m in re.finditer(r'\bpublic\.%s\s*\(([^();]*)\)' % re.escape(fn), s, re.I):
+            args = [a.strip().lower() for a in m.group(1).split(',')]
+            if len(args) != len(params): continue
+            if '=>' in m.group(1): continue          # por nombre: el orden da igual
+            if not all(re.match(r'^\w+$', a) for a in args): continue
+            for i, a in enumerate(args):
+                ra = raiz(a)
+                if not ra or len(ra) < 3: continue
+                aqui = raiz(params[i])
+                encaja_aqui = ra in aqui or aqui in ra
+                otro = [j for j, p in enumerate(params)
+                        if j != i and (ra in raiz(p) or raiz(p) in ra)]
+                if not encaja_aqui and otro:
+                    falla('argumentos',
+                          'se llama a `%s(%s)` y su firma es `(%s)`: `%s` va en la '
+                          'posición %d y encaja con el parámetro %d. Si los dos son '
+                          'del mismo tipo, Postgres lo acepta y la función devuelve '
+                          'lo que no es, sin dar error. Pásalos por nombre: '
+                          '`%s => …`.'
+                          % (fn, ', '.join(args), ', '.join(params), a, i + 1,
+                             otro[0] + 1, params[otro[0]]))
+                    break
+
+
 def r_escritura_con_token():
     """Lo que escribe y se puede llamar desde el navegador tiene que pedir token.
 
@@ -1874,7 +1940,7 @@ def main():
     # Va PRIMERA: si git no contesta, las reglas que lo consultan no corren, y
     # conviene saberlo antes de leer 24 «ok» que no cubren lo que parecen.
     r_git()
-    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token()
+    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token(); r_argumentos_cruzados()
     r_sintaxis(); r_helpers(); r_version(staged); r_copias(); r_cupo()
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()
     r_porteros(); r_contrato_sql(); r_join_sql()
