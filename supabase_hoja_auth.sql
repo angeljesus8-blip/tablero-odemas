@@ -45,21 +45,24 @@ COMMENT ON COLUMN public.tiendas.hoja_auth IS
 -- ------------------------------------------------------------
 -- PASO 3 · Comprobar que el nombre coincide con la lista
 -- ------------------------------------------------------------
--- Esto es lo que de verdad decide si el botón aparece. `currentVend` sale
--- de la lista `vendedores`, y se compara con `===` contra `hoja_auth`: si
--- difieren en una tilde, el botón no sale y nada avisa.
+-- Esto es lo que de verdad decide si el botón aparece. `currentVend` sale de la
+-- lista de vendedores, y se compara con `===` contra `hoja_auth`: si difieren
+-- en una tilde, el botón no sale y nada avisa.
 --
--- OJO: `vendedores` es jsonb, NO text[]. `unnest()` truena con
--- "function unnest(jsonb) does not exist"; va jsonb_array_elements_text().
-SELECT store_id,
-       (SELECT count(*) FROM jsonb_array_elements_text(vendedores) v
-        WHERE v = hoja_auth)                            AS coincide_exacto,
-       (SELECT count(*) FROM jsonb_array_elements_text(vendedores) v) AS total_vendedores
-FROM public.tiendas
-WHERE store_id = '1217';
+-- La lista sale de `empleados` desde el 2-sep-2026 (ver el bloque de abajo), así
+-- que la comprobación se hace contra los nombres dados de alta.
+SELECT t.store_id,
+       t.hoja_auth,
+       EXISTS (SELECT 1 FROM public.empleados e
+                WHERE e.store_id = t.store_id AND e.activo = true
+                  AND e.nombre = t.hoja_auth) AS coincide_letra_por_letra
+  FROM public.tiendas t
+ WHERE coalesce(t.hoja_auth,'') <> ''
+ ORDER BY t.store_id;
 
--- coincide_exacto debe ser 1. Si es 0, el nombre de hoja_auth no está en la
--- lista tal cual y hay que copiarlo de ahí, sin retocarlo a mano.
+-- `coincide_letra_por_letra` tiene que ser true. Si sale false, ese nombre no
+-- está en el equipo tal cual: cópialo de Admin → Equipo sin retocarlo a mano, o
+-- ese asesor no podrá abrir «Ventas del día» y nada dirá por qué.
 
 -- ------------------------------------------------------------
 -- PASO 4 · Que las funciones lo entreguen  ← lo único que hacía falta
@@ -78,6 +81,39 @@ WHERE store_id = '1217';
    Los comentarios van arriba del CREATE y no entre la firma y el RETURNS TABLE:
    `r_cadenas` empareja los dos y solo admite un salto de linea, asi que un
    comentario en medio la ciega. */
+/* ── DE DONDE SALE `vendedores` (2-sep-2026) ─────────────────
+   De la tabla `empleados`, no de `tiendas.vendedores`.
+
+   Hasta hoy eran DOS listas con la misma gente, las dos escritas a mano: la de
+   Admin -> Equipo (quien ENTRA, con su numero) y la de Admin -> Config (los
+   nombres que salen al CAPTURAR una venta). Nadie las ataba, y una letra de
+   diferencia entre ellas no da error: manda las ventas de esa persona a otro
+   sitio. En la tienda de origen paso con un apellido con una letra de mas —19
+   ventas de accesorio y 32 de `ventas` contadas como de otra persona— y se
+   descubrio a fin de mes.
+
+   Ahora hay una sola lista y se da de alta una vez.
+
+   `tiendas.vendedores` queda como PUENTE y solo se usa si la tienda no tiene
+   a nadie dado de alta todavia: sin eso, una tienda que ya estaba funcionando
+   se quedaria sin poder capturar el dia que se pegue esto, que es peor que la
+   duplicacion que venimos a quitar. En cuanto haya un empleado activo, manda
+   `empleados` y el campo viejo deja de mirarse. */
+CREATE OR REPLACE FUNCTION public.vendedores_de_(p_store text)
+RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT coalesce(
+    (SELECT jsonb_agg(e.nombre ORDER BY e.nombre)
+       FROM public.empleados e
+      WHERE e.store_id = p_store AND e.activo = true),
+    (SELECT to_jsonb(t.vendedores) FROM public.tiendas t WHERE t.store_id = p_store),
+    '[]'::jsonb);
+$$;
+
+REVOKE ALL ON FUNCTION public.vendedores_de_(text) FROM public, anon, authenticated;
+
+
 DROP FUNCTION IF EXISTS public.login_asesor(text);
 
 CREATE FUNCTION public.login_asesor(p_pin text)
@@ -89,7 +125,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT t.store_id, t.nombre, t.ciudad,
-         to_jsonb(t.vendedores), t.gas_token,
+         public.vendedores_de_(t.store_id), t.gas_token,
          t.hoja_auth
   FROM public.tiendas t
   WHERE coalesce(t.activo, true) = true
@@ -110,7 +146,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT t.store_id, t.nombre, t.ciudad,
-         to_jsonb(t.vendedores),
+         public.vendedores_de_(t.store_id),
          e.empno, e.nombre, e.puesto, e.admin,
          t.gas_token, t.hoja_auth
   FROM public.empleados e

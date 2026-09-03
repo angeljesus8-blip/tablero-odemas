@@ -487,11 +487,19 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
         <input id="cfgHoja" placeholder="Nombre del asesor, tal cual">
         <p style="font-size:11px;color:#aaa;margin-top:4px">Nombre exacto del asesor que puede abrir «Ventas del día» en Captura de Series. Tiene que coincidir letra por letra con el de la lista de vendedores. Gerente y subgerente entran siempre, sin ponerlos aquí.</p>
       </div>
+      <!-- 2-sep-2026: esto era una caja de texto donde se escribían los nombres
+           OTRA VEZ, aparte de 👥 Equipo. Dos listas de la misma gente que nadie
+           ataba: una letra de diferencia entre ellas no da error, manda las
+           ventas de esa persona a otro sitio y se descubre a fin de mes. Ahora
+           la lista sale de quien está dado de alta, y aquí solo se enseña. -->
       <div class="field">
-        <label>Vendedores del equipo (uno por línea)</label>
-        <textarea id="cfgVend" rows="6" placeholder="Ana Ramírez&#10;Luis Pérez&#10;María López"></textarea>
-        <p style="font-size:11px;color:#aaa;margin-top:4px">Escritos <b>igual</b> que en 👥 Equipo. Con una letra de diferencia la comisión de ese asesor no se suma a nadie en el Excel regional.</p>
-        <div id="divergCfg" class="note" style="display:none;margin-top:8px;background:#fff1f1;border-color:#ffc9c9;color:#8a1f1f"></div>
+        <label>Vendedores del equipo</label>
+        <div id="cfgVendLista" class="note" style="background:#f7f7f8;border-radius:9px;
+             padding:10px 12px;line-height:1.7">Cargando…</div>
+        <p style="font-size:11px;color:#aaa;margin-top:6px">Son los que están dados de
+          alta en <b>👥 Equipo</b>, y es la lista que sale al capturar una venta.
+          Para agregar o quitar a alguien, hazlo ahí: aquí no se escribe, así no
+          hay dos listas que puedan decir cosas distintas.</p>
       </div>
       <button class="btn-pri" id="btnConfig" onclick="guardarConfig()">💾 Guardar configuración</button>
       <div class="result" id="resConfig"></div>
@@ -3092,10 +3100,24 @@ document.getElementById('fboxGar').addEventListener('paste', function(e){ alPega
    hay red; luego se pide lo bueno y se corrige lo que difiera. Si la lectura
    falla no se toca nada: mas vale un dato viejo a la vista que un formulario
    vacio que, al guardarse, borra lo que habia. */
+/* La lista de vendedores ya no se escribe aquí: sale de quien está dado de alta
+   en 👥 Equipo (2-sep-2026). Vacía significa algo concreto y hay que decirlo,
+   porque sin nadie en la lista Captura de Series no deja elegir vendedor y el
+   asesor se queda mirando una pantalla que no explica nada. */
+function pintarVendedores(lista){
+  const caja = document.getElementById('cfgVendLista');
+  if(!caja) return;
+  const v = Array.isArray(lista) ? lista.filter(Boolean) : [];
+  caja.innerHTML = v.length
+    ? v.map(n => '• ' + escHtml(n)).join('<br>')
+    : '<b>Todavía no hay nadie dado de alta.</b><br>Hasta que agregues a alguien en ' +
+      '👥 Equipo, al capturar una venta no se podrá elegir vendedor.';
+}
+
 function loadConfig(){
   const cfg = _cfg || {};
   document.getElementById('cfgHoja').value  = cfg.hoja_auth || '';
-  document.getElementById('cfgVend').value  = (cfg.vendedores||[]).join('\n');
+  pintarVendedores(cfg.vendedores);
   refrescarConfig();
   pintarDivergencias();
 }
@@ -3106,12 +3128,12 @@ async function refrescarConfig(){
     const storeId = (_cfg && _cfg.store_id) || '';
     if(!storeId) return;
     const { data, error } = await sb.from('tiendas')
-      .select('hoja_auth,vendedores')
+      .select('hoja_auth')
       .eq('store_id', storeId).maybeSingle();
     if(error || !data) return;      // sin red o sin permiso: se queda lo pintado
 
     document.getElementById('cfgHoja').value  = data.hoja_auth || '';
-    document.getElementById('cfgVend').value  = (data.vendedores||[]).join('\n');
+    pintarVendedores(data.vendedores);
 
     /* Y se pone al dia la sesion de este dispositivo, que es de donde leen las
        demas pantallas. Sin esto, el gerente ve el dato bueno en el formulario y
@@ -3126,15 +3148,13 @@ async function refrescarConfig(){
 
 async function guardarConfig(){
   const hoja_auth  = document.getElementById('cfgHoja').value.trim();
-  const vendedores = document.getElementById('cfgVend').value
-    .split('\n').map(s=>s.trim()).filter(Boolean);
   const btn = document.getElementById('btnConfig');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Guardando…';
 
   try{
     const stored = JSON.parse(localStorage.getItem('hes_store')||'{}');
-    const updated = Object.assign({}, stored, {hoja_auth, vendedores});
+    const updated = Object.assign({}, stored, {hoja_auth});
     localStorage.setItem('hes_store', JSON.stringify(updated));
   }catch(e){}   // cuota llena: lo que importa es que quede en Supabase, abajo
 
@@ -3153,7 +3173,7 @@ async function guardarConfig(){
         problema = 'no hay tienda en la sesión; vuelve a entrar desde el menú';
       }else{
         const { error } = await sb.from('tiendas')
-          .update({hoja_auth, vendedores})
+          .update({hoja_auth})
           .eq('store_id', storeId);
         if(error) problema = error.message || 'Supabase rechazó el cambio';
       }
