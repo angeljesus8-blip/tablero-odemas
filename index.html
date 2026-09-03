@@ -623,7 +623,23 @@ async function doRegister() {
   if (pass.length < 6) { showErr('regErr','La contraseña debe tener mínimo 6 caracteres'); return; }
   const btn = document.getElementById('btnReg');
   btn.disabled = true; btn.textContent = 'Registrando…';
-  const { data, error } = await sb.auth.signUp({ email, password: pass });
+  /* A DÓNDE vuelve el enlace del correo (3-sep-2026).
+
+     Sin esto, Supabase manda al «Site URL» del proyecto, que de fábrica es
+     `http://localhost:3000` — una dirección que no existe en el teléfono de
+     nadie. La cuenta SÍ queda confirmada (el enlace consume el token aunque el
+     destino no cargue), pero la persona ve una página de error y da por hecho
+     que el registro falló.
+
+     `location.href` sin la parte de después de `?` o `#`: así vuelve a esta
+     misma copia, esté publicada donde esté, sin nada escrito a mano que haya
+     que cambiar por tienda.
+
+     Supabase solo acepta destinos que estén en su lista de Redirect URLs, así
+     que esto NO sustituye a configurarla en el panel: la acompaña. */
+  const volverA = location.href.split('?')[0].split('#')[0];
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass, options: { emailRedirectTo: volverA } });
   btn.disabled = false; btn.textContent = 'Crear cuenta';
   if (error) { showErr('regErr', error.message.includes('already')?'Este correo ya está registrado. Inicia sesión.':error.message); return; }
   if (data.user && !_modoEquipo) {
