@@ -190,6 +190,19 @@
         <input class="auth-inp" id="regCiudad" type="text" placeholder="Ciudad">
       </div>
       <input class="auth-inp" id="regNombre" type="text" placeholder="Nombre · ej: Angelópolis">
+      <!-- 3-sep-2026: el correo de la tienda es del gerente, así que aquí ya
+           sabemos quién es. Sin esto, la tienda nacía sin una sola persona dada
+           de alta — y como la lista de vendedores SON los empleados, al capturar
+           una venta no había a quién acreditársela. Había que ir a Admin a darse
+           de alta uno mismo, sabiendo que hacía falta. -->
+      <p class="auth-sep">— y quién eres tú —</p>
+      <div class="auth-row2">
+        <input class="auth-inp" id="regEmpNombre" type="text" placeholder="Tu nombre completo">
+        <input class="auth-inp" id="regEmpNo" type="text" placeholder="Tu N° de empleado" inputmode="numeric" maxlength="8">
+      </div>
+      <p class="auth-hint" style="margin:2px 0 0">Quedas dado de alta como <b>Gerente de Tienda</b>,
+        con acceso a Admin. Tu nombre es con el que se registrarán tus ventas, y tu
+        número, con el que entras a la app desde cualquier teléfono.</p>
     </div>
     <button class="auth-btn" id="btnReg" onclick="doRegister()">Crear cuenta</button>
     <p class="auth-hint" id="regHint">Recibirás un correo de confirmación antes de poder iniciar sesión.</p>
@@ -544,7 +557,16 @@ async function doRegister() {
   const storeId= document.getElementById('regId').value.trim();
   const nombre = document.getElementById('regNombre').value.trim();
   const ciudad = document.getElementById('regCiudad').value.trim();
+  const empNom = document.getElementById('regEmpNombre').value.trim().replace(/\s+/g,' ');
+  const empNo  = document.getElementById('regEmpNo').value.trim();
   if (!email || !pass || (!_modoEquipo && (!storeId || !nombre))) { showErr('regErr','Llena todos los campos obligatorios'); return; }
+  if (!_modoEquipo && (!empNom || !empNo)) { showErr('regErr','Falta tu nombre y tu número de empleado: con ellos quedas dado de alta y puedes capturar ventas desde el primer día'); return; }
+  /* El número es la llave con la que se entra a la app y se compara tal cual:
+     un espacio o una letra colada dejan fuera a esa persona sin decir por qué. */
+  if (!_modoEquipo && !/^[0-9]{3,8}$/.test(empNo)) { showErr('regErr','Tu número de empleado son solo dígitos (entre 3 y 8)'); return; }
+  /* Nombre completo, no de pila: es el que va a salir en cada venta y en el
+     leaderboard, y dos «Luis» en la misma tienda no se distinguen. */
+  if (!_modoEquipo && empNom.split(' ').length < 2) { showErr('regErr','Escribe tu nombre completo, como quieres que aparezca en tus ventas'); return; }
   if (pass !== pass2) { showErr('regErr','Las contraseñas no coinciden'); return; }
   if (pass.length < 6) { showErr('regErr','La contraseña debe tener mínimo 6 caracteres'); return; }
   const btn = document.getElementById('btnReg');
@@ -561,11 +583,30 @@ async function doRegister() {
        `escritura_ok_` rechaza todo lo que llegue sin token. */
     const { error:eT } = await sb.from('tiendas').insert({ user_id:data.user.id, store_id:storeId, nombre, ciudad, vendedores:[], admin_pin:storeId });
     if (eT && eT.code==='23505') { showErr('regErr','El ID de tienda '+storeId+' ya está registrado.'); return; }
+    if (eT) { showErr('regErr','No se pudo crear la tienda: '+(eT.message||'error de Supabase')); return; }
+
+    /* Y el gerente, dado de alta en su propia tienda. VA DESPUÉS: la política
+       que deja escribir en `empleados` pregunta por el dueño de esa tienda, y
+       la tienda tiene que existir para que la encuentre.
+
+       Si esto falla, la tienda ya está creada y funciona: se dice qué pasó y
+       dónde arreglarlo, en vez de dejar creer que el registro entero se cayó. */
+    const { error:eE } = await sb.from('empleados').insert({
+      store_id: storeId, empno: empNo, nombre: empNom,
+      puesto: 'Gerente de Tienda', admin: true, activo: true });
+    if (eE) {
+      showErr('regErr','Tu tienda quedó creada, pero no pude darte de alta ('
+        + (eE.code==='23505' ? 'ese número ya existe en la tienda' : (eE.message||'error'))
+        + '). Entra a Admin → 👥 Equipo y date de alta ahí; hasta entonces no se '
+        + 'podrá elegir vendedor al capturar.');
+      return;
+    }
   }
   const ok = document.getElementById('regOk');
   ok.textContent = _modoEquipo
     ? '¡Cuenta creada! Confirma tu correo y luego inicia sesión: tu tienda se reconoce sola.'
-    : '¡Cuenta creada! Revisa tu correo para confirmar y luego inicia sesión.';
+    : '¡Cuenta creada y tienda registrada! Ya quedaste dado de alta como gerente: '
+      + 'podrás entrar con tu correo o con tu número. Revisa tu correo para confirmar.';
   ok.classList.add('show');
 }
 
