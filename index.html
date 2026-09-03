@@ -659,7 +659,11 @@ async function doRegister() {
   const ciudad = document.getElementById('regCiudad').value.trim();
   const empNom = document.getElementById('regEmpNombre').value.trim().replace(/\s+/g,' ');
   const empNo  = document.getElementById('regEmpNo').value.trim();
-  if (!email || !pass || (!_modoEquipo && (!storeId || !nombre))) { showErr('regErr','Llena todos los campos obligatorios'); return; }
+  /* Completando la tienda de una cuenta que ya existe, el correo y la
+     contraseña están ocultos y vacíos: exigirlos aquí hacía que el formulario
+     dijera «Llena todos los campos obligatorios» con todo lleno. */
+  const completando = !!_usuarioSinTienda;
+  if ((!completando && (!email || !pass)) || (!_modoEquipo && (!storeId || !nombre))) { showErr('regErr','Llena todos los campos obligatorios'); return; }
   if (!_modoEquipo && (!empNom || !empNo)) { showErr('regErr','Falta tu nombre y tu número de empleado: con ellos quedas dado de alta y puedes capturar ventas desde el primer día'); return; }
   /* El número es la llave con la que se entra a la app y se compara tal cual:
      un espacio o una letra colada dejan fuera a esa persona sin decir por qué. */
@@ -667,8 +671,8 @@ async function doRegister() {
   /* Nombre completo, no de pila: es el que va a salir en cada venta y en el
      leaderboard, y dos «Luis» en la misma tienda no se distinguen. */
   if (!_modoEquipo && empNom.split(' ').length < 2) { showErr('regErr','Escribe tu nombre completo, como quieres que aparezca en tus ventas'); return; }
-  if (pass !== pass2) { showErr('regErr','Las contraseñas no coinciden'); return; }
-  if (pass.length < 6) { showErr('regErr','La contraseña debe tener mínimo 6 caracteres'); return; }
+  if (!completando && pass !== pass2) { showErr('regErr','Las contraseñas no coinciden'); return; }
+  if (!completando && pass.length < 6) { showErr('regErr','La contraseña debe tener mínimo 6 caracteres'); return; }
   const btn = document.getElementById('btnReg');
 
   /* Completando la tienda de una cuenta que ya existe: no hay nada que
