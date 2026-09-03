@@ -64,6 +64,24 @@ BEGIN
 END $$;
 
 
+/* Y las dos que el filtro de arriba NO ve, porque su nombre no dice de donde
+   son. Salieron en la primera base donde se corrio esto (1-sep-2026), cuando el
+   conteo del PASO 3 dio 54 en vez de 52:
+
+     · `unaccent_`      — de supabase_accesorios_reporte.sql. Quitaba los acentos
+                          para casar el nombre del vendedor con la lista del
+                          Excel regional.
+     · `captura_config` — de supabase_reparaciones.sql. Le daba a Captura los
+                          codigos de reparacion, una vez por sesion.
+
+   Filtrar por prefijo alcanza para las 20 que se llaman como el modulo y falla
+   justo con las que no. Por eso el PASO 3 cuenta cuantas quedan en vez de
+   preguntar solo por los prefijos: un nombre que no delata su origen no se
+   encuentra buscandolo por su origen. */
+DROP FUNCTION IF EXISTS public.captura_config(text);
+DROP FUNCTION IF EXISTS public.unaccent_(text);
+
+
 -- ── PASO 2 · Las tablas y lo que colgaba de ellas ───────────
 -- CASCADE se lleva politicas, indices y triggers propios. No toca `ventas` ni
 -- `catalogo`: los accesorios nunca vivieron ahi, y esa separacion es justo la
