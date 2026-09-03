@@ -12,19 +12,28 @@ import collections, glob, io, json, os, re, subprocess, sys, tempfile
 BASE = os.path.dirname(os.path.abspath(__file__))
 HTML = ['index.html', 'tablero.html', 'captura_series.html', 'admin.html',
         'comisiones.html', 'actualizar_datos.html', 'horarios.html']
-# horarios.html no se edita aquí: es copia de 02_Equipo/horario_semanal.html, que
-# se publica también en el repo planeador-odemas para las demás tiendas.
-COPIAS = {'horarios.html': os.path.join('..', '02_Equipo', 'horario_semanal.html')}
+# En la tienda de origen, `horarios.html` era una copia de otra carpeta y esta
+# lista comprobaba que no se separaran. Aquí no hay tal original: el archivo se
+# edita en este repo y punto. Vacía y NO borrada, porque la regla sigue siendo
+# util el dia que una pagina vuelva a tener una fuente fuera del repo — y una
+# entrada que apunta a un archivo que no existe hace que `r_copias` calle: se
+# lee como que comprueba algo, y no comprueba nada.
+COPIAS = {}
 # Páginas que se PUBLICAN pero no son la app: no las sirve el service worker ni
 # se enlazan desde el menú. No entran en HTML porque no deben obligar a subir
 # VERSION —no llegan a ningún celular por esa vía— pero sí tienen que pasar por
 # sintaxis, secretos y datos personales: se publican igual de expuestas.
-# (20-ago-2026: `accesorios_tecnico.html` se subió sin que nada la revisara.)
-SUELTOS = ['prueba_ticket.html']
-# Copias del Apps Script. No se ejecutan aquí, pero se publican igual que lo
-# demás: si traen una llave, queda expuesta lo mismo que en un .html.
-GS = ['GAS_Codigo.gs', 'GAS_ventas_detalle.gs', 'GAS_arreglo_apartados.gs',
-      'GAS_fechas.gs', 'GAS_guardian.gs', 'GAS_exportar.gs']
+#
+# Hoy no hay ninguna: la única que hubo (`accesorios_tecnico.html`) se fue con
+# el módulo de Mr Fix el 1-sep-2026. Si añades una, ponla aquí — esa página se
+# subió un día sin que nada la revisara, y de ahí viene esta lista.
+SUELTOS = []
+# En la tienda de origen aquí iban las copias del Apps Script, que se publicaban
+# como cualquier archivo y podían llevar una llave dentro. Esta copia no tiene
+# Apps Script: todo vive en Supabase. La lista se queda vacía y no borrada por
+# lo mismo que COPIAS — nombrar archivos que no existen es pedirle a la regla
+# que calle.
+GS = []
 
 # El proyecto de Supabase de la tienda de la que salió esta copia. Está escrito
 # aquí a propósito: es un identificador público —va en la URL de cada llamada
@@ -1403,6 +1412,54 @@ def r_funcion_repetida():
               % (fn, len(otros), ', '.join(otros)))
 
 
+def r_escritura_con_token():
+    """Lo que escribe y se puede llamar desde el navegador tiene que pedir token.
+
+    1-sep-2026: `venta_guardar` era la ÚNICA escritura sin candado. Es
+    `SECURITY DEFINER` y aceptaba cualquier `store_id`, así que con la clave
+    publicable —que va escrita en el HTML, que es público— se podían insertar
+    ventas en la tienda de al lado: descontarle stock y acreditarle comisiones a
+    quien fuera. Las otras 14 pasaban por `escritura_ok_` desde el 4-ago.
+
+    No lo pilló ninguna regla; salió probando la API a mano contra la base
+    recién montada.
+
+    Mira la ÚLTIMA definición de cada función, que es la que gana al pegar.
+    Importa: de `venta_guardar` hay CUATRO en el archivo y las tres primeras
+    siguen sin candado —son su historia, y ahí no molestan—. Lo que no puede
+    pasar es que gane una de ésas.
+
+    Se salta lo que se defiende de otra forma: `auth.uid()` (sesión de gerente),
+    `puede_admin`, o una comprobación propia de clave."""
+    try:
+        import armar_sql
+        fuentes = armar_sql.LISTA
+    except Exception:
+        aviso('escritura', 'sin el orden de armar_sql.py no se puede saber qué '
+                           'versión de cada función gana; no se comprobó el token.')
+        return
+
+    s = '\n'.join(_sql_sin_comentarios(leer(p) or '') for p in fuentes)
+    con_grant = set(m.group(1).lower() for m in re.finditer(
+        r'grant\s+execute\s+on\s+function\s+(?:public\.)?(\w+)', s, re.I))
+
+    ultima = {}
+    for m in re.finditer(r'create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\('
+                         r'(.*?)\)\s*returns(.*?)\$(\w*)\$(.*?)\$\4\$', s, re.I | re.S):
+        ultima[m.group(1).lower()] = m.group(5)
+
+    DEFENSAS = re.compile(r'escritura_ok_|auth\.uid\s*\(|puede_admin|_ok_\s*\(', re.I)
+    for fn, cuerpo in sorted(ultima.items()):
+        if fn not in con_grant: continue
+        escribe = re.search(r'\b(insert\s+into|update\s+public\.|delete\s+from)\b',
+                            cuerpo, re.I)
+        if not escribe or DEFENSAS.search(cuerpo): continue
+        falla('escritura', '`%s` escribe en la base, cualquiera puede llamarla con '
+                           'la clave publicable (que va en el HTML) y no comprueba '
+                           'el token de la tienda. Añade `escritura_ok_(p_store, '
+                           'p_token)` al principio, como las demás.' % fn)
+
+
 def r_columna_nueva():
     """Una columna añadida a un CREATE TABLE necesita ADEMÁS su ALTER.
 
@@ -1817,7 +1874,7 @@ def main():
     # Va PRIMERA: si git no contesta, las reglas que lo consultan no corren, y
     # conviene saberlo antes de leer 24 «ok» que no cubren lo que parecen.
     r_git()
-    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva()
+    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token()
     r_sintaxis(); r_helpers(); r_version(staged); r_copias(); r_cupo()
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()
     r_porteros(); r_contrato_sql(); r_join_sql()

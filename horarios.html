@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planeador de Horarios — Odemás</title>
+<title>Horarios · Odemás</title>
 <!-- Montserrat sigue viniendo del CDN AQUÍ Y SOLO AQUÍ (8-ago-2026).
      El resto del tablero la sirve desde ./fuentes/, porque con la señal de la
      tienda el CDN caído dibuja todo con la letra del sistema. Este archivo no
@@ -553,7 +553,7 @@ tr.sep-naranja td { background: var(--naranja); height: 3px; padding: 0; border:
 /* 4-ago-2026: el planeador vivía en su propio proyecto (lgnyqfstmcqpkbekspte),
    con su propio padrón de cuentas y su propio PIN. El equipo entraba dos veces:
    su número en el tablero, y otro PIN aquí. Ahora es el mismo proyecto que el
-   resto de HES Red, así que la sesión del tablero vale también aquí.
+   resto de Odemás, así que la sesión del tablero vale también aquí.
    Ver 09_Tablero/supabase_horarios.sql y MAPA.md (Cadena 7). */
 const SUPABASE_URL = 'https://ecuqtqxmdehzbbsmlxrh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce';
@@ -635,7 +635,7 @@ function aplicarEquipo(data) {
 
 /* ── Acceso ──
    Tres puertas, y ninguna pide nada que la persona no tenga ya:
-     1. Heredada del tablero: si entró a HES Red, aquí no se le pregunta nada.
+     1. Heredada del tablero: si entró a Odemás, aquí no se le pregunta nada.
      2. Correo y contraseña (gerente o subgerente) — para la URL suelta.
      3. Número de empleado — para el equipo en la URL suelta.
    La 1 es la que quita el segundo login. Las otras dos existen porque este
@@ -792,7 +792,7 @@ async function guardarConfig(clave, contenido) {
    El horario del equipo vivía SOLO dentro de Supabase: si la base se perdía o
    alguien borraba una clave, no había de dónde sacarlo. Esto lo baja a un
    archivo y lo vuelve a subir. Se usó para mudar el planeador de su proyecto
-   viejo al de HES Red (4-ago-2026), pero sirve como respaldo de siempre. */
+   viejo al de Odemás (4-ago-2026), pero sirve como respaldo de siempre. */
 const CLAVES_RESPALDO = ['equipo', 'historial', 'excepciones', 'semanas_guardadas'];
 
 async function respaldoBajar() {
@@ -1986,7 +1986,7 @@ function mostrarVolverAlMenu() {
 
 /* ── Arranque ──
    Lo primero es intentar heredar la sesión del tablero: si la persona ya entró a
-   HES Red, aquí no se le pregunta nada. Solo si no hay nada que heredar se
+   Odemás, aquí no se le pregunta nada. Solo si no hay nada que heredar se
    enseña el login, que es el caso de la URL suelta (planeador-odemas).
 
    El tablero deja tres cosas en localStorage al entrar: `hes_store` (la tienda),
