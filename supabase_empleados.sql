@@ -92,7 +92,7 @@ grant execute on function public.login_empleado(text) to anon, authenticated;
    Si aun así prefieres darlos de alta de golpe (un equipo grande, una
    migración), esta es la forma. Escríbela en `_privado/equipo.sql`, que el
    .gitignore deja fuera, y pégala después de este archivo — igual que el
-   mapeo de nombres del reporte, en supabase_accesorios_reporte.sql:
+   los datos que no van en un repo publico:
 
      insert into public.empleados (store_id, empno, nombre, puesto) values
        ('<tienda>', '<empno>', 'NOMBRE APELLIDOS', 'Gerente de Tienda'),

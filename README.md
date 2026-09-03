@@ -23,11 +23,10 @@ No hace falta Google Apps Script ni hoja de cálculo. **Todo vive en Supabase.**
 | `index.html` | Menú y **login**. De aquí sale la sesión que leen las demás |
 | `tablero.html` | Promos, precios, EOL, combos, avisos, apartados |
 | `captura_series.html` | El asesor captura la venta: serie, SKU, seguro, foto |
-| `admin.html` | Gerente: equipo, cargas, catálogo, accesorios, configuración |
+| `admin.html` | Gerente: equipo, cargas, catálogo, configuración |
 | `comisiones.html` | Lo que lleva ganado cada quien |
 | `horarios.html` | Horario semanal |
 | `actualizar_datos.html` | Subir el Excel de inventario, catálogo y promos |
-| `accesorios_tecnico.html` | Consulta para técnicos externos. **Va aparte**: no está en el menú ni en el service worker |
 
 ## Montar la base
 
@@ -56,7 +55,7 @@ python configurar.py                                    # a qué proyecto apunta
 python configurar.py https://xxxx.supabase.co sb_publishable_xxxx
 ```
 
-La URL está escrita en **diez archivos**, con cinco nombres de variable
+La URL está escrita en **nueve archivos**, con cinco nombres de variable
 distintos. Cambiarlos a mano y olvidar uno no da error: esa pantalla sigue
 funcionando **contra la base equivocada**, y una venta capturada ahí descuenta
 stock de otra tienda. `verificar.py` no deja publicar mientras alguno siga
@@ -65,12 +64,12 @@ apuntando al proyecto de origen.
 **5. Sube `VERSION` en `sw.js`** — cambiaron los `.html`.
 
 **No pegues los `.sql` sueltos a ojo.** No son un esquema: son la historia de
-parches de una tienda, y **14 funciones están definidas en más de un archivo**
+parches de una tienda, y **12 funciones están definidas en más de un archivo**
 —`venta_guardar` en cuatro—. Al pegar gana la última, así que un orden mal
 puesto no da error: deja corriendo una versión vieja de la función que guarda
 las ventas, y eso no se ve hasta que los números no cuadran.
 
-`armar_sql.py` conoce esas 14, comprueba que gane la buena y **se niega a
+`armar_sql.py` conoce esas 12, comprueba que gane la buena y **se niega a
 escribir** si el orden no lo cumple, diciendo cuál y por qué.
 
 Si añades un `.sql`, méte­lo en `ORDEN` dentro del script. Un archivo que esté en
@@ -83,8 +82,7 @@ una función que no va a existir, y eso se descubre en producción.
 2. La base le pone sola su **clave de escritura** (`supabase_token_alta.sql`).
    Sin ella la app se ve entera pero no guarda nada, y todas las pantallas lo
    avisan al abrir.
-3. En Admin → Configuración: el equipo, el responsable de revisar ventas y los
-   códigos de reparación.
+3. En Admin → Configuración: el equipo y el responsable de revisar ventas.
 4. Para los avisos push, `tiendas.app_url` con la dirección de tu copia.
 
 ## Deploy
@@ -113,6 +111,16 @@ se coló en un archivo del repo. El archivo no se sube.
 
 Esa comprobación corre **en tu máquina**, no en GitHub Actions: allí `_privado/`
 no existe y el job solo lo avisa.
+
+## Lo que esta copia NO trae
+
+El **módulo de Mr Fix** —accesorios con SKU genérico, reparaciones y la consulta
+para técnicos externos— se retiró el 1-sep-2026: es de la tienda de origen, que
+tiene taller dentro. Se fue entero, también del SQL, así que Captura de Series
+es solo series.
+
+Si tu tienda sí tiene taller, está en el historial de `tablero-hes1217`; no
+intentes rehacerlo a mano.
 
 ## De dónde viene
 

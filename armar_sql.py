@@ -53,12 +53,7 @@ ORDEN = [
    'supabase_venta_editar.sql',
    'supabase_venta_exhibicion.sql',
    'supabase_ventas_detalle_entrega.sql',
-   'supabase_accesorios.sql',
-   'supabase_accesorios_reporte.sql',
-   'supabase_accesorios_catalogo.sql',
-   'supabase_tecnicos.sql',
    'supabase_venta_grupo.sql',
-   'supabase_reparaciones.sql',
    'supabase_token_alta.sql',
  ]),
 ]
@@ -92,8 +87,6 @@ POR_QUE = [
   'los dos redefinen ventas_hoy y son del MISMO dia, asi que la fecha no decide. '
   'La de apartados hace lo mismo que la otra Y ADEMAS suma los apartados '
   'cobrados hoy. Al reves se pierde esa suma y el attach del dia sale bajo'),
- ('supabase_accesorios.sql', 'supabase_accesorios_catalogo.sql',
-  'los dos definen accesorio_catalogo_guardar y _baja; la buena es la segunda'),
  ('supabase_cargas_admin.sql', 'supabase_token_alta.sql',
   'token_alta va al final: necesita la tabla y no la toca nadie despues'),
  ('supabase_preventa_series.sql', 'supabase_token_alta.sql',
@@ -116,8 +109,6 @@ ESPERADO_GANA = {
   'venta_guardar':              'supabase_venta_grupo.sql',
   'ventas_detalle':             'supabase_venta_grupo.sql',
   'ventas_hoy':                 'supabase_attach_apartados.sql',
-  'accesorio_catalogo_guardar': 'supabase_accesorios_catalogo.sql',
-  'accesorio_catalogo_baja':    'supabase_accesorios_catalogo.sql',
 }
 
 SALIDA = 'supabase_TODO.sql'

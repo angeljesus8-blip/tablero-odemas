@@ -5,7 +5,7 @@
         Dice a qué proyecto apunta hoy cada archivo. No escribe nada.
 
     python configurar.py https://xxxx.supabase.co sb_publishable_xxxx
-        Lo escribe en los 10 archivos de una vez y comprueba que no quede
+        Lo escribe en los nueve archivos de una vez y comprueba que no quede
         ninguna referencia al proyecto anterior.
 
 POR QUE EXISTE ESTO
@@ -30,8 +30,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 # que genera.
 ARCHIVOS = ['index.html', 'tablero.html', 'captura_series.html', 'admin.html',
             'comisiones.html', 'actualizar_datos.html', 'horarios.html',
-            'accesorios_tecnico.html', 'etiquetas_preventa.py',
-            'preventa_cupo_gen.py']
+            'etiquetas_preventa.py', 'preventa_cupo_gen.py']
 
 RX_URL = re.compile(r'https://([a-z0-9]{16,32})\.supabase\.co')
 RX_KEY = re.compile(r'sb_publishable_[A-Za-z0-9_-]{16,}')

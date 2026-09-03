@@ -413,7 +413,7 @@ async function pinCheck(auto) {
     const porTienda = await sb.rpc('login_asesor', { p_pin: pin });
     if (porTienda.error) {
       console.warn('login_asesor no disponible, usando el modo anterior:', porTienda.error.message);
-      const vieja = await sb.from('tiendas').select('store_id,nombre,ciudad,gas_token,vendedores,sku_reparacion').eq('store_id', pin).eq('activo', true).maybeSingle();
+      const vieja = await sb.from('tiendas').select('store_id,nombre,ciudad,gas_token,vendedores').eq('store_id', pin).eq('activo', true).maybeSingle();
       data = vieja.data;
     } else {
       data = uno(porTienda.data);
@@ -438,9 +438,8 @@ async function pinCheck(auto) {
        `escritura_ok_`, así que sin esto la tienda no guarda nada.
      · hoja_auth — quién está autorizado a abrir el concentrado de ventas
        (`captura_series.html`, DESCARGA_AUTORIZADA).
-     · sku_reparacion — sin él, Captura de Series no distingue una reparación de
-       un accesorio al leer el ticket y la detección se apaga sin avisar. */
-  const cfg = { store_id:data.store_id, nombre:data.nombre, ciudad:data.ciudad||'', gas_token:data.gas_token||'', hoja_auth:data.hoja_auth||'', vendedores:Array.isArray(data.vendedores)?data.vendedores:[], sku_reparacion:data.sku_reparacion||'' };
+*/
+  const cfg = { store_id:data.store_id, nombre:data.nombre, ciudad:data.ciudad||'', gas_token:data.gas_token||'', hoja_auth:data.hoja_auth||'', vendedores:Array.isArray(data.vendedores)?data.vendedores:[] };
   // Antes de pisar la sesion: si la tienda cambia, los caches de la
   // anterior no valen (ver olvidarCachesDeOtraTienda).
   olvidarCachesDeOtraTienda(cfg.store_id);
@@ -468,11 +467,9 @@ async function doLogin() {
   /* Dos clases de cuenta: la dueña de la tienda (el correo de tienda) y la de
      alguien del equipo con su propio correo —el subgerente—. La segunda no
      aparece en `tiendas`, así que se busca su ficha por correo y se vincula. */
-  // `sku_reparacion` viaja aqui desde el 24-ago-2026: es lo que deja a Captura
-  // de Series distinguir sola una reparacion de un accesorio al leer el ticket.
-  // Sin el en esta lista llega vacio al telefono del asesor, la deteccion se
-  // apaga y el asesor vuelve a elegir a mano — sin que nada diga por que.
-  const COLS = 'store_id,nombre,ciudad,gas_token,hoja_auth,vendedores,sku_reparacion';
+  // Un campo que falte en esta lista llega vacio al telefono y lo que dependa
+  // de el se apaga sin que nada diga por que. Ver el bloque de arriba.
+  const COLS = 'store_id,nombre,ciudad,gas_token,hoja_auth,vendedores';
   let tienda = (await sb.from('tiendas').select(COLS).eq('user_id', data.user.id).maybeSingle()).data;
   let ficha = null;
 
@@ -493,7 +490,7 @@ async function doLogin() {
     return;
   }
   // El segundo `cfg`: mismos campos que el del asesor, y por el mismo motivo.
-  const cfg = { store_id:tienda.store_id, nombre:tienda.nombre, ciudad:tienda.ciudad||'', gas_token:tienda.gas_token||'', hoja_auth:tienda.hoja_auth||'', vendedores:Array.isArray(tienda.vendedores)?tienda.vendedores:[], sku_reparacion:tienda.sku_reparacion||'' };
+  const cfg = { store_id:tienda.store_id, nombre:tienda.nombre, ciudad:tienda.ciudad||'', gas_token:tienda.gas_token||'', hoja_auth:tienda.hoja_auth||'', vendedores:Array.isArray(tienda.vendedores)?tienda.vendedores:[] };
   // Quien entra por su ficha se identifica igual que si hubiera usado su número
   const rol = (!ficha || ficha.admin) ? 'gerente' : 'asesor';
   // Antes de pisar la sesion: si la tienda cambia, los caches de la

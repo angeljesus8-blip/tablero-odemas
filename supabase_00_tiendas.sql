@@ -64,11 +64,6 @@ CREATE TABLE IF NOT EXISTS public.tiendas (
      tengan el mismo tipo es lo que permite copiar un SQL de una a otra. */
   vendedores jsonb NOT NULL DEFAULT '[]'::jsonb,
 
-  -- Codigos con los que el POS cobra una reparacion, separados por coma. Los
-  -- lee Captura de Series del ticket para saber sola si la linea es reparacion
-  -- o accesorio. Vacio = el asesor lo elige a mano.
-  sku_reparacion text,
-
   -- PIN de Admin y PIN de asesor. Si quedan vacios se usa `store_id`, que es
   -- lo que hacia antes de que existieran. Ver supabase_acceso.sql.
   admin_pin  text,
@@ -103,7 +98,6 @@ ALTER TABLE public.tiendas
   ADD COLUMN IF NOT EXISTS gas_token      text NOT NULL DEFAULT replace(gen_random_uuid()::text, '-', ''),
   ADD COLUMN IF NOT EXISTS hoja_auth      text,
   ADD COLUMN IF NOT EXISTS vendedores     jsonb NOT NULL DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS sku_reparacion text,
   ADD COLUMN IF NOT EXISTS admin_pin      text,
   ADD COLUMN IF NOT EXISTS asesor_pin     text,
   ADD COLUMN IF NOT EXISTS app_url        text,

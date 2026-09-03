@@ -70,28 +70,27 @@ WHERE store_id = '1217';
 --
 -- Entre el DROP y el CREATE nadie puede entrar a la app: correr de corrido.
 
-/* `sku_reparacion` viaja desde el 24-ago-2026: es lo que deja a Captura de
-   Series distinguir sola una reparacion de un accesorio al leer el ticket. El
-   gerente lo tenia puesto en Admin y aun asi la deteccion estaba apagada en los
-   telefonos, porque el login no lo traia.
+/* Lo que el login NO nombra aqui llega VACIO al telefono, y lo que dependa de
+   ese campo se apaga sin dar un error. Paso con `hoja_auth`: el gerente lo tenia
+   puesto en Admin, el cliente lo leia, y el boton de las ventas del dia estuvo
+   oculto para todos porque el servidor no lo devolvia.
 
-   Un campo que no se nombra aqui llega VACIO y lo que dependa de el se apaga en
-   silencio. Va escrito arriba del CREATE y no entre la firma y el RETURNS
-   TABLE: `r_cadenas` empareja los dos y solo admite un salto de linea, asi que
-   un comentario en medio la ciega. */
+   Los comentarios van arriba del CREATE y no entre la firma y el RETURNS TABLE:
+   `r_cadenas` empareja los dos y solo admite un salto de linea, asi que un
+   comentario en medio la ciega. */
 DROP FUNCTION IF EXISTS public.login_asesor(text);
 
 CREATE FUNCTION public.login_asesor(p_pin text)
 RETURNS TABLE (store_id text, nombre text, ciudad text,
                vendedores jsonb, gas_token text,
-               hoja_auth text, sku_reparacion text)
+               hoja_auth text)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT t.store_id, t.nombre, t.ciudad,
          to_jsonb(t.vendedores), t.gas_token,
-         t.hoja_auth, t.sku_reparacion
+         t.hoja_auth
   FROM public.tiendas t
   WHERE coalesce(t.activo, true) = true
     AND length(coalesce(p_pin,'')) >= 4
@@ -105,7 +104,7 @@ CREATE FUNCTION public.login_empleado(p_pin text)
 RETURNS TABLE (store_id text, nombre text, ciudad text,
                vendedores jsonb,
                emp_no text, emp_nombre text, emp_puesto text, emp_admin boolean,
-               gas_token text, hoja_auth text, sku_reparacion text)
+               gas_token text, hoja_auth text)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
@@ -113,7 +112,7 @@ AS $$
   SELECT t.store_id, t.nombre, t.ciudad,
          to_jsonb(t.vendedores),
          e.empno, e.nombre, e.puesto, e.admin,
-         t.gas_token, t.hoja_auth, t.sku_reparacion
+         t.gas_token, t.hoja_auth
   FROM public.empleados e
   JOIN public.tiendas  t ON t.store_id = e.store_id
   WHERE e.activo = true

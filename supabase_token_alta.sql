@@ -5,7 +5,7 @@
 --
 -- `escritura_ok_` (supabase_preventa_series.sql) compara lo que manda la app
 -- contra `tiendas.gas_token`, y 36 funciones la exigen: guardar una venta,
--- apartar una pieza, marcar una entrega, dar de alta un tecnico. Sin token, la
+-- apartar una pieza, marcar una entrega, dar de alta a alguien. Sin token, la
 -- tienda puede MIRAR y no puede guardar NADA.
 --
 -- Hasta ahora esa columna se llenaba a mano, porque solo habia una tienda. En

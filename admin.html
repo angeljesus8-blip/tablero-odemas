@@ -60,13 +60,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 /* CARDS */
 .card { background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;border:1px solid #ececec; }
 .card h2 { font-size:14px;font-weight:800;margin-bottom:10px; }
-/* Reporte de accesorios: tres bloques que se copian por separado porque la
-   hoja del Excel tiene columnas de formula en medio. */
-.acc-blq { margin-bottom:16px; }
-.acc-blq label { display:block;font-size:12px;color:#666;margin-bottom:5px;line-height:1.4; }
-.acc-blq textarea { width:100%;font-family:ui-monospace,monospace;font-size:11px;
-  border:1.5px solid #ddd;border-radius:8px;padding:8px;background:#fafafa;
-  white-space:pre;overflow-x:auto;resize:vertical; }
 .card .note { font-size:12px;color:#aaa;margin-bottom:12px;line-height:1.45; }
 
 /* FORM */
@@ -106,14 +99,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 .item-info strong { font-size:13px;font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 .item-info span { font-size:11.5px;color:#888;margin-top:2px;display:block;line-height:1.4; }
 .btn-del { background:#fff5f5;border:1.5px solid #ffd5d5;color:var(--rojo);border-radius:8px;padding:7px 10px;font-size:14px;cursor:pointer;flex-shrink:0; }
-/* Catálogo de accesorios: una fila por producto, y los avisos que no bloquean */
-.cat-f { display:flex;gap:9px;align-items:center;padding:9px 2px;border-bottom:1px solid #f2f2f2;font-size:13px;cursor:pointer; }
-.cat-f.off { opacity:.45; }
-.cat-f .cn { flex:1;font-weight:700;line-height:1.35; }
-.cat-f .ca { font-family:ui-monospace,monospace;font-size:11px;color:#aaa;font-weight:600; }
-.cat-f .cp { font-weight:800;color:#1a8c4e;white-space:nowrap; }
-.cat-f .cb { background:none;border:1.5px solid #e0e0e0;border-radius:7px;font-size:11px;padding:3px 8px;color:#888;cursor:pointer;flex-shrink:0;font-family:inherit;font-weight:700; }
-.cat-av { margin:6px 0 0;padding:9px 11px;border-radius:8px;border-left:4px solid var(--naranja);background:#fff4ec;font-size:12px;line-height:1.45;color:#8a4a1f; }
 .empty { text-align:center;color:#ccc;font-size:13px;padding:24px; }
 
 /* COMISIONES — vista previa editable */
@@ -183,7 +168,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 </head>
 <body>
 <script src="./continuidad.js"></script>
-<script src="./acc_codigos.js"></script>
 
 
 <!-- PIN -->
@@ -209,7 +193,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
        dos lados que comparar. Ver el comentario de `revisarCuadre` abajo. -->
 
   <div class="tab-bar">
-    <button class="on" onclick="tab('cat',this);cargarCatAcc()">📦 Catálogo</button>
+    <button class="on" onclick="tab('cat',this)">📦 Catálogo</button>
     <button onclick="tab('promos',this)">🔥 Promos</button>
     <!-- Bundles retirado el 4-ago-2026: la tienda dejó de manejar paquetes.
          Sin este botón no hay forma de llegar a #pane-bundles, así que ya no se
@@ -220,7 +204,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
     <button onclick="tab('eol',this)">🏷️ EOL</button>
     <button onclick="tab('avisos',this);cargarListaAvisos()">📢 Avisos</button>
     <button onclick="tab('comis',this);cargarComisionesCloud()">💰 Comisiones</button>
-    <button onclick="tab('equipo',this);cargarEquipo();cargarTecnicos();repaMeses()">👥 Equipo</button>
+    <button onclick="tab('equipo',this);cargarEquipo()">👥 Equipo</button>
     <button onclick="tab('config',this);loadConfig()">⚙️ Config</button>
   </div>
 
@@ -259,64 +243,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="result" id="resCatRef"></div>
     </div>
 
-    <!-- Accesorios del SKU genérico (20-ago-2026, v198).
-         Estuvo unas horas en Captura de Series, junto al Excel del mes, porque
-         el momento en que se descubre que falta un producto es capturando un
-         ticket. Se movió aquí por una razón que pesa más: quien no se acuerda
-         de dónde estaba busca los catálogos donde están todos los catálogos.
-         En Captura queda una línea que dice dónde se agregan. -->
-    <div class="card" style="margin-top:14px">
-      <h2>🔌 Accesorios · SKU genérico</h2>
-      <p class="note">Micas, cargadores, kits y los productos de Mr&nbsp;Fix. Este
-        <b>no se sube, se escribe</b>: son dos docenas y cambian de uno en uno.
-        Es la lista que sale al capturar un ticket de accesorio.</p>
-      <div id="catAccLista"><p class="note">Abre esta pestaña para cargar…</p></div>
-      <button class="btn-pri" onclick="catAccNuevo()"
-              style="width:auto;padding:10px 14px;margin-top:10px">＋ Producto nuevo</button>
-
-      <!-- La ficha. Se llena al tocar un producto, o vacía para dar de alta. -->
-      <div id="catAccFicha" style="display:none;margin-top:14px;padding-top:14px;
-           border-top:2px solid #eee">
-        <div id="catAccUsos" class="note" style="display:none;background:#f7f7f8;
-             border-radius:8px;padding:9px 11px;margin-bottom:10px"></div>
-
-        <div class="field">
-          <label>Nombre del producto</label>
-          <input id="catAccNombre" autocapitalize="characters" autocomplete="off"
-                 placeholder="MICA HR">
-        </div>
-        <div class="field">
-          <label>Código de artículo</label>
-          <input id="catAccArt" autocapitalize="characters" autocomplete="off"
-                 placeholder="43739-MICAHR" oninput="catAccMirarArt()">
-          <p class="note" style="margin:5px 0 0">El que teclea el cajero en «N. de
-            serie». De aquí sale la propuesta automática al leer el ticket: sin él,
-            este producto <b>nunca se propondrá solo</b>.</p>
-          <div id="catAccAvisoArt" class="cat-av" style="display:none"></div>
-        </div>
-        <div class="field">
-          <label>Precio de referencia</label>
-          <input id="catAccPrecio" inputmode="decimal" autocomplete="off"
-                 oninput="catAccMirarPrecio()">
-          <p class="note" style="margin:5px 0 0">Ayuda a ordenar la lista, no es el
-            precio de venta: el real sale del ticket.</p>
-          <div id="catAccAvisoPrecio" class="cat-av" style="display:none"></div>
-        </div>
-        <div class="field">
-          <label>SKU con el que se cobra</label>
-          <input id="catAccSku" inputmode="numeric" autocomplete="off" placeholder="43739">
-          <p class="note" style="margin:5px 0 0">Casi todo va con el genérico
-            <b>43739</b>. Los Office no: Personal es 63602 y Familia 57518. Es la
-            columna E del Excel de comisiones.</p>
-        </div>
-        <div class="field">
-          <label>Orden en la lista</label>
-          <input id="catAccOrden" inputmode="numeric" autocomplete="off" placeholder="100">
-        </div>
-        <button class="btn-pri" onclick="catAccGuardar()">Guardar producto</button>
-        <div class="result" id="resCatAcc"></div>
-      </div>
-    </div>
   </div>
 
   <!-- PROMOS CEA -->
@@ -510,7 +436,6 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 
   <!-- CONFIG TIENDA -->
   <!-- EQUIPO -->
-  <!-- Reporte de accesorios (SKU genérico 43739) para el Excel regional -->
 
   <div class="pane" id="pane-equipo">
     <div class="card">
@@ -547,65 +472,12 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="result" id="resEquipo"></div>
     </div>
 
-    <div class="card">
-      <h2>🔧 Técnicos externos</h2>
-      <p class="note">No son del equipo ni entran con número de empleado: son de
-        Mr&nbsp;Fix y solo consultan <b>las ventas de accesorios</b> y sus tickets.
-        Ni tablero, ni inventario, ni comisiones, ni nombres del equipo.<br>
-        Entran por su cuenta en <code>accesorios_tecnico.html</code>, con la clave
-        que sale aquí.</p>
-      <div id="tecLista"><p class="note">Cargando…</p></div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input id="tecNombre" placeholder="Nombre del técnico" style="flex:1">
-        <button class="btn-pri" onclick="tecAlta()" style="width:auto;padding:10px 14px;margin:0">＋ Alta</button>
-      </div>
-      <p class="note" style="margin-top:8px">Dar de baja corta el acceso al momento.
-        No se borra: así queda constancia de si esa clave llegó a usarse y hasta cuándo.<br>
-        <b>clave</b> le pone la que tú elijas, y la anterior deja de servir en el acto.
-        Mínimo 8 caracteres con letras y números: esa consulta está abierta en
-        internet y una corta se adivina probando.</p>
-    </div>
-
-    <!-- Reparaciones del mes (24-ago-2026).
-
-         AQUÍ y no en Captura de Series a propósito. Captura es la pantalla que
-         baja el Excel regional de comisiones, y las reparaciones no van a ese
-         Excel: que esa pantalla no pueda ni leerlas es lo que lo garantiza, y
-         lo vigila `r_reparaciones_fuera` en verificar.py. Revisar el mes es
-         además trabajo de gestión, no de piso con un cliente delante. -->
-    <div class="card">
-      <h2>🔧 Reparaciones del mes</h2>
-      <p class="note">Los tickets que el equipo captura en
-        <b>Captura&nbsp;→&nbsp;🔧&nbsp;Mr&nbsp;Fix&nbsp;→&nbsp;Reparación</b>. <b>No entran en el Excel de
-        comisiones</b> ni cuentan como venta de la tienda: son de Mr&nbsp;Fix.
-        Es lo mismo que ve el técnico en su pantalla, más quién lo registró.</p>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <select id="repaMes" onchange="repaCargar()" style="flex:1"></select>
-        <button class="btn-pri" onclick="repaCargar()"
-                style="width:auto;padding:10px 14px;margin:0">Ver</button>
-      </div>
-      <div id="repaResumen" class="note" style="margin-bottom:8px"></div>
-      <div id="repaLista"><p class="note">Elige un mes para verlas.</p></div>
-    </div>
   </div>
 
   <div class="pane" id="pane-config">
     <div class="card">
       <h2>⚙️ Configuración de tienda</h2>
       <p class="note">Datos necesarios para que la app de <b>Captura de Series</b> funcione en todos los dispositivos del equipo.</p>
-      <!-- Con esto la app sabe SOLA, al leer el ticket, si la linea es una
-           reparacion o un accesorio. Los accesorios ya se reconocen por su
-           codigo (43739 y los dos de Office); este es el del servicio tecnico.
-           Vacio = el asesor lo elige a mano, que es como estaba. -->
-      <div class="field">
-        <label>Códigos de reparación (Mr Fix)</label>
-        <input id="cfgSkuRep" placeholder="100175537, 100175545">
-        <p class="note" style="margin-top:6px">Sale en el ticket después de
-          <code>SERVICIO:</code>, igual que el <code>43739</code> de los accesorios.
-          <b>Si son varios, sepáralos con coma.</b>
-          Con él puesto, Captura de Series distingue sola las reparaciones de los
-          accesorios. <b>Si lo dejas vacío</b>, el asesor lo elige a mano.</p>
-      </div>
       <!-- El campo se llama `hoja_auth` por herencia de cuando las ventas se
            concentraban en una hoja de Google. Ya no: «Ventas del día» lee
            Supabase. Lo que sigue haciendo es decidir QUIÉN puede abrir ese
@@ -709,10 +581,6 @@ function abrirAdmin(){
   // loadBundles() se quitó con la pestaña (4-ago-2026): era un viaje al Apps
   // Script en cada apertura de Admin para pintar un panel al que ya no se llega.
   loadEol();
-  /* El catálogo de accesorios se carga aquí y no solo al pulsar la pestaña,
-     porque 📦 Catálogo es la que está abierta al entrar: quien no la vuelva a
-     pulsar nunca vería más que «Abre esta pestaña para cargar…». */
-  cargarCatAcc();
 }
 
 /* `revisarCuadre` se retiró en la fase 6 (17-ago-2026, v170).
@@ -1060,217 +928,7 @@ async function sbLeer(fn, params){
   }catch(e){ return []; }
 }
 
-/* ── Reporte de accesorios para el Excel regional (18-ago-2026) ──────────
 
-   El archivo es `Registro_Ventas_MrFix_Odemas_2026.xlsx`, 128 hojas
-   (tienda × mes). La hoja está PROTEGIDA y solo se puede escribir en:
-
-     B  día        D  ticket    E  SKU    F  producto
-     G  cantidad   H  precio    N  empleado
-
-   C y de I a M son fórmulas —tienda, precios sin IVA, comisión y el PUESTO—,
-   así que pegar un bloque contiguo B:N choca con la protección. Por eso son
-   TRES pegados: B, luego D:H, luego N. Los datos empiezan en la FILA 6.
-
-   Se copia al portapapeles en vez de generar el .xlsx a propósito: el archivo
-   es compartido por diez tiendas y sobreescribirlo pisaría el trabajo de las
-   demás. Pegar en la hoja propia no toca nada ajeno. */
-
-
-
-
-/* ── Bajar el mes como Excel ─────────────────────────────────────────────
-   20-ago-2026, pedido por Angel: «no puede generarme de una vez un excel y ya
-   solo seleccionar desde el excel las filas?».
-
-   La clave es que las columnas van EN LA MISMA POSICION que la hoja destino
-   —B, D, E, F, G, H, N— y los datos empiezan en la FILA 6, igual que alli. Asi
-   se selecciona un rango y se pega en el mismo sitio, sin contar columnas.
-
-   Siguen siendo TRES pegados, y no por comodidad: en el destino C y de I a M
-   son formulas con candado, y Excel rechaza pegar un rango que las toque
-   aunque el origen venga vacio. Lo que cambia es que seleccionar una columna
-   en Excel es un clic, y en un cuadro de texto no.
-
-
-/* ── Técnicos externos (20-ago-2026) ─────────────────────────────────────
-   La clave la genera la BASE, no esta pantalla: escrita a mano acabaría siendo
-   «mrfix1». Y se enseña entera en la lista a propósito — quien entra a Admin
-   puede leerla de la tabla igual, así que taparla sería teatro y solo estorbaría
-   para dársela al técnico. */
-async function cargarTecnicos(){
-  const filas = await sbLeer('tecnicos_lista', { p_token: String((_cfg&&_cfg.gas_token)||'') });
-  const cont = document.getElementById('tecLista');
-  if(!filas.length){ cont.innerHTML = '<p class="note">Todavía no hay ninguno.</p>'; return; }
-  cont.innerHTML = filas.map(t => `
-    <div style="display:flex;gap:8px;align-items:center;padding:8px 0;
-                border-bottom:1px solid #f2f2f2;font-size:12.5px;
-                opacity:${t.activo ? 1 : .45}">
-      <div style="flex:1">
-        <b>${t.nombre}</b>${t.activo ? '' : ' <span style="color:#999">(dado de baja)</span>'}
-        <div style="font-family:ui-monospace,monospace;font-size:11px;color:#888;
-                    word-break:break-all">${t.clave}</div>
-        <div style="font-size:11px;color:#aaa">${t.ultimo_acceso
-          ? 'último acceso: ' + String(t.ultimo_acceso).slice(0,10)
-          : 'nunca ha entrado'}</div>
-      </div>
-      <button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"
-        onclick="tecCopiar('${t.clave}',this)">copiar</button>
-      <button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"
-        onclick="tecClave(${t.id},'${String(t.nombre).replace(/'/g, "\\'")}')">clave</button>
-      <button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"
-        onclick="tecBaja(${t.id},${!t.activo})">${t.activo ? 'baja' : 'alta'}</button>
-    </div>`).join('');
-}
-
-/* Ponerle al técnico una clave que tú eliges (24-ago-2026).
-
-   Antes solo se podía copiar la que inventaba el alta. Una clave que nadie
-   elige acaba apuntada en un papel pegado al mostrador, y no había forma de
-   cambiarla cuando un técnico dejaba de venir.
-
-   ⚠️ Las reglas de qué clave vale las pone EL SERVIDOR, no esto. Aquí se
-   comprueba lo mismo solo para no hacer ir y volver por una clave corta; si
-   esta comprobación se borrara, `tecnico_clave_poner` seguiría rechazándola.
-   Al revés —fiarlo a la pantalla— cualquiera con la consola abierta se salta el
-   mínimo, y la pantalla del técnico está abierta en internet. */
-async function tecClave(id, nombre){
-  const c = prompt('Clave nueva para ' + nombre + ':\n\n' +
-                   'Mínimo 8 caracteres, con letras y números, sin espacios.\n' +
-                   'Esta consulta está abierta en internet: una clave corta se adivina probando.');
-  if(c === null) return;                       // canceló
-  const clave = String(c).trim();
-  if(clave.length < 8){ alert('Muy corta: hacen falta 8 caracteres o más.'); return; }
-
-  const r = await sbEscribir('tecnico_clave_poner', { p_id: id, p_clave: clave });
-  if(!r || r.ok !== true){ alert((r && r.error) || 'No se pudo cambiar la clave.'); return; }
-  await cargarTecnicos();
-  alert('Listo. La clave de ' + (r.nombre || nombre) + ' es ahora:\n\n' + clave +
-        '\n\nDásela junto con el enlace de la consulta. La anterior ya no sirve.');
-}
-
-async function tecAlta(){
-  const n = document.getElementById('tecNombre').value.trim();
-  if(!n){ alert('Escribe el nombre del técnico.'); return; }
-  const r = await sbEscribir('tecnico_guardar', { p_nombre: n });
-  if(!r || r.ok !== true){ alert((r && r.error) || 'No se pudo dar de alta.'); return; }
-  document.getElementById('tecNombre').value = '';
-  await cargarTecnicos();
-  alert("Listo. Su clave es:\n\n" + r.clave + "\n\nDasela junto con el enlace de la consulta.");
-}
-
-
-/* ── Reparaciones del mes (24-ago-2026) ──────────────────────────────────
-
-   Lo que el gerente no tenía: hasta hoy el asesor las capturaba y el técnico
-   externo las consultaba, y el único sin pantalla era el dueño de la tienda.
-
-   Vive en Admin y no en Captura porque Captura es la pantalla que baja el Excel
-   regional, y las reparaciones no van a ese Excel. Que no pueda ni leerlas es
-   lo que lo garantiza; `r_reparaciones_fuera` lo vigila. */
-const REPA_MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO',
-                    'AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-let _repaFilas = [];
-
-function repaMeses(){
-  const s = document.getElementById('repaMes');
-  if(!s || s.options.length) return;
-  const hoy = new Date();
-  let html = '';
-  for(let i = 0; i < 12; i++){
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-    html += '<option value="' + d.getFullYear() + '-' + (d.getMonth()+1) + '">'
-          + REPA_MESES[d.getMonth()] + ' ' + d.getFullYear() + '</option>';
-  }
-  s.innerHTML = html;
-}
-
-async function repaCargar(){
-  repaMeses();
-  const sel = document.getElementById('repaMes');
-  const [anio, mes] = (sel.value || '').split('-').map(Number);
-  const cont = document.getElementById('repaLista');
-  const res = document.getElementById('repaResumen');
-  cont.innerHTML = '<p class="note">Consultando…</p>';
-  res.textContent = '';
-
-  /* `p_token` explícito: `sbLeer` no lo manda solo —solo `sbEscribir` lo hace—
-     y esta función lo exige. Es el fallo de v199 con el catálogo, que devolvía
-     cero filas y la pantalla lo achacaba a falta de permiso. */
-  const filas = await sbLeer('reparaciones_lista',
-                             { p_token: GAS_TOKEN, p_anio: anio, p_mes: mes });
-  _repaFilas = filas;
-
-  if(!filas.length){
-    /* Aquí cero SÍ es un resultado normal —un mes sin reparaciones es posible—,
-       al revés que en el catálogo, que nunca está vacío de verdad. Por eso se
-       dice el mes: así se ve que la consulta respondió y no que se colgó. */
-    cont.innerHTML = '<p class="note">No hay reparaciones en ' + REPA_MESES[mes-1] + '.</p>';
-    return;
-  }
-
-  const total = filas.reduce((s, f) => s + Number(f.importe || 0), 0);
-  res.innerHTML = '<b>' + filas.length + '</b> reparación(es) · <b>$' +
-    total.toLocaleString('es-MX', {minimumFractionDigits:2}) + '</b> ' +
-    '<span style="color:var(--gris)">— no entra en el Excel de comisiones</span>';
-
-  cont.innerHTML = filas.map((f, i) =>
-    '<div style="display:flex;gap:8px;align-items:baseline;padding:7px 0;' +
-    'border-bottom:1px solid #f4f4f4;font-size:12.5px">' +
-      '<b style="width:22px;color:#bbb">' + String(f.dia).slice(8,10) + '</b>' +
-      '<span style="font-family:ui-monospace,monospace;color:var(--gris);font-size:11.5px">' +
-        esc(f.ticket) + '</span>' +
-      '<span style="flex:1;color:var(--gris)">' +
-        (f.capturado_por ? 'capturó ' + esc(f.capturado_por) : '') + '</span>' +
-      '<b style="color:#1c9c4f">$' + Number(f.importe).toLocaleString('es-MX') + '</b>' +
-      (f.tiene_foto
-        ? '<button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px"' +
-          ' onclick="repaFoto(' + i + ')">ticket</button>'
-        : '<span style="width:56px"></span>') +
-    '</div>').join('');
-}
-
-/* Se pasa el ÍNDICE y no el captura_id: el id acabaría dentro de un onclick
-   como texto, y ahí una comilla en el dato rompe el atributo. Del índice no
-   sale nada que el navegador tenga que interpretar. */
-async function repaFoto(i){
-  const f = _repaFilas[i];
-  if(!f) return;
-  const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;' +
-    'display:flex;align-items:center;justify-content:center;padding:16px';
-  box.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;' +
-    'max-height:88vh;overflow:auto;padding:14px"><b>Ticket ' + esc(f.ticket) +
-    '</b><div id="repaFotoCuerpo" style="margin-top:10px">Cargando…</div></div>';
-  box.onclick = () => box.remove();
-  document.body.appendChild(box);
-
-  // Es una LECTURA, pero va por `sbEscribir` porque necesita el token de tienda
-  // y devuelve un objeto, no filas. `sbLeer` no manda token y exige un array.
-  const d = await sbEscribir('venta_foto_leer', { p_captura_id: String(f.captura_id) });
-  const c = document.getElementById('repaFotoCuerpo');
-  if(!c) return;                       // lo cerró antes de que llegara
-  c.innerHTML = (d && d.ok === true)
-    ? '<img src="data:' + (d.mime || 'image/jpeg') + ';base64,' + d.b64 +
-      '" style="width:100%;border-radius:10px">'
-    : '<p class="note">No se pudo abrir. Las fotos se guardan 31 días; ' +
-      'si el ticket es de hace más, ya no está.</p>';
-}
-
-async function tecBaja(id, activar){
-  if(!activar && !confirm('¿Cortar el acceso de este técnico?')) return;
-  const r = await sbEscribir('tecnico_baja', { p_id: id, p_activo: !!activar });
-  if(!r || r.ok !== true){ alert((r && r.error) || 'No se pudo cambiar.'); return; }
-  cargarTecnicos();
-}
-
-async function tecCopiar(clave, btn){
-  try{ await navigator.clipboard.writeText(clave); }
-  catch(e){ alert(clave); return; }   // sin portapapeles: se enseña para copiarla a mano
-  const antes = btn.textContent;
-  btn.textContent = '✓';
-  setTimeout(() => { btn.textContent = antes; }, 1400);
-}
 
 
 async function sbCargaAdmin(fn, params){
@@ -1377,160 +1035,6 @@ async function subirExhibicion(){
   btn.textContent='Actualizar exhibición'; btn.disabled=false;
 }
 
-/* ================================================================
-   TAB CATÁLOGO — Accesorios del SKU genérico (20-ago-2026, v198)
-   ================================================================
-   Los 23 productos se sembraron a mano y hasta hoy solo se tocaban por SQL.
-
-   ⚠️ Había una versión rota de esto en el servidor, sin usar:
-   `accesorio_catalogo_guardar` se escribió el 18-ago, el día ANTES de que el
-   catálogo tuviera `articulo` y `sku`, y solo guardaba (nombre, precio, orden).
-   Un alta hecha con ella quedaba sin código de artículo —y entonces el producto
-   NO se propone nunca al leer un ticket— y con SKU 43739 por omisión, falso
-   para los Office. Ninguna de las dos cosas da error. Se rehízo entera en
-   `supabase_accesorios_catalogo.sql`.
-
-   El aviso de códigos parecidos usa `accChoca` de `acc_codigos.js`, la MISMA
-   regla que usa Captura para adivinar el producto. Si fueran dos copias, esto
-   podría dar por bueno un código que allá va a empatar. */
-let _catAcc = [];        // el catálogo completo, activos y de baja
-let _catAccId = null;    // qué producto se edita; null = alta
-
-// El número de empleado de quien está usando Admin. El servidor comprueba con
-// él que sea gerente o subgerente: `puede_admin` deja entrar a Admin, pero
-// tocar el catálogo de accesorios es un permiso aparte.
-function _miEmpno(){
-  try{ const e = JSON.parse(localStorage.getItem('hes_empleado')||'null');
-       return (e && e.empno) ? String(e.empno) : ''; }catch(e){ return ''; }
-}
-
-async function cargarCatAcc(){
-  const caja = document.getElementById('catAccLista');
-  caja.innerHTML = '<p class="note">Cargando…</p>';
-  catAccFicha(null);
-
-  /* `p_token` va explícito: `sbLeer` NO lo manda solo —solo `sbEscribir` lo
-     hace—, y esta función lo exige como cualquier escritura, porque enseña el
-     catálogo entero. Sin él llegaba sin credencial y el servidor devolvía cero
-     filas: la pantalla decía «revisa la conexión o pide permiso» con las dos
-     cosas en orden. */
-  const filas = await sbLeer('accesorios_catalogo_admin',
-                             { p_token: GAS_TOKEN, p_quien: _miEmpno() });
-  /* `sbLeer` devuelve [] tanto si no hay red como si no hay permiso. Aquí sí hay
-     que decir algo: el catálogo NUNCA está vacío de verdad —los 23 están
-     sembrados—, así que una lista en blanco es siempre un problema, y en
-     silencio parecería que se borró. */
-  if(!filas.length){
-    caja.innerHTML = '<p class="note" style="color:var(--rojo)">No se pudo cargar el ' +
-      'catálogo de accesorios: revisa la conexión, o pide que te den permiso de ' +
-      'gerente o subgerente.</p>';
-    return;
-  }
-  _catAcc = filas;
-  pintarCatAcc();
-}
-
-function pintarCatAcc(){
-  document.getElementById('catAccLista').innerHTML = _catAcc.map((c, i) =>
-    '<div class="cat-f' + (c.activo ? '' : ' off') + '" onclick="catAccElegir(' + i + ')">' +
-      '<span class="cn">' + escHtml(c.nombre) + (c.activo ? '' : ' · de baja') +
-        '<br><span class="ca">' + escHtml(c.articulo || 'sin código') +
-        (String(c.sku) !== '43739' ? ' · SKU ' + escHtml(c.sku) : '') + '</span></span>' +
-      '<span class="cp">' + (c.precio_ref ? money(c.precio_ref) : '—') + '</span>' +
-      '<button class="cb" onclick="event.stopPropagation();catAccBaja(' + i + ')">' +
-        (c.activo ? 'baja' : 'activar') + '</button>' +
-    '</div>').join('');
-}
-
-function catAccFicha(c){
-  _catAccId = c ? c.id : null;
-  document.getElementById('catAccFicha').style.display = c ? 'block' : 'none';
-  document.getElementById('catAccAvisoArt').style.display = 'none';
-  document.getElementById('catAccAvisoPrecio').style.display = 'none';
-  document.getElementById('resCatAcc').className = 'result';
-  if(!c) return;
-
-  document.getElementById('catAccNombre').value = c.nombre || '';
-  document.getElementById('catAccArt').value    = c.articulo || '';
-  document.getElementById('catAccPrecio').value = c.precio_ref != null ? c.precio_ref : '';
-  document.getElementById('catAccSku').value    = c.sku || '43739';
-  document.getElementById('catAccOrden').value  = c.orden != null ? c.orden : 100;
-
-  /* Renombrar NO arrastra el histórico: cada venta guardó el nombre como texto.
-     No se impide —a veces hay que corregir una falta— pero se dice cuántas
-     ventas van a quedar con el nombre viejo. */
-  const u = Number(c.usos || 0), av = document.getElementById('catAccUsos');
-  av.style.display = u ? 'block' : 'none';
-  if(u) av.innerHTML = '<b>' + u + ' venta' + (u === 1 ? '' : 's') + '</b> registrada' +
-    (u === 1 ? '' : 's') + ' con este nombre. Si lo cambias, esas ventas se quedan ' +
-    'con el nombre anterior: el reporte ya entregado no se mueve.';
-}
-
-function catAccNuevo(){
-  catAccFicha({ id:null, nombre:'', articulo:'', precio_ref:'', sku:'43739',
-                orden:100, usos:0 });
-  document.getElementById('catAccNombre').focus();
-}
-
-function catAccElegir(i){ if(_catAcc[i]) catAccFicha(_catAcc[i]); }
-
-/* Aviso, no candado: el servidor rechaza el código REPETIDO, pero el empate de
-   PREFIJO es legal y aun así rompe la propuesta automática. */
-function catAccMirarArt(){
-  const caja = document.getElementById('catAccAvisoArt');
-  const otro = accChoca(document.getElementById('catAccArt').value, _catAcc, _catAccId);
-  caja.style.display = otro ? 'block' : 'none';
-  if(otro) caja.innerHTML = 'Se parece demasiado a <b>' + escHtml(otro.nombre) + '</b> (' +
-    escHtml(otro.articulo) + '). Cuando dos códigos empiezan igual, la app <b>no ' +
-    'propone ninguno</b> de los dos al leer el ticket y hay que elegirlos a mano. ' +
-    'Se puede guardar así, pero cambiando alguna letra del principio se evita.';
-}
-
-/* Dos productos al mismo precio dejan de marcarse solos: es el caso de MICA HR
-   y MICA MATTE, los $149 que en julio hubo que abrir uno por uno. */
-function catAccMirarPrecio(){
-  const p = Number(String(document.getElementById('catAccPrecio').value)
-                     .replace(/[^0-9.]/g, '')) || 0;
-  const caja = document.getElementById('catAccAvisoPrecio');
-  const otro = p ? _catAcc.find(c => c.activo && c.id !== _catAccId &&
-                        Math.abs(Number(c.precio_ref || 0) - p) < 0.5) : null;
-  caja.style.display = otro ? 'block' : 'none';
-  if(otro) caja.innerHTML = '<b>' + escHtml(otro.nombre) + '</b> cuesta lo mismo. Al ' +
-    'leer un ticket de ' + money(p) + ' la app mostrará los dos arriba, pero no ' +
-    'marcará ninguno: habrá que elegir a mano cuál fue.';
-}
-
-async function catAccGuardar(){
-  const nombre = document.getElementById('catAccNombre').value.trim();
-  if(!nombre) return showResult('resCatAcc', false, 'Ponle nombre al producto.');
-
-  const precioTxt = document.getElementById('catAccPrecio').value;
-  const r = await sbEscribir('accesorio_catalogo_guardar', {
-    p_nombre:   nombre,
-    p_precio:   precioTxt === '' ? null : Number(String(precioTxt).replace(/[^0-9.]/g, '')),
-    p_orden:    Number(document.getElementById('catAccOrden').value) || 100,
-    p_id:       _catAccId,
-    p_articulo: document.getElementById('catAccArt').value.trim(),
-    p_sku:      document.getElementById('catAccSku').value.trim() || '43739',
-    p_quien:    _miEmpno()
-  });
-  if(!r || r.ok !== true){
-    return showResult('resCatAcc', false, (r && r.error) ? escHtml(String(r.error))
-      : 'No se pudo guardar. Revisa la conexión.');
-  }
-  showResult('resCatAcc', true, '✅ ' + escHtml(nombre) + (_catAccId ? ' actualizado.' : ' agregado.'));
-  await cargarCatAcc();          // se relee: así se ve tal como quedó guardado
-}
-
-async function catAccBaja(i){
-  const c = _catAcc[i];
-  if(!c) return;
-  const r = await sbEscribir('accesorio_catalogo_baja',
-    { p_id: c.id, p_activo: !c.activo, p_quien: _miEmpno() });
-  if(!r || r.ok !== true) return toast((r && r.error) || 'No se pudo cambiar', false);
-  toast(c.activo ? 'Producto dado de baja' : 'Producto activado', true);
-  await cargarCatAcc();
-}
 
 
 /* ================================================================
@@ -3581,8 +3085,8 @@ document.getElementById('fboxGar').addEventListener('paste', function(e){ alPega
 
    24-ago-2026: `_cfg` sale de `hes_store`, la sesion guardada en ESTE
    dispositivo, que se escribe una vez al entrar y nunca se refresca. El gerente
-   veia el campo de los codigos de reparacion VACIO teniendolos puestos en la
-   base — y si guardaba desde ahi, los borraba de verdad.
+   veia un campo VACIO teniendolo puesto en la base — y si guardaba desde ahi,
+   lo borraba de verdad.
 
    Primero se pinta lo que haya, para que la pestaña no salga en blanco si no
    hay red; luego se pide lo bueno y se corrige lo que difiera. Si la lectura
@@ -3592,7 +3096,6 @@ function loadConfig(){
   const cfg = _cfg || {};
   document.getElementById('cfgHoja').value  = cfg.hoja_auth || '';
   document.getElementById('cfgVend').value  = (cfg.vendedores||[]).join('\n');
-  document.getElementById('cfgSkuRep').value = cfg.sku_reparacion || '';
   refrescarConfig();
   pintarDivergencias();
 }
@@ -3603,13 +3106,12 @@ async function refrescarConfig(){
     const storeId = (_cfg && _cfg.store_id) || '';
     if(!storeId) return;
     const { data, error } = await sb.from('tiendas')
-      .select('hoja_auth,vendedores,sku_reparacion')
+      .select('hoja_auth,vendedores')
       .eq('store_id', storeId).maybeSingle();
     if(error || !data) return;      // sin red o sin permiso: se queda lo pintado
 
     document.getElementById('cfgHoja').value  = data.hoja_auth || '';
     document.getElementById('cfgVend').value  = (data.vendedores||[]).join('\n');
-    document.getElementById('cfgSkuRep').value = data.sku_reparacion || '';
 
     /* Y se pone al dia la sesion de este dispositivo, que es de donde leen las
        demas pantallas. Sin esto, el gerente ve el dato bueno en el formulario y
@@ -3626,19 +3128,13 @@ async function guardarConfig(){
   const hoja_auth  = document.getElementById('cfgHoja').value.trim();
   const vendedores = document.getElementById('cfgVend').value
     .split('\n').map(s=>s.trim()).filter(Boolean);
-  /* En MAYUSCULAS y sin espacios, como los codigos del catalogo: el del ticket
-     viene asi, y compararlos con distinto formato no casaria nunca — y no daria
-     error, solo dejaria de detectar reparaciones en silencio. */
-  const sku_reparacion = document.getElementById('cfgSkuRep').value
-    .trim().toUpperCase();
-
   const btn = document.getElementById('btnConfig');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Guardando…';
 
   try{
     const stored = JSON.parse(localStorage.getItem('hes_store')||'{}');
-    const updated = Object.assign({}, stored, {hoja_auth, vendedores, sku_reparacion});
+    const updated = Object.assign({}, stored, {hoja_auth, vendedores});
     localStorage.setItem('hes_store', JSON.stringify(updated));
   }catch(e){}   // cuota llena: lo que importa es que quede en Supabase, abajo
 
@@ -3657,7 +3153,7 @@ async function guardarConfig(){
         problema = 'no hay tienda en la sesión; vuelve a entrar desde el menú';
       }else{
         const { error } = await sb.from('tiendas')
-          .update({hoja_auth, vendedores, sku_reparacion})
+          .update({hoja_auth, vendedores})
           .eq('store_id', storeId);
         if(error) problema = error.message || 'Supabase rechazó el cambio';
       }
