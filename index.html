@@ -466,6 +466,51 @@ async function pinCheck(auto) {
 }
 
 /* ── Gerente login ── */
+/* La tienda que se quedó a medias en el registro (3-sep-2026).
+
+   Se llama justo después de iniciar sesión y antes de buscar la tienda: es el
+   primer momento en que existe `auth.uid()`, que es lo que la política de
+   `tiendas` necesita para dejar crear la fila.
+
+   Solo actúa si el correo de la sesión es el mismo con el que se registró. Los
+   datos están en el navegador, y sin esa comprobación bastaría con que otra
+   persona iniciara sesión en este teléfono para acabar siendo dueña de una
+   tienda que no es suya.
+
+   Devuelve el error en texto si algo falla, o null si no había nada que hacer
+   —que es el caso normal— o si salió bien. */
+async function crearTiendaPendiente(user) {
+  let p = null;
+  // Ilegible o sin permiso de almacenamiento: no hay alta pendiente que atender,
+  // que es exactamente lo que pasa el 99% de las veces.
+  try{ p = JSON.parse(localStorage.getItem('hes_alta_pendiente') || 'null'); }catch(e){}
+  if (!p || !p.store_id) return null;
+  if (!user || !user.email || !p.email ||
+      user.email.toLowerCase() !== String(p.email).toLowerCase()) return null;
+
+  const { error:eT } = await sb.from('tiendas').insert({
+    user_id: user.id, store_id: p.store_id, nombre: p.nombre,
+    ciudad: p.ciudad || '', vendedores: [], admin_pin: p.store_id });
+  // Ya existía: la creó otro intento. No es un fallo, es haber llegado tarde.
+  if (eT && eT.code !== '23505') return eT.message || 'no se pudo crear la tienda';
+
+  if (p.empno && p.emp_nombre) {
+    const { error:eE } = await sb.from('empleados').insert({
+      store_id: p.store_id, empno: p.empno, nombre: p.emp_nombre,
+      puesto: 'Gerente de Tienda', admin: true, activo: true });
+    if (eE && eE.code !== '23505')
+      return 'La tienda quedó creada, pero no pude darte de alta ('
+           + (eE.message || 'error') + '). Entra a Admin → 👥 Equipo y date de alta ahí.';
+  }
+  /* Se borra solo cuando ya está todo dentro: si se borrara antes y algo
+     fallara, esos datos no estarían en ningún sitio y habría que volver a
+     escribirlos sin saber cuáles eran. */
+  // Si no se puede borrar, la tienda YA está creada: el siguiente intento choca
+  // con el 23505 y se ignora igual. Molesta menos que interrumpir el ingreso.
+  try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
+  return null;
+}
+
 async function doLogin() {
   hideErr('loginErr');
   if (!sb) { showErr('loginErr', 'Sin conexión con el servidor. Intenta de nuevo.'); return; }
@@ -483,6 +528,13 @@ async function doLogin() {
   // Un campo que falte en esta lista llega vacio al telefono y lo que dependa
   // de el se apaga sin que nada diga por que. Ver el bloque de arriba.
   const COLS = 'store_id,nombre,ciudad,gas_token,hoja_auth,vendedores';
+  // Si el registro dejó una tienda a medias por la confirmación de correo, este
+  // es el momento: ya hay sesión. Si falla lo dice y no sigue, porque lo que
+  // viene —buscar la tienda— daría «no estás dado de alta en ninguna tienda» y
+  // mandaría a pedirle al gerente que te registre... siendo el gerente.
+  const falloAlta = await crearTiendaPendiente(data.user);
+  if (falloAlta) { showErr('loginErr', falloAlta); return; }
+
   let tienda = (await sb.from('tiendas').select(COLS).eq('user_id', data.user.id).maybeSingle()).data;
   let ficha = null;
 
@@ -581,9 +633,42 @@ async function doRegister() {
        adivinable, y esa cadena es lo único que separa a quien puede guardar
        ventas de quien no. Sin esto la tienda se registra y no puede vender:
        `escritura_ok_` rechaza todo lo que llegue sin token. */
+    /* La tienda no siempre se puede crear AQUÍ (3-sep-2026).
+
+       Con la confirmación de correo activada —que es lo que evita que cualquiera
+       registre tiendas con correos que no existen—, `signUp` crea la cuenta pero
+       NO deja sesión hasta que la persona abre el enlace del correo. Sin sesión,
+       `auth.uid()` es NULL y la política `crear_tienda`, que exige
+       `auth.uid() = user_id`, rechaza la fila:
+
+           new row violates row-level security policy for table "tiendas"
+
+       Así que se intenta ahora —si la confirmación está apagada, funciona y se
+       acaba aquí— y si no, los datos quedan guardados en ESTE navegador y la
+       tienda se crea sola en el primer inicio de sesión, que es cuando por fin
+       hay sesión. Ver `crearTiendaPendiente()`.
+
+       Esto llevaba roto y en silencio: el error se miraba solo para el caso del
+       ID duplicado, y cualquier otro se ignoraba. La pantalla decía «¡Cuenta
+       creada!» con la tienda sin crear. */
+    const pendiente = { store_id:storeId, nombre, ciudad, empno:empNo, emp_nombre:empNom, email };
     const { error:eT } = await sb.from('tiendas').insert({ user_id:data.user.id, store_id:storeId, nombre, ciudad, vendedores:[], admin_pin:storeId });
     if (eT && eT.code==='23505') { showErr('regErr','El ID de tienda '+storeId+' ya está registrado.'); return; }
-    if (eT) { showErr('regErr','No se pudo crear la tienda: '+(eT.message||'error de Supabase')); return; }
+    if (eT) {
+      /* Sin sitio para guardarlo (modo privado, cuota llena) el aviso de abajo
+         sigue siendo cierto salvo por el «se crea sola»: entonces la tienda se
+         crea al volver a registrarla, que dirá que el correo ya existe. Es un
+         caso raro y con salida; romper el registro aquí no ayudaría a nadie. */
+      try{ localStorage.setItem('hes_alta_pendiente', JSON.stringify(pendiente)); }
+      catch(e){ /* sin sitio donde guardarlo: el caso raro que se explica arriba */ }
+      const ok = document.getElementById('regOk');
+      ok.innerHTML = '¡Cuenta creada! <b>Confirma tu correo</b> y vuelve aquí a iniciar '
+        + 'sesión: tu tienda se crea sola en ese momento, con tus datos.<br><br>'
+        + 'Hazlo <b>desde este mismo navegador</b> — los datos de la tienda quedaron '
+        + 'guardados aquí, no en el servidor.';
+      ok.classList.add('show');
+      return;
+    }
 
     /* Y el gerente, dado de alta en su propia tienda. VA DESPUÉS: la política
        que deja escribir en `empleados` pregunta por el dueño de esa tienda, y
@@ -595,6 +680,8 @@ async function doRegister() {
       store_id: storeId, empno: empNo, nombre: empNom,
       puesto: 'Gerente de Tienda', admin: true, activo: true });
     if (eE) {
+      // Lo mismo: la tienda existe, el pendiente sobra y el 23505 lo cubre.
+      try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
       showErr('regErr','Tu tienda quedó creada, pero no pude darte de alta ('
         + (eE.code==='23505' ? 'ese número ya existe en la tienda' : (eE.message||'error'))
         + '). Entra a Admin → 👥 Equipo y date de alta ahí; hasta entonces no se '
