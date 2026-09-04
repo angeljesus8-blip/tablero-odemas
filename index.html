@@ -252,7 +252,11 @@ const CARDS = [
   { label:'Tablero / Inventario',       icon:'📊', href:'tablero.html',     cls:'c1', desc:'Existencias, precios, promos, apartados y EOL al 50%.' },
   { label:'Comisiones y Extracoberturas', icon:'💰', href:'comisiones.html', cls:'c6', desc:'Venta por vendedor y avance de extracobertura, desde Sonar.' },
   { label:'Captura de Series',           icon:'📷', href:'captura_series.html', cls:'c2', desc:'Escanea el N° de serie y registra la venta.' },
-  { label:'Sales Arena',   icon:'🎯', href:'https://sales-arena-app.vercel.app', cls:'c5', desc:'Entrena tu venta por voz con un cliente IA.', ext:true },
+  /* Sales Arena decide QUÉ TIENDA es por la ruta de la URL, y sin ruta cae en
+     la tienda de origen. Enlazado sin el número, cualquier tienda de esta copia
+     entraba a practicar viendo el equipo de OTRA — con sus nombres. Por eso el
+     href se arma abajo con el `store_id` de la sesión. */
+  { label:'Sales Arena',   icon:'🎯', href:'https://sales-arena-app.vercel.app', cls:'c5', desc:'Entrena tu venta por voz con un cliente IA.', ext:true, conTienda:true },
   // Vive también en el repo planeador-odemas (multi-tienda), pero aquí se sirve
   // una copia propia: dentro del scope de la PWA se abre sin salir de la app.
   // La copia se sincroniza desde 02_Equipo — ver la regla "copia" de verificar.py.
@@ -260,6 +264,18 @@ const CARDS = [
   { label:'Promos Huawei', icon:'📡', href:'https://angeljesus8-blip.github.io/huawei-promos/', cls:'c4', desc:'Precios, descuentos y regalos vigentes en huawei.com/mx.', ext:true },
   { label:'Admin', icon:'⚙️', href:'admin.html', cls:'c-admin', desc:'Actualiza catálogo, promos CEA, bundles y EOL.', soloGerente:true },
 ];
+
+/* El número de tienda pegado a una dirección de fuera. Sin él, esa app no sabe
+   de qué tienda viene quien entra y enseña la que trae por defecto. Si la
+   sesión no dice la tienda, se deja la dirección como está: mejor que quien
+   abra vea una pantalla que le pide la tienda, a que vea la de otra. */
+function conTienda_(href){
+  try{
+    const s = JSON.parse(localStorage.getItem('hes_store')||'null');
+    const id = s && s.store_id ? String(s.store_id).trim() : '';
+    return id ? href.replace(/\/+$/,'') + '/' + encodeURIComponent(id) : href;
+  }catch(e){ return href; }   // sesión ilegible: la dirección sin tienda
+}
 
 function renderMenuCards(role) {
   // La tarjeta de Admin la ven el gerente (con su correo) y quien tenga el
@@ -270,7 +286,7 @@ function renderMenuCards(role) {
   const puedeAdmin = role === 'gerente' || !!(emp && emp.admin);
   const html = CARDS
     .filter(c => !c.soloGerente || puedeAdmin)
-    .map(c => `<a class="card ${c.cls}" href="${c.href}"${c.ext?' target="_blank" rel="noopener"':''}>
+    .map(c => `<a class="card ${c.cls}" href="${c.conTienda ? conTienda_(c.href) : c.href}"${c.ext?' target="_blank" rel="noopener"':''}>
       <div class="ic">${c.icon}</div>
       <div><h2>${c.label}${c.ext?'<span class="ext"> ↗ abre fuera</span>':''}</h2><p>${c.desc}</p></div>
       <div class="arrow">›</div>
