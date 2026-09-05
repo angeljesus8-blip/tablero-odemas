@@ -2,7 +2,7 @@ importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 // ÚNICO lugar donde vive la versión de la app. Las páginas ya no la repiten:
 // registran './sw.js' con updateViaCache:'none' y el navegador detecta el
 // cambio al ver que este archivo es distinto. Subir el número aquí y ya.
-const VERSION = 'v13';
+const VERSION = 'v14';
 const CACHE = 'odemas-' + VERSION;
 const ARCHIVOS = [
   './index.html',

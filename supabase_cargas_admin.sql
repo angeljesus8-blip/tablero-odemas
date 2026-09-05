@@ -59,7 +59,7 @@ CREATE OR REPLACE FUNCTION public.carga_catalogo(
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $fn$
-DECLARE n int; n_inv int; n_corte int;
+DECLARE n int; n_inv int; n_corte int; n_cero int := 0; n_con_stock int;
 BEGIN
   IF NOT public.escritura_ok_(p_store, p_token) THEN
     RETURN jsonb_build_object('ok', false, 'error', 'no_autorizado');
@@ -133,6 +133,39 @@ BEGIN
   SELECT p_store, g.sku, g.onhand FROM _carga g
   ON CONFLICT (store_id, sku) DO UPDATE
     SET onhand = excluded.onhand;
+
+  /* ── Lo que YA NO viene en el archivo se pone en cero ──────
+     5-sep-2026, encontrado en la tienda de origen: tres articulos agotados
+     seguian ofreciendose con stock. El archivo es el ON HAND del dia; cuando
+     un articulo se acaba, deja de venir. Hasta hoy esta carga solo tocaba los
+     SKUs presentes, asi que al ausente le quedaba el numero del ultimo dia que
+     aparecio — y `inventario_vivo` lo enseñaba igual, porque no mira si el
+     catalogo sigue vigente. El asesor prometia una pieza que no existe.
+
+     SOLO `onhand`. La columna `exhibicion` vive en esta misma tabla y se sube
+     por separado y de higos a brevas (`carga_exhibicion`): tocarla aqui
+     borraria el piso entero en cada carga diaria. Un articulo agotado en bodega
+     que conserve su pieza de muestra tiene que seguir viendose —0 en stock, 1
+     en piso—, que es justo lo que distingue `inventario_vivo`.
+
+     LA SALVAGUARDA: si el archivo trae menos de la mitad de los SKUs que ya
+     tienen existencia, no se pone nada en cero. Una carga completa que se acaba
+     de subir no puede encoger a la mitad de un dia para otro; si encoge, lo que
+     se subio fue un pedazo —una categoria, un archivo filtrado— y ponerle cero
+     al resto vaciaria la tienda entera sin que nadie lo pidiera. Se avisa en la
+     respuesta y no se toca nada. */
+  SELECT count(*) INTO n_con_stock FROM public.inventario i
+   WHERE i.store_id = p_store AND coalesce(i.onhand,0) > 0;
+
+  IF n_con_stock > 0 AND (SELECT count(*) FROM _carga WHERE onhand > 0) * 2 < n_con_stock THEN
+    n_cero := -1;   -- lo lee la app: archivo sospechosamente corto
+  ELSE
+    UPDATE public.inventario i SET onhand = 0
+     WHERE i.store_id = p_store
+       AND coalesce(i.onhand,0) <> 0
+       AND NOT EXISTS (SELECT 1 FROM _carga g WHERE g.sku = i.sku);
+    GET DIAGNOSTICS n_cero = ROW_COUNT;
+  END IF;
   GET DIAGNOSTICS n_inv = ROW_COUNT;
 
   -- EL CORTE. Va aquí dentro, en la misma transacción que el On Hand: si se
@@ -150,7 +183,10 @@ BEGIN
   GET DIAGNOSTICS n_corte = ROW_COUNT;
 
   RETURN jsonb_build_object('ok', true, 'skus', n, 'inventario', n_inv,
-                            'corte', n_corte, 'by', coalesce(p_by,''));
+                            'corte', n_corte, 'by', coalesce(p_by,''),
+                            -- -1 = no se puso nada en cero porque el archivo
+                            -- venia demasiado corto. La app lo enseña.
+                            'agotados', n_cero);
 EXCEPTION
   WHEN OTHERS THEN
     RETURN jsonb_build_object('ok', false, 'error', SQLSTATE || ': ' || left(SQLERRM, 140));

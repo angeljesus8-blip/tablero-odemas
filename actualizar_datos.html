@@ -263,8 +263,21 @@ $('btnGo').onclick = async () => {
        Con ello se va también el mensaje "Enviado, revisa la hoja en unos
        segundos", que era la forma educada de decir "no sé si guardó". */
     const r = await sbCarga('carga_catalogo', { p_filas: parsed, p_by: quien });
+    /* Cuántos quedaron en cero por no venir en el archivo. Se dice SIEMPRE, no
+       solo cuando son muchos: es la parte de la carga que cambia lo que el
+       equipo ve en piso, y un número que aparece sin avisar da más miedo que
+       uno explicado. El -1 es la salvaguarda del servidor. */
+    const bajas = (r.agotados === -1)
+      ? `<br>⚠️ <b>No se marcó nada como agotado.</b> El archivo trae bastantes ` +
+        `menos productos con existencia de los que había, así que parece un ` +
+        `pedazo y no la tienda completa. Si era el archivo bueno, vuelve a subirlo.`
+      : (r.agotados > 0
+          ? `<br><b>${r.agotados}</b> producto(s) que ya no venían en el archivo ` +
+            `quedaron en cero: dejan de ofrecerse como existencia. Las piezas de ` +
+            `exhibición no se tocan.`
+          : '');
     showResult(true, `✅ Catálogo e inventario actualizados: <b>${r.skus}</b> productos.<br>` +
-      `Por ${quien}. El tablero ya lo está viendo.`);
+      `Por ${quien}. El tablero ya lo está viendo.` + bajas);
   }catch(err){
     showResult(false, 'No se pudo subir: ' + err.message + '. Revisa tu conexión e inténtalo de nuevo.');
   }

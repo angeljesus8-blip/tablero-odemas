@@ -1175,7 +1175,12 @@ async function subirCatalogo(){
        antes de terminar de escribir. Aqui la funcion no vuelve hasta que la
        transaccion cerro, y si algo falla, lanza. */
     const rc = await sbCargaAdmin('carga_catalogo', { p_filas: parsedCat, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?') });
-    showResult('resCat',true,`✅ Catálogo actualizado: <b>${rc.skus}</b> productos. El tablero ya lo está viendo.`);
+    // Lo mismo que en actualizar_datos.html, y por lo mismo: quien sube desde
+    // aquí tiene que enterarse de que algo dejó de ofrecerse.
+    const bajasCat = (rc.agotados === -1)
+      ? ` ⚠️ No se marcó nada como agotado: el archivo parece un pedazo y no la tienda completa.`
+      : (rc.agotados > 0 ? ` <b>${rc.agotados}</b> quedaron en cero por no venir ya en el archivo.` : '');
+    showResult('resCat',true,`✅ Catálogo actualizado: <b>${rc.skus}</b> productos. El tablero ya lo está viendo.` + bajasCat);
   }catch(err){ showResult('resCat',false,'Error al subir: '+err.message); }
   btn.textContent='Subir y actualizar'; btn.disabled=false;
 }
