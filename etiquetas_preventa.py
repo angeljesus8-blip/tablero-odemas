@@ -28,8 +28,15 @@ SB_KEY = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce'
 STORE  = '1217'
 
 BASE  = os.path.dirname(os.path.abspath(__file__))
-LOGO  = os.path.join(BASE, '..', '07_Look&feel', 'logo odemas Vt color.png')
-SALIDA_DIR = os.path.join(BASE, '..', '_privado_no_publicar')
+# 9-sep-2026: esto buscaba el logo y la salida en carpetas HERMANAS
+# ('..\07_Look&feel' y '..\_privado_no_publicar'). En esta copia multi-tienda
+# esas carpetas nunca existieron al lado, así que las etiquetas ya venían
+# saliendo SIN marca Odemás y sin avisar, y makedirs creaba la carpeta de salida
+# en el sitio equivocado. Ahora todo sale de la propia carpeta del tablero: es
+# lo que corresponde a una copia que otra tienda va a clonar tal cual.
+# El logo_odemas.png de aquí es byte a byte el mismo del manual de marca.
+LOGO  = os.path.join(BASE, 'logo_odemas.png')
+SALIDA_DIR = os.path.join(BASE, '_privado')
 SALIDA = os.path.join(SALIDA_DIR, 'etiquetas_preventa_pura90s.pdf')
 
 # Colores Odemás (Manual-Logo-Odemas.md)
