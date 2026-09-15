@@ -344,6 +344,52 @@ def r_copias():
                            'del tablero se queda atrás.' % (copia, origen))
 
 
+# ── 3b-bis · La sesión, separada por app ────────────────────
+def r_sesion_prefijada():
+    """Las tres claves de sesión llevan el prefijo de la app. Siempre.
+
+    14-sep-2026. `localStorage` es POR ORIGEN, no por carpeta: todo lo que se
+    publica bajo el mismo usuario de GitHub Pages —los dos tableros, el
+    planeador, el showroom— comparte un solo almacén. Los cachés ya iban
+    prefijados (`hes1217_inv_cache` vs `odemas_inv_cache`); las tres claves de
+    SESIÓN no, y son justo las que dicen qué tienda y quién eres.
+
+    Con eso, abrir el tablero multi-tienda dejaba su `hes_store` escrito para el
+    de al lado, que ni siquiera usa la misma base de datos. Nada avisaba: la
+    sesión parecía válida y la pantalla se pintaba con la tienda equivocada.
+
+    Una sola clave sin prefijo que vuelva a colarse basta para reabrirlo, así que
+    lo que se prohíbe es el literal a secas. El fallo tardaría semanas en
+    aparecer y no se parecería a su causa.
+    """
+    CLAVES = ('store', 'empleado', 'role')
+    # `horarios.html` es el caso aparte: se publica en los DOS tableros y en el
+    # planeador suelto, así que no puede llevar el prefijo escrito — lo deduce de
+    # la ruta. Que lo siga deduciendo se comprueba abajo, no aquí.
+    for p in [f for f in HTML + SUELTOS if os.path.basename(f) != 'horarios.html']:
+        s = leer(p)
+        if s is None: continue
+        malas = sorted(set(re.findall(r"(?<![\w-])hes_(%s)\b" % '|'.join(CLAVES), s)))
+        if malas:
+            falla('sesion', '%s usa hes_%s sin prefijo de app. Todas las apps del '
+                            'mismo origen comparten localStorage: sin prefijo, el '
+                            'otro tablero te pisa la sesión y nada avisa. Usa '
+                            'odemas_%s.' % (p, ', hes_'.join(malas), malas[0]))
+
+    # Y el que lo deduce, que lo siga deduciendo por los dos lados.
+    h = leer('horarios.html')
+    if h is not None:
+        if 'prefijoDelTablero_' not in h:
+            falla('sesion', 'horarios.html ya no deduce el prefijo de la ruta: se '
+                            'publica en los dos tableros, y con el prefijo escrito '
+                            'uno de los dos leería la sesión del otro')
+        for ruta in ('/tablero-hes1217/', '/tablero-odemas/'):
+            if ruta not in h:
+                falla('sesion', 'horarios.html no reconoce la ruta %s: en ese '
+                                'tablero dejaría de heredar la sesión y pediría '
+                                'login sin motivo' % ruta)
+
+
 # ── 3c · El cupo de preventa, en sus dos sitios ─────────────
 # 5-ago-2026: el cupo vive en la const PREVENTA (lo que ve el asesor) y en la
 # tabla preventa_cupo de Supabase (el tope que frena dos apartados a la vez).
@@ -1941,7 +1987,8 @@ def main():
     # conviene saberlo antes de leer 24 «ok» que no cubren lo que parecen.
     r_git()
     r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token(); r_argumentos_cruzados()
-    r_sintaxis(); r_helpers(); r_version(staged); r_copias(); r_cupo()
+    r_sintaxis(); r_helpers(); r_version(staged); r_copias()
+    r_sesion_prefijada(); r_cupo()
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()
     r_porteros(); r_contrato_sql(); r_join_sql()
     r_sql_volatilidad(); r_galeria(); r_alias_variable(); r_returns_table_drop(); r_funcion_repetida()

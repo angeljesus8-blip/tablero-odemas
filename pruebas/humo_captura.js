@@ -37,8 +37,8 @@ const { crearEntorno } = require('./dom.js');
    más también. */
 function escenario(store, empleado) {
   const ls = {};
-  if (store) ls['hes_store'] = JSON.stringify(store);
-  if (empleado) ls['hes_empleado'] = JSON.stringify(empleado);
+  if (store) ls['odemas_store'] = JSON.stringify(store);
+  if (empleado) ls['odemas_empleado'] = JSON.stringify(empleado);
 
   const ent = crearEntorno({ html, ruta:'/t/captura_series.html', ls });
   if (ent.err) return { error: ent.err };

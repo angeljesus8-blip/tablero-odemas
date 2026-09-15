@@ -39,7 +39,7 @@ function domFalso(){
      sección de Resurtir. Se entra como gerente para que las pruebas recorran
      la app completa; el caso del asesor se prueba aparte, bajando
      PUEDE_GESTIONAR a mano (ver casos_tablero.js, bloque 7). */
-  global.localStorage = { getItem:k=> k==='hes_empleado'
+  global.localStorage = { getItem:k=> k==='odemas_empleado'
                                     ? '{"empno":"1","nombre":"Prueba Uno","puesto":"Gerente de Tienda"}'
                                     : (k in guardado ? guardado[k] : null),
                           setItem:(k,v)=>{ guardado[k]=String(v); }, removeItem:k=>{ delete guardado[k]; } };

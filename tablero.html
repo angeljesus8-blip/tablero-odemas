@@ -539,7 +539,7 @@
 <script src="datos.js"></script>
 <script>
 const D = window.DATOS || {};
-const _cfg = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+const _cfg = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_store')||'null'); }catch(e){ return null; } })();
 
 /* Sin token de escritura esta tienda puede MIRAR pero no guardar: apartar una
    pieza, marcar una entrega o registrar una venta van a fallar. Se avisa al
@@ -571,12 +571,12 @@ const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
    y su pie— en vez de mandar a entrar. */
 const TIENDA_ID     = (_cfg && _cfg.store_id) || '';
 const TIENDA_NOMBRE = (_cfg && _cfg.nombre)   || '';
-const ROLE          = localStorage.getItem('hes_role') || 'asesor';
+const ROLE          = localStorage.getItem('odemas_role') || 'asesor';
 /* Quién entró. Desde que se retiró el PIN de tienda, cada quien accede con su
    número de empleado, así que esto SIEMPRE existe y el tablero no tiene que
    preguntar quién es. Antes el vendedor de un apartado se tecleaba a mano y el
    mismo asesor salía como dos personas: el nombre suelto y el completo. */
-const YO = (function(){ try{ return JSON.parse(localStorage.getItem('hes_empleado')||'null'); }
+const YO = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_empleado')||'null'); }
                         catch(e){ return null; } })();
 
 /* ── Quién ve Resurtir ──────────────────────────────────────────────────
@@ -2754,7 +2754,7 @@ async function sbCall(fn, params, ms){
 async function sbRpc(fn, ms){ return sbCall(fn, null, ms); }
 
 /* ── Que el permiso no se quede congelado en el teléfono ────────────────
-   `hes_empleado` se escribe UNA vez, al entrar, y no se vuelve a refrescar.
+   `odemas_empleado` se escribe UNA vez, al entrar, y no se vuelve a refrescar.
    Sin esto, cambiar un puesto en Admin → Equipo no llegaría hasta que esa
    persona cerrara sesión y volviera a entrar — y nadie cierra sesión: la app
    recuerda al usuario. Es el mismo fallo que dejó a los asesores dos días sin
@@ -2780,7 +2780,7 @@ async function confirmarPuesto(){
   if(f.emp_puesto !== YO.puesto){
     YO.puesto = f.emp_puesto;
     // Se guarda para que el próximo arranque ya nazca bien, aunque sea sin red
-    try{ localStorage.setItem('hes_empleado', JSON.stringify(YO)); }
+    try{ localStorage.setItem('odemas_empleado', JSON.stringify(YO)); }
     catch(e){ /* almacenamiento lleno o bloqueado: se vuelve a preguntar mañana */ }
   }
   if(antes !== PUEDE_GESTIONAR) render();   // aparece o desaparece sin recargar

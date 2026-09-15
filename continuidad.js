@@ -177,11 +177,11 @@
   if(Date.now() - d.ts > VENTANA_MS){ olvidar(); return; }
   if(/^index\.html/.test(d.url)) return;   // nunca reenviar al propio menú
 
-  /* Sin sesión, al menú. Las apps sin `hes_store` no enseñan datos: muestran un
+  /* Sin sesión, al menú. Las apps sin `odemas_store` no enseñan datos: muestran un
      «vuelve a entrar» con un enlace. Devolver ahí a alguien cuya sesión se cayó
      sería cambiarle el login por un callejón sin salida. */
   try {
-    if(!localStorage.getItem('hes_store')){ olvidar(); return; }
+    if(!localStorage.getItem('odemas_store')){ olvidar(); return; }
   } catch(e){ return; }   // sin localStorage no se puede saber: mejor el menú
 
   /* Aquí había una comprobación de `performance.navigation.type === back_forward`

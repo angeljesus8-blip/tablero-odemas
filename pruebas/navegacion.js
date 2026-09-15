@@ -73,7 +73,7 @@ for(const app of APPS)
    for(const conSesion of [true, false]){
      probadas++;
      for(const k of Object.keys(LS)) delete LS[k];
-     if(conSesion) LS['hes_store'] = '{"store_id":"1217"}';
+     if(conSesion) LS['odemas_store'] = '{"store_id":"1217"}';
      relanzarApp();
 
      abrirPagina('index.html', '', 'navigate');          // abro la app
@@ -103,7 +103,7 @@ for(const app of APPS)
 /* Y que el menú quede en el historial: con `location.replace` el botón atrás
    del teléfono sacaba de la app entera en vez de llevar al menú. */
 for(const k of Object.keys(LS)) delete LS[k];
-LS['hes_store'] = '{"store_id":"1217"}';
+LS['odemas_store'] = '{"store_id":"1217"}';
 relanzarApp();
 abrirPagina('index.html', '', 'navigate');
 const oy = abrirPagina('tablero.html', '#promo');

@@ -70,8 +70,8 @@ const js = (capturaHtml.match(/<script[^>]*>[\s\S]*?<\/script>/g) || [])
   .map(b => b.slice(b.indexOf('>') + 1, b.lastIndexOf('</script>')))
   .join('\n;\n');
 
-const LS = { hes_store: JSON.stringify(cfg),
-             hes_empleado: JSON.stringify({ empno: RESPUESTA_ASESOR[0].emp_no,
+const LS = { odemas_store: JSON.stringify(cfg),
+             odemas_empleado: JSON.stringify({ empno: RESPUESTA_ASESOR[0].emp_no,
                                             nombre: RESPUESTA_ASESOR[0].emp_nombre,
                                             puesto: RESPUESTA_ASESOR[0].emp_puesto,
                                             admin: RESPUESTA_ASESOR[0].emp_admin }) };

@@ -94,8 +94,8 @@
      archivo traia nombre completo, venta individual, alcance y monto de
      comision de cada persona. Los datos vienen de la nube (modo=comisiones). -->
 <script>
-/* ====== Sesión de tienda: sin hes_store no hay datos que mostrar ====== */
-const _storeConfig = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+/* ====== Sesión de tienda: sin odemas_store no hay datos que mostrar ====== */
+const _storeConfig = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_store')||'null'); }catch(e){ return null; } })();
 
 /* Aquí iba el aviso de "tu sesión es de antes del candado del 1-ago-2026", que
    se pintaba cuando la sesión no traía `gas_token`. Esta copia nace despues de
@@ -109,7 +109,7 @@ const _storeConfig = (function(){ try{ return JSON.parse(localStorage.getItem('h
 
 if(!_storeConfig || !_storeConfig.store_id){
   // Se avisa a continuidad.js de que esta salida es voluntaria. Hoy el menú ya
-  // no reanudaría —sin `hes_store` no reanuda nada—, pero eso es una casualidad
+  // no reanudaría —sin `odemas_store` no reanuda nada—, pero eso es una casualidad
   // de dos condiciones que coinciden, y el día que una cambie esto sería un
   // bucle: comisiones → menú → comisiones.
   if(window.HES_salirAlMenu) window.HES_salirAlMenu();

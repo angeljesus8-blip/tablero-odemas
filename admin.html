@@ -498,7 +498,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 </div>
 
 <script>
-const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_store')||'null'); }catch(e){ return null; } })();
 
 /* Sin clave de escritura, TODO lo que se haga desde Admin se pierde: cargar el
    inventario del día, subir las promos, dar de alta a alguien. La base la pone
@@ -527,7 +527,7 @@ const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('hes_stor
   else _pintar();
 })();
 
-const _role = localStorage.getItem('hes_role');
+const _role = localStorage.getItem('odemas_role');
 /* La credencial de escritura de Supabase. Se sigue llamando `gas_token` porque
    así se llama la columna y así la piden las 36 funciones que la exigen; del
    Apps Script no queda nada más que el nombre. Viene del login y no se escribe
@@ -541,7 +541,7 @@ const GAS_TOKEN = (_cfg && _cfg.gas_token) || '';
    Vacío cuando se entró con el correo de la tienda: ahí manda la sesión de
    Supabase y este dato no hace falta. */
 function _miEmpno(){
-  try{ const e = JSON.parse(localStorage.getItem('hes_empleado')||'null');
+  try{ const e = JSON.parse(localStorage.getItem('odemas_empleado')||'null');
        return (e && e.empno) ? String(e.empno) : ''; }catch(e){ return ''; }
 }
 
@@ -556,7 +556,7 @@ let sb = null;
 function initSB(){ try{ if(!window.supabase) return false; sb=window.supabase.createClient(SB_URL,SB_KEY); return true; }catch(e){ return false; } }
 
 /* ===== ACCESO =====
-   Antes bastaba con que localStorage dijera hes_role=gerente, y eso lo puede
+   Antes bastaba con que localStorage dijera odemas_role=gerente, y eso lo puede
    escribir cualquiera desde el navegador. Ahora la puerta es la SESIÓN de
    Supabase (el correo y contraseña con los que entras); si no hay sesión, queda
    el PIN, que se verifica en el servidor (función verificar_pin_admin) para que
@@ -589,7 +589,7 @@ function abrirAdmin(){
   try{
     if(_cfg && _cfg.admin_pin){
       delete _cfg.admin_pin;
-      localStorage.setItem('hes_store', JSON.stringify(_cfg));
+      localStorage.setItem('odemas_store', JSON.stringify(_cfg));
     }
   }catch(e){}   // limpiar el admin_pin viejo es higiene, no requisito
 })();
@@ -608,7 +608,7 @@ async function verificarAcceso(){
 
   let emp = null;
   // Ficha ilegible: se cae al camino de sesion de gerente.
-  try{ emp = JSON.parse(localStorage.getItem('hes_empleado')||'null'); }catch(e){}
+  try{ emp = JSON.parse(localStorage.getItem('odemas_empleado')||'null'); }catch(e){}
   const tienda = (_cfg && _cfg.store_id) || '';
   if(!emp || !emp.empno || !tienda) return { ok:false, motivo:'sin_identificar' };
 

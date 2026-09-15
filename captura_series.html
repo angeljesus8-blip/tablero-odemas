@@ -445,7 +445,7 @@ const KEY = 'odemas_series_v1';
 let items = JSON.parse(localStorage.getItem(KEY) || '[]');
 
 /* ====== NUBE: Supabase, y nada más ====== */
-const _cfgCS = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+const _cfgCS = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_store')||'null'); }catch(e){ return null; } })();
 
 /* Esta pantalla es la que GUARDA, así que sin clave de escritura no sirve de
    nada: cada venta capturada se perderá con `no_autorizado`. Se avisa al abrir
@@ -2087,11 +2087,11 @@ function buildGate(){
        guardado el teléfono. Ahora lo dice él: una foto de esta pantalla basta
        para saber qué falta y dónde mirar. */
     var _diag = [];
-    try{ var _c = JSON.parse(localStorage.getItem('hes_store')||'null');
+    try{ var _c = JSON.parse(localStorage.getItem('odemas_store')||'null');
          _diag.push('tienda ' + ((_c && _c.store_id) || '—'));
          _diag.push('equipo ' + ((_c && Array.isArray(_c.vendedores) ? _c.vendedores.length : 0)) + ' nombres');
     }catch(e){ _diag.push('sesión de tienda ilegible'); }
-    try{ var _e = JSON.parse(localStorage.getItem('hes_empleado')||'null');
+    try{ var _e = JSON.parse(localStorage.getItem('odemas_empleado')||'null');
          _diag.push(_e && _e.nombre ? 'entró ' + _e.nombre : 'no se sabe quién entró');
     }catch(e){ _diag.push('empleado ilegible'); }
     if(navigator.serviceWorker && navigator.serviceWorker.controller){
@@ -2154,15 +2154,15 @@ function _esGestionCS(puesto){
   return _PUESTOS_GESTION_CS.some(function(x){ return p.indexOf(x) === 0; });
 }
 let _empCS = null;
-try{ _empCS = JSON.parse(localStorage.getItem('hes_empleado')||'null'); }catch(e){}   // sesión ilegible: se cae en el rol, como el tablero
+try{ _empCS = JSON.parse(localStorage.getItem('odemas_empleado')||'null'); }catch(e){}   // sesión ilegible: se cae en el rol, como el tablero
 const MI_EMPNO = (_empCS && _empCS.empno) ? String(_empCS.empno) : '';
 const PUEDE_EDITAR = (_empCS && _empCS.puesto)
   ? _esGestionCS(_empCS.puesto)
-  : (localStorage.getItem('hes_role') === 'gerente');
+  : (localStorage.getItem('odemas_role') === 'gerente');
 
 function vendedorDeLaSesion(){
   let emp = null;
-  try{ emp = JSON.parse(localStorage.getItem('hes_empleado')||'null'); }
+  try{ emp = JSON.parse(localStorage.getItem('odemas_empleado')||'null'); }
   catch(e){ return ''; }   // sesión ilegible: se pregunta, como siempre
   const nombre = emp && emp.nombre;
   if(!nombre) return '';

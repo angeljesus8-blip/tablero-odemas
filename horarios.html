@@ -1989,15 +1989,35 @@ function mostrarVolverAlMenu() {
    Odemás, aquí no se le pregunta nada. Solo si no hay nada que heredar se
    enseña el login, que es el caso de la URL suelta (planeador-odemas).
 
-   El tablero deja tres cosas en localStorage al entrar: `hes_store` (la tienda),
-   `hes_role` y `hes_empleado` (quién es). Comparten origen y proyecto de
-   Supabase, así que la sesión de gerente vale tal cual. */
+   El tablero deja tres cosas en localStorage al entrar: la tienda, el rol y
+   quién es. Se heredan tal cual.
+
+   ⚠️ DE QUÉ TABLERO (14-sep-2026). `localStorage` es por ORIGEN, no por carpeta:
+   este repo y el de la 1217 se publican bajo el mismo `angeljesus8-blip.github.io`
+   y comparten el mismo almacén, aunque cada uno hable con su PROPIA base de
+   datos. Mientras las claves se llamaron `hes_store`/`hes_empleado`/`hes_role` a
+   secas, abrir un tablero dejaba su tienda escrita para el otro, y la pantalla
+   se pintaba con la tienda equivocada sin que nada avisara. Ahora cada app tiene
+   su prefijo y aquí se deduce de la ruta, igual que en la 1217: este mismo
+   archivo se sirve también desde el planeador suelto.
+
+   Fuera de esos dos tableros no se hereda NADA: se entra por el login, que es lo
+   que hacen las tiendas sin tablero propio. */
+function prefijoDelTablero_() {
+  const p = location.pathname;
+  if (p.indexOf('/tablero-hes1217/') === 0) return 'hes1217_';
+  if (p.indexOf('/tablero-odemas/')  === 0) return 'odemas_';
+  return null;
+}
+
 function sesionDelTablero() {
+  const pre = prefijoDelTablero_();
+  if (!pre) return null;
   try {
-    const cfg = JSON.parse(localStorage.getItem('hes_store') || 'null');
+    const cfg = JSON.parse(localStorage.getItem(pre + 'store') || 'null');
     if (!cfg || !cfg.store_id) return null;
-    const emp = JSON.parse(localStorage.getItem('hes_empleado') || 'null');
-    return { cfg, emp, rol: localStorage.getItem('hes_role') };
+    const emp = JSON.parse(localStorage.getItem(pre + 'empleado') || 'null');
+    return { cfg, emp, rol: localStorage.getItem(pre + 'role') };
   } catch (e) { return null; }
 }
 

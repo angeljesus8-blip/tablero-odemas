@@ -271,7 +271,7 @@ const CARDS = [
    abra vea una pantalla que le pide la tienda, a que vea la de otra. */
 function conTienda_(href){
   try{
-    const s = JSON.parse(localStorage.getItem('hes_store')||'null');
+    const s = JSON.parse(localStorage.getItem('odemas_store')||'null');
     const id = s && s.store_id ? String(s.store_id).trim() : '';
     return id ? href.replace(/\/+$/,'') + '/' + encodeURIComponent(id) : href;
   }catch(e){ return href; }   // sesión ilegible: la dirección sin tienda
@@ -282,7 +282,7 @@ function renderMenuCards(role) {
   // permiso marcado en la base — normalmente el gerente y el subgerente.
   let emp = null;
   // Ficha ilegible: se sigue sin nombre; el login la vuelve a guardar.
-  try { emp = JSON.parse(localStorage.getItem('hes_empleado')||'null'); } catch(e) {}
+  try { emp = JSON.parse(localStorage.getItem('odemas_empleado')||'null'); } catch(e) {}
   const puedeAdmin = role === 'gerente' || !!(emp && emp.admin);
   const html = CARDS
     .filter(c => !c.soloGerente || puedeAdmin)
@@ -314,7 +314,7 @@ function olvidarCachesDeOtraTienda(nuevoStoreId) {
   // Sesión ilegible: se trata como "no había ninguna" y no se borra nada. Sin
   // saber de qué tienda venían los cachés, tirarlos sería tirar los de la
   // tienda a la que se está entrando.
-  try { anterior = (JSON.parse(localStorage.getItem('hes_store') || 'null') || {}).store_id; }
+  try { anterior = (JSON.parse(localStorage.getItem('odemas_store') || 'null') || {}).store_id; }
   catch (e) {}   // ilegible = "no había tienda anterior", y no se borra nada
   if (!anterior || String(anterior) === String(nuevoStoreId)) return;
 
@@ -343,7 +343,7 @@ function applyStoreConfig(cfg, role) {
   // Si entró con su número de empleado, se le saluda por su nombre
   let emp = null;
   // Ficha ilegible: se sigue sin nombre; el login la vuelve a guardar.
-  try { emp = JSON.parse(localStorage.getItem('hes_empleado')||'null'); } catch(e) {}
+  try { emp = JSON.parse(localStorage.getItem('odemas_empleado')||'null'); } catch(e) {}
   // Dos palabras, pero sin cortar en una partícula ("Ángel de Jesús" -> "Ángel",
   // no "Ángel de").
   const PARTICULAS = ['de','del','la','las','los','y'];
@@ -472,11 +472,11 @@ async function pinCheck(auto) {
   // Antes de pisar la sesion: si la tienda cambia, los caches de la
   // anterior no valen (ver olvidarCachesDeOtraTienda).
   olvidarCachesDeOtraTienda(cfg.store_id);
-  localStorage.setItem('hes_store', JSON.stringify(cfg));
-  localStorage.setItem('hes_role', 'asesor');
+  localStorage.setItem('odemas_store', JSON.stringify(cfg));
+  localStorage.setItem('odemas_role', 'asesor');
   // Quién entró: lo usan el tablero y Captura de Series para no preguntar el nombre
-  if (quien) localStorage.setItem('hes_empleado', JSON.stringify(quien));
-  else localStorage.removeItem('hes_empleado');
+  if (quien) localStorage.setItem('odemas_empleado', JSON.stringify(quien));
+  else localStorage.removeItem('odemas_empleado');
   applyStoreConfig(cfg, 'asesor');
   sc('menu');
 }
@@ -614,8 +614,8 @@ async function doLogin() {
   // Antes de pisar la sesion: si la tienda cambia, los caches de la
   // anterior no valen (ver olvidarCachesDeOtraTienda).
   olvidarCachesDeOtraTienda(cfg.store_id);
-  localStorage.setItem('hes_store', JSON.stringify(cfg));
-  localStorage.setItem('hes_role', rol);
+  localStorage.setItem('odemas_store', JSON.stringify(cfg));
+  localStorage.setItem('odemas_role', rol);
   /* El puesto viaja igual que por el otro login (9-ago-2026). El tablero decide
      con él quién ve la sección de Resurtir, así que dejarlo en '' hacía que la
      MISMA persona viera cosas distintas según entrara con su correo o con su
@@ -623,8 +623,8 @@ async function doLogin() {
      `hoja_auth` (MAPA, cadena 1). Si `vincular_mi_cuenta` todavía no lo
      devuelve, llega vacío y el tablero se apoya en el rol; no se queda nadie
      fuera mientras tanto. */
-  if (ficha) localStorage.setItem('hes_empleado', JSON.stringify({ empno:ficha.empno, nombre:ficha.nombre, puesto:ficha.puesto||'', admin: ficha.admin === true }));
-  else localStorage.removeItem('hes_empleado');
+  if (ficha) localStorage.setItem('odemas_empleado', JSON.stringify({ empno:ficha.empno, nombre:ficha.nombre, puesto:ficha.puesto||'', admin: ficha.admin === true }));
+  else localStorage.removeItem('odemas_empleado');
   applyStoreConfig(cfg, rol);
   sc('menu');
 }
@@ -837,11 +837,11 @@ async function doRegister() {
 }
 
 async function doLogout() {
-  const role = localStorage.getItem('hes_role');
+  const role = localStorage.getItem('odemas_role');
   if (role === 'gerente' && sb) await sb.auth.signOut();
-  localStorage.removeItem('hes_store');
-  localStorage.removeItem('hes_role');
-  localStorage.removeItem('hes_empleado');
+  localStorage.removeItem('odemas_store');
+  localStorage.removeItem('odemas_role');
+  localStorage.removeItem('odemas_empleado');
   pinLimpiar();
   sc('pin');
 }
@@ -849,7 +849,7 @@ async function doLogout() {
 /* ¿Hay que volver a pedir el número de empleado? (9-ago-2026)
 
    La sesión se escribe UNA vez, al entrar, y nunca se refresca. Las que se
-   guardaron antes de que existieran `hes_empleado` y la lista del equipo se
+   guardaron antes de que existieran `odemas_empleado` y la lista del equipo se
    quedaron sin ellos para siempre, porque la app recuerda al usuario y ya no
    vuelve a pasar por el login.
 
@@ -885,20 +885,20 @@ function sesionIncompleta(cfg, role, empGuardado) {
 async function init() {
   try {
     initSB();
-    const stored = localStorage.getItem('hes_store');
-    const role   = localStorage.getItem('hes_role');
+    const stored = localStorage.getItem('odemas_store');
+    const role   = localStorage.getItem('odemas_role');
     if (!stored || !role) { sc('pin'); return; }
     let cfg;
     try { cfg = JSON.parse(stored); } catch(e) { cfg = null; }
-    if (!cfg || !cfg.store_id) { localStorage.removeItem('hes_store'); localStorage.removeItem('hes_role'); sc('pin'); return; }
+    if (!cfg || !cfg.store_id) { localStorage.removeItem('odemas_store'); localStorage.removeItem('odemas_role'); sc('pin'); return; }
     if (role === 'gerente' && sb) {
       const { data } = await sb.auth.getSession();
-      if (!data || !data.session) { localStorage.removeItem('hes_store'); localStorage.removeItem('hes_role'); sc('pin'); return; }
+      if (!data || !data.session) { localStorage.removeItem('odemas_store'); localStorage.removeItem('odemas_role'); sc('pin'); return; }
     }
 
     /* ── Una sesión guardada a medias se vuelve a pedir (9-ago-2026) ──
        La sesión se escribe UNA vez, al entrar, y nunca se refresca. Las que
-       se guardaron antes de que existieran `hes_empleado` y la lista del
+       se guardaron antes de que existieran `odemas_empleado` y la lista del
        equipo se quedaron sin ellos para siempre, porque la app recuerda al
        usuario y ya no vuelve a pasar por aquí.
 
@@ -909,7 +909,7 @@ async function init() {
        Con volver a teclear su número se arregla, así que se pide una vez y
        en cuanto entren queda al día. Solo se comprueba para asesor: el
        gerente entra con su correo y su sesión la valida Supabase arriba. */
-    const falta = queFaltaEnLaSesion(cfg, role, localStorage.getItem('hes_empleado'));
+    const falta = queFaltaEnLaSesion(cfg, role, localStorage.getItem('odemas_empleado'));
     /* Se pide UNA vez por arranque de la app. Si después de identificarse la
        sesión sigue coja —porque la base respondió a medias, por ejemplo— pedirlo
        otra vez sería un bucle en la pantalla del teclado, sin manera de entrar.

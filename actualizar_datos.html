@@ -124,7 +124,7 @@
 // Config de la sesión. Antes había aquí una lista de nombres completos, en un
 // archivo público, y elegir uno era todo el "control de acceso". Ahora la
 // identidad sale del login que ya validó Supabase.
-const _cfgAD = (function(){ try{ return JSON.parse(localStorage.getItem('hes_store')||'null'); }catch(e){ return null; } })();
+const _cfgAD = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_store')||'null'); }catch(e){ return null; } })();
 
 /* Esta pantalla SUBE datos, asi que sin clave de escritura no hace nada: el
    inventario, las promos y el catalogo se rechazan uno por uno. Se avisa al
