@@ -673,6 +673,32 @@ def versionados():
         return None
 
 
+def por_publicar():
+    """Lo versionado MAS lo que esta a punto de serlo.
+
+    15-sep-2026: el concurso llego con seis archivos nuevos. El escaneo de
+    privacidad solo miraba `versionados()` —lo que git YA rastrea— asi que los
+    seis pasaron limpios sin haberse mirado, y uno traia el numero de empleado
+    real de un asesor en el texto de prueba. El aviso habria llegado al commit
+    siguiente, es decir, despues de publicarlo.
+
+    `versionados()` no se amplia porque otras reglas dependen de que deje fuera
+    los respaldos sueltos. Aqui hace falta lo contrario: un archivo sin `git
+    add` es exactamente el que nadie ha revisado todavia."""
+    base = versionados()
+    if base is None: return None
+    try:
+        r = subprocess.run(['git', 'ls-files', '--others', '--exclude-standard'],
+                           cwd=BASE, capture_output=True, timeout=20,
+                           encoding='utf-8', errors='replace')
+        if r.returncode == 0:
+            base = base | set(x.strip() for x in (r.stdout or '').splitlines() if x.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return base
+
+
+
 def git_cambiados(staged):
     cmd = ['git', 'diff', '--name-only'] + (['--cached'] if staged else ['HEAD'])
     try:
@@ -722,14 +748,30 @@ def r_git():
 # 1-ago-2026: el repo es público y traía nombres completos, números de empleado
 # y —en comisiones_datos.js— venta individual y monto de comisión de cada quien.
 PRIVADO = os.path.join('_privado', 'datos_equipo.txt')
-TEXTO = ('.html', '.js', '.py', '.md', '.sql', '.gs', '.json', '.txt', '.yml',
-         '.yaml', '.css')
+# 15-sep-2026: esto era una lista BLANCA de once extensiones. Cada fuga por
+# extensión ha sido la misma frase: «es que .csv no estaba en la lista». Y las
+# que faltaban no eran raras —`.csv` es como sale el equipo del sistema, `.ps1`
+# es como se publica, `.svg` lleva texto dentro—. Ahora se mira TODO menos lo
+# que no se puede leer como texto, que es una lista corta y que no crece sola.
+BINARIO = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf', '.zip',
+           '.xlsx', '.xlsm', '.xls', '.docx', '.woff', '.woff2', '.ttf',
+           '.otf', '.mp4', '.mp3', '.exe', '.dll')
 
 
 def _sin_acentos(s):
     import unicodedata
     return ''.join(c for c in unicodedata.normalize('NFD', s)
                    if unicodedata.category(c) != 'Mn').lower()
+
+
+def _espacios(s):
+    """Todo el texto en una línea, con espacios sencillos.
+
+    Un apellido no deja de serlo porque el HTML lo parta en dos líneas o porque
+    un pegado le meta dos espacios. Comparar contra el texto tal cual escrito es
+    comparar contra la maquetación."""
+    return re.sub(r'\s+', ' ', s)
+
 
 
 def _datos_equipo():
@@ -742,14 +784,34 @@ def _datos_equipo():
     qué buscar no es lo mismo que no encontrar nada."""
     s = leer(PRIVADO)
     if s is None: return None
-    apellidos, numeros = [], []
+    apellidos, sueltos, numeros, pilas, salvo = [], [], [], [], set()
     for linea in s.split('\n'):
         linea = linea.split('#')[0].strip()
         if not linea: continue
+        if linea.startswith('!'):            # palabra comun que ademas es apellido
+            salvo.add(_sin_acentos(linea[1:].strip()))
+            continue
         partes = [x.strip() for x in linea.split('|')]
-        if partes[0]: apellidos.append(_sin_acentos(partes[0]))
+        if len(partes) > 2 and partes[2]:
+            # Tercera columna: los nombres de pila. Un ticket del POS imprime
+            # «APELLIDOS, NOMBRE», y de ahí se copian los dos. Vigilar solo los
+            # apellidos deja publicable la mitad de cada persona.
+            for pila in _espacios(_sin_acentos(partes[2])).split():
+                if len(pila) >= 4: sueltos.append(pila)
+            pilas.append(partes[2])
+        if partes[0]:
+            entero = _espacios(_sin_acentos(partes[0]))
+            apellidos.append(entero)
+            # 15-sep-2026: SOLO se buscaba el apellido compuesto entero. MAPA.md
+            # llevaba meses publicando el primero a secas, como ejemplo de una
+            # explicacion, y la regla lo leia sin verlo: «X Y» no esta dentro de
+            # un archivo que escribe «X».
+            for palabra in entero.split():
+                if len(palabra) >= 4: sueltos.append(palabra)
         if len(partes) > 1 and partes[1]: numeros.append(partes[1])
-    return (apellidos, numeros) if (apellidos or numeros) else None
+    sueltos = sorted(set(w for w in sueltos if w not in salvo))
+    return ((apellidos, sueltos, numeros, pilas)
+            if (apellidos or sueltos or numeros) else None)
 
 
 def r_personales():
@@ -770,31 +832,46 @@ def r_personales():
     comisiones de agosto. Por eso `_privado/datos_equipo.txt` pide escribir
     también las grafías malas que circulan.
 
+    15-sep-2026: se auditó a propósito, con dieciocho cebos, en vez de esperar a
+    la siguiente fuga. Pasaban doce. Las tres familias eran las mismas de
+    siempre, y ninguna era un caso raro:
+
+      · se buscaba el apellido compuesto ENTERO, así que el primero a secas
+        pasaba — y `MAPA.md` llevaba meses publicando uno, de ejemplo;
+      · se comparaba contra el texto tal cual, así que el mismo apellido partido
+        por un salto de línea o con dos espacios no casaba con nada;
+      · se miraba una lista BLANCA de once extensiones, así que `.csv` —como
+        sale el equipo del sistema—, `.ps1` y `.svg` no se miraban.
+
+    Los tres arreglos van en la misma dirección: comparar contra el CONTENIDO y
+    no contra cómo esté escrito, y mirar todo salvo lo ilegible. La lista blanca
+    se invirtió (`BINARIO`) porque cada fuga por extensión acabó en la misma
+    frase: «es que no estaba en la lista».
+
+    El apellido suelto se busca con frontera de palabra y no como trozo: como
+    trozo se encendía en veintidós archivos corrientes, y una regla que grita
+    donde no hay nada deja de leerse, que es otra forma de no tenerla.
+
     (Y esta explicación no puede nombrarlas: este archivo se audita a sí mismo,
     que es precisamente lo que hizo falta para llegar hasta aquí.)"""
     datos = _datos_equipo()
     if datos is None:
-        # `_privado/` está en .gitignore, así que en GitHub Actions NUNCA existe:
-        # ahí esta regla no puede comprobar nada, y fallar por ello dejaría el
-        # job en rojo en cada push. Un rojo permanente no se lee, y entonces
-        # tampoco se leen los rojos que sí importan.
-        #
-        # La protección de verdad corre en la máquina de quien commitea, que es
-        # donde el archivo existe y donde el pre-commit puede detener el envío.
-        # Es el mismo reparto que la regla `copia`.
-        if os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI'):
-            aviso('datos', 'aquí no existe %s (no se versiona), así que los '
-                           'nombres del equipo no se comprueban. Eso pasa en tu '
-                           'máquina, antes del commit.' % PRIVADO)
-        else:
-            falla('datos', 'no se pudo leer %s, así que no hay contra qué '
-                           'comparar. Cópialo de %s.ejemplo y pon los datos de '
-                           'tu equipo — callar aquí es dar permiso para '
-                           'publicar los nombres.' % (PRIVADO, PRIVADO))
+        falla('datos', 'no se pudo leer %s, así que no hay contra qué comparar. '
+                       'Créalo (ver MAPA.md) o esta regla no comprueba nada — y '
+                       'callar aquí es dar permiso para publicar los nombres.'
+              % PRIVADO)
         return
-    apellidos, numeros = datos
+    apellidos, sueltos, numeros, pilas = datos
+    if not pilas:
+        # Aviso y no falla: que falten no es una fuga, es media regla. Pero
+        # callarlo sí lo sería — el POS imprime «APELLIDOS, NOMBRE» y el nombre
+        # de pila se copia igual de fácil que el apellido.
+        aviso('datos', '%s no trae ningún nombre de pila (tercera columna, '
+                       '`apellidos | numero | nombres`). Sin ellos, un archivo '
+                       'que escriba solo el nombre de alguien pasa limpio.'
+              % PRIVADO)
 
-    publicados = versionados()
+    publicados = por_publicar()
     if publicados is None:
         # Sin git ya falla `r_git()`. Aquí se cae a lo que se pueda enumerar,
         # para no dejar de mirar del todo.
@@ -803,21 +880,42 @@ def r_personales():
                       if os.path.isfile(r)]
 
     for p in sorted(publicados):
-        if p.endswith('/') or not p.lower().endswith(TEXTO): continue
+        if p.endswith('/') or p.lower().endswith(BINARIO): continue
         if p.replace('\\', '/').startswith('_privado/'): continue
         # verificar.py NO se excluye: ya no lleva los apellidos dentro, así que
         # se audita como cualquier otro. Excluirlo dejaría abierta justo la
         # puerta por la que entraron la primera vez.
         s = leer(p)
         if s is None: continue
-        plano = _sin_acentos(s)
+        plano = _espacios(_sin_acentos(s))
+        # `_espacios` junta el texto en una sola línea con espacios sencillos.
+        # Sin eso, un apellido partido por el salto de línea de un `+` de JS, o
+        # con dos espacios de un pegado, no casa con nada — y se publica.
+        hallado = None
         for a in apellidos:
-            if a in plano:
-                falla('datos', '%s trae un apellido del equipo ("%s"). Los datos '
-                               'reales van en _privado/, no en el repo.' % (p, a[:24]))
-                break
+            if a in plano: hallado = a; break
+        if not hallado:
+            for w in sueltos:
+                # Con frontera de palabra, NO como trozo: buscar el primer
+                # apellido suelto como subcadena lo enciende dentro de palabras
+                # corrientes, y una regla que grita en veinte archivos deja de
+                # leerse — que es otra manera de no tenerla.
+                if re.search(r'(?<![\wáéíóúñ])%s(?![\wáéíóúñ])' % re.escape(w), plano):
+                    hallado = w; break
+        if hallado:
+            falla('datos', '%s trae un apellido del equipo ("%s"). Los datos '
+                           'reales van en _privado/, no en el repo.'
+                  % (p, hallado[:24]))
         for n in numeros:
-            if re.search(r'(?<![#\w])%s\b' % re.escape(n), s):
+            # Con separador opcional entre dígitos: el mismo número escrito
+            # `900-001` o `900 001` es el mismo número de empleado, y la versión
+            # con guion pasaba limpia.
+            #
+            # (Este comentario llevaba el número de verdad de un asesor, puesto
+            # de ejemplo al escribir la regla. Lo cazó la propia regla, en el
+            # primer commit. Por eso `verificar.py` se audita a sí mismo.)
+            suelto = r'[-. ]?'.join(re.escape(c) for c in n)
+            if re.search(r'(?<![#\w])%s(?!\d)' % suelto, s):
                 falla('datos', '%s trae un número de empleado real. Usa un '
                                '<placeholder> o un número de ejemplo.' % p)
                 break
