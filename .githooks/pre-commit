@@ -2,9 +2,31 @@
 # Revisa el tablero antes de dejar hacer commit.
 # Instalar (una vez):  git config core.hooksPath .githooks
 # Saltar a proposito:  git commit --no-verify
+
 echo "Verificando el tablero..."
 python verificar.py --staged || {
   echo ""
   echo "Commit detenido. Arregla lo de arriba, o usa --no-verify si sabes lo que haces."
+  exit 1
+}
+
+# Los nombres del equipo los revisa el verificador de la 1217, no una copia de
+# aqui. Hasta el 15-sep-2026 este repo tenia la suya, y llevaba semanas
+# atrasada: sin la regla que no necesita lista de personas —la unica que puede
+# cubrir a los asesores de las demas tiendas, que se dan de alta desde la app—.
+# Dos copias significan que la que se queda corta es siempre la que nadie mira.
+V=../tablero-hes1217/verificar.py
+if [ ! -f "$V" ]; then
+  # FALLA, no aviso: este repo es PUBLICO. Si el puente entre carpetas hermanas
+  # se rompe, callar aqui lo deja sin nadie mirandolo y sin decirlo.
+  echo "No encuentro $V."
+  echo "Los dos repos tienen que estar uno al lado del otro (ver CLAUDE.md)."
+  echo "Commit detenido: nadie ha revisado que no salgan nombres del equipo."
+  exit 1
+fi
+echo "Revisando que no salgan nombres del equipo..."
+python "$V" --solo-datos . || {
+  echo ""
+  echo "Commit detenido. Este repo es publico."
   exit 1
 }
