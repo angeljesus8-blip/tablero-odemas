@@ -1019,7 +1019,7 @@ def r_pruebas():
     APOYO = ('dom.js', 'entorno.js', 'casos_tablero.js')
     GUIONES = ('humo_tablero.js', 'humo_captura.js', 'humo_menu.js',
                'login_a_captura.js', 'navegacion.js', 'actualizacion.js',
-               'cola_ventas.js')
+               'cola_ventas.js', 'cea_vigencia.js')
 
     # La lista de arriba es explícita a propósito —así falta un archivo y se
     # nota—, pero eso deja el hueco contrario: una prueba escrita y no añadida

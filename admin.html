@@ -253,6 +253,16 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="filebox" id="fboxPromos" onclick="document.getElementById('filePromos').click()">
         <div class="ph" id="fphPromos">📄 Toca para elegir el PDF o Excel del CEA</div>
       </div>
+      <!-- Vigencia: se precarga con la del PDF y se puede corregir. Un CEA de
+           lanzamiento no trae fecha de fin, y sin fecha de fin la base no
+           guarda NADA — antes se subían las filas y se perdían en silencio. -->
+      <div id="vigPromos" style="display:none;margin-top:14px">
+        <div class="g2">
+          <div class="field"><label>Vigente desde</label><input id="vigD1Promos" type="date"></div>
+          <div class="field"><label>Vigente hasta</label><input id="vigD2Promos" type="date"></div>
+        </div>
+        <p class="note" id="vigNotaPromos"></p>
+      </div>
       <details id="detPromos" style="display:none;margin-top:12px">
         <summary style="font-size:11px;color:#888;cursor:pointer;font-weight:700">🔍 Ver lo que leyó del archivo (antes de subir)</summary>
         <div id="prevListPromos"></div>
@@ -1434,6 +1444,40 @@ function _ceaVigencia(flat){
     const mes2=MESES_P[em[2].toLowerCase()]||MESES_P[vm[3].toLowerCase()]||1;
     eolD1=isoP(+vm[4],mes2,+ds(em[1]));
   }
+
+  /* Un CEA de LANZAMIENTO no trae "Vigencia: X al Y" — no la trae porque el
+     precio nuevo no tiene fecha de término anunciada. Lo único que fecha es
+     la frase de punto de venta, y esa es justo la que importa: dice desde
+     cuándo la CAJA cobra el precio de promoción.
+
+     Las otras "a partir de" del mismo documento son de DISPONIBILIDAD, no de
+     precio, y tomarlas sería prometer un precio que el POS todavía no da. El
+     CEA 269 (lanzamiento WATCH GT 7) trae las tres en la misma hoja:
+
+       "A partir del 10 de septiembre … venta exclusiva"      ← disponibilidad
+       "A partir del 17 de septiembre … venta oficial"        ← disponibilidad
+       "Las promociones se verán reflejadas en punto de venta
+        a partir de 11 de septiembre 2026"                    ← ESTA
+
+     Sólo corre si no hubo frase de vigencia: en el CEA 223 esa misma oración
+     dice "a partir de la fecha de inicio de cada vigencia" —sin número— y la
+     que sí trae día es la de los EOL, que ya resuelve `eolD1` de arriba.
+
+     La fecha de FIN no se inventa aquí. Un CEA que no la dice se la deja al
+     gerente, que la escribe en la pantalla antes de subir: "sin fecha de fin"
+     ya significó una vez "vigente para siempre" y se cobraron promociones
+     terminadas. */
+  if(!d1){
+    const mp=flat.match(/promocion\w*[^.]{0,140}?punto de venta[^.]{0,40}?a partir de[l]?\s+(\d\s*\d?)\s+de\s+([A-Za-záéíóúÁÉÍÓÚ]{4,})\s*(?:de[l]?\s+)?(\d\s*\d\s*\d\s*\d)?/i);
+    if(mp&&MESES_P[mp[2].toLowerCase()]){
+      /* Sin año escrito manda el del documento; los CEA se cargan el mismo mes
+         que se publican. */
+      const y=mp[3]?+ds(mp[3]):new Date().getFullYear();
+      d1=isoP(y,MESES_P[mp[2].toLowerCase()],+ds(mp[1]));
+      eolD1=d1;
+      vig='a partir del '+ds(mp[1])+' de '+mp[2].toLowerCase();
+    }
+  }
   return {d1:d1,d2:d2,vig:vig,eolD1:eolD1};
 }
 
@@ -1578,12 +1622,53 @@ async function parsePromosXLSX(file){
   return {rows,vig};
 }
 
+/* La vigencia que se va a guardar, ya con la mano del gerente encima.
+   `tocada` distingue los dos casos y no hay un tercero:
+     · sin tocar  → cada fila conserva la suya (el CEA 223 arranca los EOL dos
+                    días después que el resto, y eso no se puede aplastar)
+     · tocada     → lo que escribió el gerente manda sobre todas */
+let vigPromosTocada=false;
+
+function _vigPromosPintar(){
+  const d1=document.getElementById('vigD1Promos').value;
+  const d2=document.getElementById('vigD2Promos').value;
+  const nota=document.getElementById('vigNotaPromos');
+  const btn=document.getElementById('btnPromos');
+  if(!parsedPromos||!parsedPromos.rows.length){ btn.disabled=true; return; }
+  if(!d2){
+    /* Sin fecha de fin la base rechaza TODAS las filas. Se frena aquí, con el
+       archivo a la vista, y no después de un "Enviado" que no envió nada. */
+    nota.innerHTML='⚠️ <b>Este CEA no dice hasta cuándo.</b> Escribe la fecha de fin: '+
+                   'sin ella la nube no guarda ninguna promoción.';
+    nota.style.color='#D12026';
+    btn.disabled=true;
+    return;
+  }
+  if(d1&&d1>d2){
+    nota.innerHTML='⚠️ La fecha de inicio es posterior a la de fin.';
+    nota.style.color='#D12026';
+    btn.disabled=true;
+    return;
+  }
+  nota.innerHTML='Se guardarán con esta vigencia. Corrígela si no coincide con el comunicado.';
+  nota.style.color='#888';
+  btn.disabled=false;
+}
+
+['vigD1Promos','vigD2Promos'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){
+    vigPromosTocada=true; _vigPromosPintar();
+  });
+});
+
 document.getElementById('filePromos').onchange=async function(e){
   const f=e.target.files&&e.target.files[0]; if(!f) return;
   document.getElementById('resPromos').className='result';
   document.getElementById('fphPromos').textContent='Leyendo archivo…';
   document.getElementById('fboxPromos').classList.remove('ok');
   document.getElementById('detPromos').style.display='none';
+  document.getElementById('vigPromos').style.display='none';
+  vigPromosTocada=false;
   try{
     const isXlsx=/\.(xlsx|xls)$/i.test(f.name);
     parsedPromos=isXlsx ? await parsePromosXLSX(f) : await parsePromosPDF(f);
@@ -1600,12 +1685,20 @@ document.getElementById('filePromos').onchange=async function(e){
         <strong>SKU ${r.sku}${r.est==='EOL'?' · EOL':''}</strong>
         <span>${r.desc||'(sin descripción)'}</span>
         <span>${r.pr?'regular $'+r.pr:'sin precio regular'}${r.pp?' → promo $'+r.pp:''}${r.msi?' · '+r.msi.split(',').join(' y ')+' MSI':''}</span>
-        <span>📅 ${r.d1||'sin inicio'} al ${r.d2||'SIN VIGENCIA — no se va a guardar'}</span>
+        <span>📅 ${r.d1||'sin inicio'} al ${r.d2||'sin fin — lo pone el campo de vigencia de arriba'}</span>
       </div>`).join('');
     document.getElementById('detPromos').style.display='block';
-    document.getElementById('btnPromos').disabled=false;
+    /* La vigencia se precarga con la más común de las filas: es la del
+       documento, y la que el gerente va a reconocer del papel. */
+    const prim=r=>{ const c={}; parsedPromos.rows.forEach(x=>{ if(x[r]) c[x[r]]=(c[x[r]]||0)+1; });
+                    return Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||''; };
+    document.getElementById('vigD1Promos').value=prim('d1');
+    document.getElementById('vigD2Promos').value=prim('d2');
+    document.getElementById('vigPromos').style.display='block';
+    _vigPromosPintar();
   }catch(err){
     parsedPromos=null; document.getElementById('btnPromos').disabled=true;
+    document.getElementById('vigPromos').style.display='none';
     document.getElementById('fphPromos').textContent='📄 Toca para elegir el PDF o Excel del CEA';
     showResult('resPromos',false,'No pude leer el archivo: '+err.message);
   }
@@ -1617,23 +1710,47 @@ async function subirPromos(){
   btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
   document.getElementById('resPromos').className='result';
   try{
-    const rp = await sbCargaAdmin('carga_promos', { p_filas: parsedPromos.rows, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?') });
-    const est = { promoCount: rp.promos, promoVig: parsedPromos.vig };
-    const eolCount=parsedPromos.rows.filter(r=>r.est==='EOL').length;
-    /* Las que la base no admite se cuentan y se dicen: sin fecha de vigencia, o
-       con precio promo mayor o igual al regular. Una promo que falta es un
-       precio que el asesor no le cobra al cliente. */
-    if(rp.sin_fecha || rp.precio_invalido)
-      toast(`⚠️ ${(rp.sin_fecha||0)+(rp.precio_invalido||0)} promos no entraron (revisa vigencia y precios)`, false);
-    if(est&&Number(est.promoCount)>0){
+    const mD1=document.getElementById('vigD1Promos').value;
+    const mD2=document.getElementById('vigD2Promos').value;
+    /* Tocada, manda el gerente; sin tocar, cada fila conserva la suya y el
+       campo sólo rellena el hueco. */
+    const filas=parsedPromos.rows.map(r=>Object.assign({},r,{
+      d1: vigPromosTocada ? mD1 : (r.d1||mD1),
+      d2: vigPromosTocada ? mD2 : (r.d2||mD2)
+    }));
+    const vigTxt = (mD1?mD1:'—')+' al '+(mD2?mD2:'—');
+
+    const rp = await sbCargaAdmin('carga_promos', { p_filas: filas, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?') });
+    const guardadas=Number(rp.promos)||0;
+    const eolCount=filas.filter(r=>r.est==='EOL').length;
+    const fuera=(rp.sin_fecha||0)+(rp.precio_invalido||0);
+    const porQue=(rp.sin_fecha?`<br>· ${rp.sin_fecha} sin fecha de vigencia`:'')+
+                 (rp.precio_invalido?`<br>· ${rp.precio_invalido} con precio de promo mayor o igual al regular`:'');
+
+    /* Cero guardadas es un FALLO, y se pinta en rojo. Antes caía a un mensaje
+       verde —"Enviado (11 promos…)"— que contaba las leídas del archivo, no
+       las que entraron: se leía como éxito habiendo entrado ninguna, y el
+       tablero siguió cobrando el precio regular seis días. */
+    if(guardadas===0){
+      showResult('resPromos',false,
+        `❌ <b>No se guardó ninguna promoción.</b> Se leyeron ${filas.length} del archivo `+
+        `y la nube las rechazó todas.${porQue}<br>`+
+        `El tablero sigue mostrando el precio regular.`);
+    } else if(fuera){
       showResult('resPromos',true,
-        `✅ <b>${est.promoCount}</b> promos actualizadas · vigencia ${est.promoVig||parsedPromos.vig}.<br>`+
+        `⚠️ <b>${guardadas}</b> de ${filas.length} promos actualizadas · vigencia ${vigTxt}.<br>`+
+        `<b>${fuera} se quedaron fuera:</b>${porQue}<br>`+
         `${eolCount} productos EOL guardados en la nube automáticamente.`);
     } else {
-      showResult('resPromos',true,`Enviado (${parsedPromos.rows.length} promos, ${eolCount} EOL). Revisa en unos segundos.`);
+      showResult('resPromos',true,
+        `✅ <b>${guardadas}</b> promos actualizadas · vigencia ${vigTxt}.<br>`+
+        `${eolCount} productos EOL guardados en la nube automáticamente.`);
     }
   }catch(err){ showResult('resPromos',false,'Error al subir: '+err.message); }
-  btn.textContent='Subir promociones'; btn.disabled=false;
+  btn.textContent='Subir promociones';
+  /* No se re-habilita a ciegas: si la vigencia quedó incompleta, el botón
+     tiene que seguir apagado. */
+  _vigPromosPintar();
 }
 
 /* ================================================================
