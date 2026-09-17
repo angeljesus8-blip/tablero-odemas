@@ -599,7 +599,13 @@ function fmtH(h) {
 }
 
 function buildTurnoInfo(hOpen, hClose) {
-  const gAp = hOpen, gCi = hClose - 8.5, gCo = hClose - 7;
+  /* La compensación de gerencia descuenta 2 h del turno que le toque: el de
+     apertura sale 2 h antes (gAp+7 en vez de gAp+9) y el de cierre entra 2 h
+     después. 17-sep-2026: el de cierre decía `hClose - 7` —14:00 con cierre a
+     las 21:00— y eso solo descontaba 1.5 h sobre el cierre normal de 12:30.
+     Escrito como `gCi + 2` para que las dos compensaciones den lo mismo en
+     cualquier tienda, que aquí abren y cierran a horas distintas. */
+  const gAp = hOpen, gCi = hClose - 8.5, gCo = gCi + 2;
   const aAp = hOpen + 1, aA10 = hOpen, aCi = hClose - 8.5;
   TURNO_INFO = {
     ger: {
