@@ -164,6 +164,9 @@
     <h1 class="auth-title" style="margin-bottom:0">Gerente</h1>
     <p class="auth-sub" style="margin-bottom:12px">Acceso con correo de tienda</p>
     <div class="auth-err" id="loginErr"></div>
+    <!-- Aquí aterriza el aviso del registro: lo que falta se dice donde la
+         persona tiene que actuar, no en el formulario que ya dejó atrás. -->
+    <div class="auth-ok"  id="loginOk"></div>
     <input class="auth-inp" id="loginEmail" type="email" placeholder="Correo de la tienda" autocomplete="email">
     <input class="auth-inp" id="loginPass" type="password" placeholder="Contraseña" autocomplete="current-password">
     <button class="auth-btn" id="btnLogin" onclick="doLogin()">Iniciar sesión</button>
@@ -368,8 +371,39 @@ function sc(name) {
   document.getElementById('scLogin').classList.toggle('hide', name !== 'login');
   document.getElementById('scRegister').classList.toggle('hide', name !== 'register');
   document.getElementById('mainMenu').style.display = name === 'menu' ? 'block' : 'none';
+  /* El aviso que trajo el registro vive SOLO en la pantalla de inicio de
+     sesión: si se queda pegado, la próxima persona que pase por aquí lee un
+     «confirma tu correo» que no es suyo. */
+  if (name !== 'login') {
+    const ok = document.getElementById('loginOk');
+    if (ok) { ok.classList.remove('show'); ok.innerHTML = ''; }
+  }
 }
 function showScreen(name){ sc(name); }
+
+/* Un registro que sale bien manda a Iniciar sesión (20-sep-2026). Antes dejaba
+   una nota verde arriba de un formulario ya usado: parecía que faltaba algo por
+   llenar ahí mismo, y la pantalla a la que hay que volver quedaba a dos clics.
+
+   El aviso VIAJA con la persona, porque casi nunca es «ya está»: con la
+   confirmación de correo encendida, la tienda todavía no existe y se crea en el
+   primer inicio de sesión desde ESTE navegador. Mandarla al login sin decírselo
+   cambiaría un mensaje mal puesto por una tienda que nunca se crea.
+
+   El correo se deja escrito: es el de la tienda, y volver a teclearlo mal es
+   otra forma de acabar sin entrar. */
+function alLoginConAviso_(html, email) {
+  hideErr('loginErr');
+  const regOk = document.getElementById('regOk');
+  if (regOk) { regOk.classList.remove('show'); regOk.innerHTML = ''; }
+  sc('login');
+  const ok = document.getElementById('loginOk');
+  if (ok) { ok.innerHTML = html; ok.classList.add('show'); }
+  const inp = document.getElementById('loginEmail');
+  if (inp && email) inp.value = email;
+  const pass = document.getElementById('loginPass');
+  if (pass) pass.value = '';
+}
 
 function showErr(id, msg) { const el=document.getElementById(id); el.textContent=msg; el.classList.add('show'); }
 function hideErr(id) { document.getElementById(id).classList.remove('show'); }
@@ -738,10 +772,10 @@ async function doRegister() {
     }
     try{ localStorage.removeItem('hes_alta_pendiente'); }
     catch(e){ /* la tienda ya está creada; el pendiente sobra y el 23505 lo cubre */ }
-    const ok = document.getElementById('regOk');
-    ok.textContent = '¡Listo! Tu tienda quedó creada y ya estás dado de alta. Vuelve a iniciar sesión.';
-    ok.classList.add('show');
+    const correo = u.email || email;
     _usuarioSinTienda = null;
+    alLoginConAviso_('<b>¡Listo!</b> Tu tienda quedó creada y ya estás dado de alta. '
+      + 'Inicia sesión para entrar.', correo);
     return;
   }
 
@@ -800,12 +834,10 @@ async function doRegister() {
          caso raro y con salida; romper el registro aquí no ayudaría a nadie. */
       try{ localStorage.setItem('hes_alta_pendiente', JSON.stringify(pendiente)); }
       catch(e){ /* sin sitio donde guardarlo: el caso raro que se explica arriba */ }
-      const ok = document.getElementById('regOk');
-      ok.innerHTML = '¡Cuenta creada! <b>Confirma tu correo</b> y vuelve aquí a iniciar '
-        + 'sesión: tu tienda se crea sola en ese momento, con tus datos.<br><br>'
+      alLoginConAviso_('¡Cuenta creada! <b>Confirma tu correo</b> y luego inicia sesión '
+        + 'aquí: tu tienda se crea sola en ese momento, con tus datos.<br><br>'
         + 'Hazlo <b>desde este mismo navegador</b> — los datos de la tienda quedaron '
-        + 'guardados aquí, no en el servidor.';
-      ok.classList.add('show');
+        + 'guardados aquí, no en el servidor.', email);
       return;
     }
 
@@ -828,12 +860,12 @@ async function doRegister() {
       return;
     }
   }
-  const ok = document.getElementById('regOk');
-  ok.textContent = _modoEquipo
-    ? '¡Cuenta creada! Confirma tu correo y luego inicia sesión: tu tienda se reconoce sola.'
+  alLoginConAviso_(_modoEquipo
+    ? '¡Cuenta creada! <b>Confirma tu correo</b> y luego inicia sesión: tu tienda se '
+      + 'reconoce sola.'
     : '¡Cuenta creada y tienda registrada! Ya quedaste dado de alta como gerente: '
-      + 'podrás entrar con tu correo o con tu número. Revisa tu correo para confirmar.';
-  ok.classList.add('show');
+      + 'podrás entrar con tu correo o con tu número. <b>Confirma tu correo</b> antes '
+      + 'de iniciar sesión.', email);
 }
 
 async function doLogout() {
