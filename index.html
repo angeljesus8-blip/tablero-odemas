@@ -174,6 +174,32 @@
   </div>
 </div>
 
+<!-- ── GERENTE · CÓDIGO DEL CORREO ──
+     20-sep-2026. El enlace de confirmación no sirve en esta red: los correos
+     @radioshack.com.mx pasan por el reescritor del filtro corporativo
+     (urlwatch.com), que los rompe. Y aunque abriera, el enlace obliga a volver
+     en el MISMO navegador donde se llenó el formulario, porque hasta entonces
+     la tienda solo existe en su localStorage.
+
+     El código de 6 dígitos no tiene ninguna de las dos ataduras: se lee en el
+     celular y se teclea donde se esté registrando, y al validarlo Supabase
+     deja SESIÓN, que es lo que faltaba para crear la tienda en el acto. -->
+<div id="scCodigo" class="sc hide">
+  <div class="auth-form">
+    <button class="auth-back" onclick="showScreen('login')">← Volver</button>
+    <img class="auth-logo" src="logo_odemas.png" alt="Odemás" style="margin:4px auto 0;display:block">
+    <h1 class="auth-title" style="margin-bottom:0">Confirma tu correo</h1>
+    <p class="auth-sub" id="codSub" style="margin-bottom:12px">Te mandamos un código de 6 dígitos</p>
+    <div class="auth-err" id="codErr"></div>
+    <div class="auth-ok"  id="codOk"></div>
+    <input class="auth-inp" id="codInp" type="text" inputmode="numeric" maxlength="6"
+           placeholder="••••••" autocomplete="one-time-code"
+           style="text-align:center;letter-spacing:6px;font-size:22px;font-weight:800">
+    <button class="auth-btn" id="btnCod" onclick="doVerificarCodigo()">Confirmar y entrar</button>
+    <span class="auth-link" onclick="doReenviarCodigo()">No me llegó — enviar otro código</span>
+  </div>
+</div>
+
 <!-- ── GERENTE · REGISTRO ── -->
 <div id="scRegister" class="sc hide">
   <div class="auth-form" style="max-width:340px">
@@ -369,6 +395,7 @@ function sc(name) {
   document.getElementById('scLoad').classList.toggle('hide', name !== 'load');
   document.getElementById('scPin').classList.toggle('hide', name !== 'pin');
   document.getElementById('scLogin').classList.toggle('hide', name !== 'login');
+  document.getElementById('scCodigo').classList.toggle('hide', name !== 'codigo');
   document.getElementById('scRegister').classList.toggle('hide', name !== 'register');
   document.getElementById('mainMenu').style.display = name === 'menu' ? 'block' : 'none';
   /* El aviso que trajo el registro vive SOLO en la pantalla de inicio de
@@ -572,9 +599,101 @@ async function doLogin() {
   const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
   btn.disabled = false; btn.textContent = 'Iniciar sesión';
   if (error) { showErr('loginErr', error.message.includes('Invalid') ? 'Correo o contraseña incorrectos' : error.message); return; }
-  /* Dos clases de cuenta: la dueña de la tienda (el correo de tienda) y la de
-     alguien del equipo con su propio correo —el subgerente—. La segunda no
-     aparece en `tiendas`, así que se busca su ficha por correo y se vincula. */
+  await entrarConSesion_(data.user, 'loginErr');
+}
+
+/* ── Confirmar el correo con un código, no con un enlace ──────────────
+   A quién se le está pidiendo el código. Se guarda aquí y no se lee del
+   formulario al validar: si alguien corrige el correo en la pantalla de atrás
+   después de que salió el mensaje, el código deja de casar y el error diría
+   «código incorrecto» cuando lo que cambió fue el destinatario. */
+let _correoAConfirmar = '';
+
+function irAlCodigo_(email, aviso) {
+  _correoAConfirmar = email || '';
+  hideErr('codErr');
+  const sub = document.getElementById('codSub');
+  if (sub) sub.innerHTML = 'Te mandamos un código de 6 dígitos a <b>'
+    + _correoAConfirmar.replace(/</g,'&lt;') + '</b>. Escríbelo aquí y entras directo.';
+  const ok = document.getElementById('codOk');
+  if (ok) {
+    /* El correo también trae el enlace de siempre, pero NO se anuncia como el
+       camino: en esta red se rompe, y ofrecer dos caminos donde uno falla es
+       peor que ofrecer uno. Queda para quien lo pueda abrir. */
+    ok.innerHTML = aviso || '';
+    ok.classList.toggle('show', !!aviso);
+  }
+  const inp = document.getElementById('codInp');
+  if (inp) inp.value = '';
+  sc('codigo');
+}
+
+async function doVerificarCodigo() {
+  hideErr('codErr');
+  if (!sb) { showErr('codErr', 'Sin conexión con el servidor. Intenta de nuevo.'); return; }
+  const token = (document.getElementById('codInp').value || '').replace(/\D/g, '');
+  if (token.length !== 6) { showErr('codErr', 'El código son 6 dígitos'); return; }
+  if (!_correoAConfirmar) { showErr('codErr', 'No sé a qué correo se mandó el código. Vuelve a registrarte.'); return; }
+  const btn = document.getElementById('btnCod');
+  btn.disabled = true; btn.textContent = 'Confirmando…';
+  /* `type:'signup'` es el código que manda el alta. El de recuperar contraseña
+     es otro tipo y no vale aquí: pedir el que no es devuelve «Token has
+     expired or is invalid», que suena a código caducado y manda a reenviar
+     cuando lo que está mal es la puerta. */
+  const { data, error } = await sb.auth.verifyOtp({
+    email: _correoAConfirmar, token: token, type: 'signup' });
+  btn.disabled = false; btn.textContent = 'Confirmar y entrar';
+  if (error) {
+    const m = String(error.message || '');
+    showErr('codErr', /expired|invalid/i.test(m)
+      ? 'Ese código no es válido o ya venció. Pide otro con el enlace de abajo.'
+      : m);
+    return;
+  }
+  /* Aquí YA hay sesión: es lo que cambia todo respecto al enlace. La tienda que
+     quedó pendiente se crea ahora mismo, en este navegador, que es donde están
+     sus datos. */
+  const user = (data && data.user) || null;
+  if (!user) { showErr('codErr', 'El código se aceptó pero no llegó la sesión. Inicia sesión con tu correo y contraseña.'); return; }
+  await entrarConSesion_(user, 'codErr');
+}
+
+async function doReenviarCodigo() {
+  hideErr('codErr');
+  if (!sb || !_correoAConfirmar) { showErr('codErr', 'Vuelve a registrarte para pedir un código nuevo.'); return; }
+  const ok = document.getElementById('codOk');
+  ok.textContent = 'Enviando…'; ok.classList.add('show');
+  /* El mismo destino que en el alta: el enlace del correo sigue existiendo como
+     respaldo, así que tiene que volver a esta copia y no al Site URL de
+     fábrica, que es `localhost`. */
+  const { error } = await sb.auth.resend({ type:'signup', email:_correoAConfirmar,
+    options:{ emailRedirectTo: location.href.split('?')[0].split('#')[0] } });
+  if (error) {
+    ok.classList.remove('show');
+    /* El correo de fábrica de Supabase va limitado por hora. Decir «espera unos
+       minutos» evita que alguien apriete diez veces creyendo que no funciona
+       —y gaste el cupo de la tienda siguiente—. */
+    showErr('codErr', /rate|limit|seconds/i.test(String(error.message))
+      ? 'Se han pedido muchos códigos seguidos. Espera unos minutos y vuelve a intentarlo.'
+      : (error.message || 'No se pudo reenviar el código'));
+    return;
+  }
+  ok.textContent = 'Listo, te mandamos otro código. Puede tardar un minuto en llegar.';
+}
+
+/* Lo que pasa DESPUÉS de que Supabase dice quién eres, venga de donde venga.
+
+   Hay dos maneras de acabar con una sesión abierta: escribir la contraseña, o
+   confirmar el correo con el código de 6 dígitos al registrarse. Las dos tienen
+   que dejar a la persona EXACTAMENTE igual de dentro —tienda creada si quedó a
+   medias, equipo cargado, puesto guardado—, y esto estaba escrito solo dentro
+   de `doLogin`. Copiarlo para el código nuevo habría dejado dos caminos que se
+   separan a la primera corrección, y el que se quede viejo no da ningún error:
+   entra, y algo de dentro está mal puesto.
+
+   `idErr` es dónde se escribe lo que salga mal: cada pantalla enseña lo suyo, y
+   un error en un recuadro que no se está mirando es no decir nada. */
+async function entrarConSesion_(user, idErr) {
   // Un campo que falte en esta lista llega vacio al telefono y lo que dependa
   // de el se apaga sin que nada diga por que. Ver el bloque de arriba.
   const COLS = 'store_id,nombre,ciudad,gas_token,hoja_auth,vendedores';
@@ -582,10 +701,14 @@ async function doLogin() {
   // es el momento: ya hay sesión. Si falla lo dice y no sigue, porque lo que
   // viene —buscar la tienda— daría «no estás dado de alta en ninguna tienda» y
   // mandaría a pedirle al gerente que te registre... siendo el gerente.
-  const falloAlta = await crearTiendaPendiente(data.user);
-  if (falloAlta) { showErr('loginErr', falloAlta); return; }
+  const falloAlta = await crearTiendaPendiente(user);
+  if (falloAlta) { showErr(idErr, falloAlta); return false; }
 
-  let tienda = (await sb.from('tiendas').select(COLS).eq('user_id', data.user.id).maybeSingle()).data;
+  /* Dos clases de cuenta: la dueña de la tienda (el correo de tienda) y la de
+     alguien del equipo con su propio correo —el subgerente—. La segunda no
+     aparece en `tiendas`, así que se busca su ficha por correo y se vincula. */
+
+  let tienda = (await sb.from('tiendas').select(COLS).eq('user_id', user.id).maybeSingle()).data;
   let ficha = null;
 
   if (!tienda) {
@@ -600,8 +723,8 @@ async function doLogin() {
   }
   if (!tienda) {
     if (ficha) {
-      showErr('loginErr', 'Tu cuenta quedó vinculada pero no pude leer la tienda. Avisa al gerente.');
-      return;
+      showErr(idErr, 'Tu cuenta quedó vinculada pero no pude leer la tienda. Avisa al gerente.');
+      return false;
     }
     /* Sin tienda y sin ficha son DOS situaciones que se ven igual desde aquí: o
        es alguien a quien no han dado de alta, o es un gerente cuyo registro se
@@ -610,14 +733,14 @@ async function doLogin() {
 
        La misma pantalla atiende las dos: quien venía a registrar su tienda la
        termina, y quien no, lee ahí a quién tiene que pedírselo. */
-    completarTienda(data.user);
+    completarTienda(user);
     const aviso = document.getElementById('regOk');
     aviso.innerHTML = 'Tu cuenta existe, pero <b>no tiene tienda</b>. Si eres el gerente '
       + 'y te quedaste a medias al registrarla, termínala aquí.<br><br>Si trabajas en una '
       + 'tienda que ya existe, no es esto: pide al gerente que registre tu correo en '
       + 'Admin → 👥 Equipo.';
     aviso.classList.add('show');
-    return;
+    return false;
   }
   /* La lista del equipo, del MISMO sitio que los otros dos caminos (3-sep-2026).
 
@@ -661,7 +784,9 @@ async function doLogin() {
   else localStorage.removeItem('odemas_empleado');
   applyStoreConfig(cfg, rol);
   sc('menu');
+  return true;
 }
+
 
 /* ── Registro ──
    Dos casos: quien registra una tienda nueva (crea la fila en `tiendas`) y
@@ -834,10 +959,8 @@ async function doRegister() {
          caso raro y con salida; romper el registro aquí no ayudaría a nadie. */
       try{ localStorage.setItem('hes_alta_pendiente', JSON.stringify(pendiente)); }
       catch(e){ /* sin sitio donde guardarlo: el caso raro que se explica arriba */ }
-      alLoginConAviso_('¡Cuenta creada! <b>Confirma tu correo</b> y luego inicia sesión '
-        + 'aquí: tu tienda se crea sola en ese momento, con tus datos.<br><br>'
-        + 'Hazlo <b>desde este mismo navegador</b> — los datos de la tienda quedaron '
-        + 'guardados aquí, no en el servidor.', email);
+      irAlCodigo_(email, 'Tu tienda se crea en cuanto confirmes: los datos que '
+        + 'escribiste quedaron guardados en este navegador.');
       return;
     }
 
@@ -860,12 +983,14 @@ async function doRegister() {
       return;
     }
   }
-  alLoginConAviso_(_modoEquipo
-    ? '¡Cuenta creada! <b>Confirma tu correo</b> y luego inicia sesión: tu tienda se '
-      + 'reconoce sola.'
-    : '¡Cuenta creada y tienda registrada! Ya quedaste dado de alta como gerente: '
-      + 'podrás entrar con tu correo o con tu número. <b>Confirma tu correo</b> antes '
-      + 'de iniciar sesión.', email);
+  /* Con la confirmación de correo APAGADA, `signUp` ya devuelve sesión: no hay
+     código que pedir y hacerlo dejaría a la gente esperando un correo que nadie
+     mandó. Se entra y ya. */
+  if (data.session && data.user) { await entrarConSesion_(data.user, 'regErr'); return; }
+  irAlCodigo_(email, _modoEquipo
+    ? 'En cuanto confirmes, tu tienda se reconoce sola y entras.'
+    : 'Tu tienda ya quedó registrada y tú dado de alta como gerente. Confirma el '
+      + 'correo y entras.');
 }
 
 async function doLogout() {

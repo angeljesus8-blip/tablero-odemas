@@ -1,0 +1,79 @@
+<!--
+  ============================================================
+  Correo de confirmación de alta — Odemás · HES Red
+  ============================================================
+  DÓNDE SE PEGA (una vez por proyecto de Supabase):
+    Authentication → Emails → plantilla «Confirm signup» → pegar TODO esto.
+
+  POR QUÉ EXISTE (20-sep-2026)
+  La plantilla de fábrica trae SOLO el enlace `{{ .ConfirmationURL }}`, y en
+  esta red el enlace no llega usable: los correos @radioshack.com.mx pasan por
+  el reescritor del filtro corporativo (urlwatch.com), que lo envuelve y lo
+  rompió con ERR_CONNECTION_RESET al registrar la 1217. Y aunque abriera,
+  obliga a volver en el MISMO navegador donde se llenó el formulario, porque
+  hasta que hay sesión la tienda solo existe en su localStorage.
+
+  `{{ .Token }}` es el mismo alta, dicho en 6 dígitos: se lee en el celular y
+  se teclea en la computadora donde se está registrando. La app lo valida con
+  `verifyOtp`, eso DEJA SESIÓN, y con sesión la tienda se crea en el acto.
+
+  El enlace se queda abajo, en pequeño, como respaldo para quien sí lo pueda
+  abrir. No al revés: el camino que se ofrece primero tiene que ser el que
+  funciona siempre.
+
+  ⚠️ NO quitar `{{ .Token }}`: sin él, el correo llega sin código y la pantalla
+  de la app pide algo que no existe en ninguna parte.
+
+  El logo se sirve desde la copia publicada, que es pública: un correo no puede
+  leer archivos del repo ni del teléfono de nadie.
+  ============================================================
+-->
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;padding:24px 0;font-family:Montserrat,'Segoe UI',Arial,sans-serif">
+  <tr>
+    <td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;border:1px solid #eee;border-radius:14px;padding:28px 24px">
+        <tr>
+          <td align="center" style="padding-bottom:12px">
+            <img src="https://angeljesus8-blip.github.io/tablero-odemas/logo_odemas.png"
+                 alt="Odemás" width="132" style="display:block;border:0">
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="font-size:19px;font-weight:800;color:#222;padding-bottom:6px">
+            Confirma tu correo
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="font-size:14px;color:#555;line-height:1.5;padding-bottom:18px">
+            Estás dando de alta tu tienda en el tablero.<br>
+            Escribe este código en la app para terminar:
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-bottom:18px">
+            <div style="display:inline-block;background:#fff5f5;border:2px solid #D12026;border-radius:12px;padding:14px 26px;font-size:32px;font-weight:800;letter-spacing:8px;color:#D12026">
+              {{ .Token }}
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="font-size:12px;color:#888;line-height:1.5;padding-bottom:16px">
+            El código vence en una hora. Si no fuiste tú, ignora este correo.
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="border-top:1px solid #eee;padding-top:14px;font-size:11px;color:#aaa;line-height:1.6">
+            ¿Prefieres un clic? También puedes
+            <a href="{{ .ConfirmationURL }}" style="color:#336BB4">confirmar desde aquí</a>.
+            Si tu correo de empresa bloquea el enlace, usa el código de arriba.
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-top:14px;font-size:11px;color:#bbb">
+            Odemás · Grupo Gigante — uso interno HES
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
