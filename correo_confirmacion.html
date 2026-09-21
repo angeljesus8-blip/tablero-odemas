@@ -5,6 +5,17 @@
   DÓNDE SE PEGA (una vez por proyecto de Supabase):
     Authentication → Emails → plantilla «Confirm signup» → pegar TODO esto.
 
+  ⚠️ HOY NO SE PUEDE PEGAR, Y NO HACE FALTA (20-sep-2026).
+  Supabase no deja editar las plantillas sin SMTP propio: «Set up custom SMTP
+  to edit templates». Por eso el alta dejó de depender del correo y pasó a
+  hacerse con un código de invitación (`supabase_alta_por_invitacion.sql`),
+  que no manda ni un mensaje.
+
+  Esto se queda porque la app SIGUE sabiendo confirmar por código de correo
+  —si algún día se enciende «Confirm email» en el panel, esa pantalla aparece
+  sola— y ese día, con SMTP montado, esta plantilla es la que hace falta:
+  la de fábrica trae solo el enlace, y el enlace en esta red no llega usable.
+
   POR QUÉ EXISTE (20-sep-2026)
   La plantilla de fábrica trae SOLO el enlace `{{ .ConfirmationURL }}`, y en
   esta red el enlace no llega usable: los correos @radioshack.com.mx pasan por

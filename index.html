@@ -213,6 +213,14 @@
     <input class="auth-inp" id="regPass"   type="password" placeholder="Contraseña (mín. 6 caracteres)">
     <input class="auth-inp" id="regPass2"  type="password" placeholder="Confirmar contraseña">
     <div id="regDatosTienda">
+      <!-- 20-sep-2026: abrir una tienda pide un código que da quien lleva la
+           red. Va ARRIBA de los datos porque es lo primero que se comprueba: si
+           no sirve, no tiene sentido teclear lo demás ni crear una cuenta que
+           luego se queda sin tienda. -->
+      <p class="auth-sep">— código de invitación —</p>
+      <input class="auth-inp" id="regCodigo" type="text" placeholder="El código que te dieron"
+             autocapitalize="characters" spellcheck="false"
+             style="text-transform:uppercase;letter-spacing:2px;font-weight:700">
       <p class="auth-sep">— datos de la tienda —</p>
       <div class="auth-row2">
         <input class="auth-inp" id="regId"     type="text" placeholder="ID · ej: 1218" inputmode="numeric" maxlength="6">
@@ -556,34 +564,81 @@ async function pinCheck(auto) {
 
    Devuelve el error en texto si algo falla, o null si no había nada que hacer
    —que es el caso normal— o si salió bien. */
+/* Los motivos que devuelve el servidor, dichos como se entienden y con lo que
+   hay que hacer. Un «error: usado» en pantalla no le dice a nadie que tiene que
+   pedir otro código. */
+const _MOTIVO_ALTA = {
+  no_existe:     'Ese código de invitación no existe. Revísalo: son 8 caracteres, y no lleva la letra O ni la I.',
+  usado:         'Ese código ya se usó para dar de alta una tienda. Pide otro a quien te lo dio.',
+  vencido:       'Ese código ya venció. Pide uno nuevo.',
+  otra_tienda:   'Ese código es para otra tienda.',
+  tienda_existe: 'Ese ID de tienda ya está registrado.',
+  faltan_datos:  'Faltan el ID y el nombre de la tienda.',
+  sin_sesion:    'Tu cuenta todavía no tiene la sesión abierta. Inicia sesión con tu correo y contraseña para terminar el alta.'
+};
+
+/* La ÚNICA puerta por la que se crea una tienda.
+
+   Los dos momentos en que puede pasar —al registrarse, o al iniciar sesión si
+   el alta quedó a medias— llaman aquí. Que la creación viva en el servidor es
+   lo que la hace entera: valida el código, crea la tienda, da de alta al
+   gerente y quema el código en una transacción. Desde el navegador eran dos
+   INSERT sueltos y entre uno y otro cabía una tienda sin nadie dentro.
+
+   Devuelve el MOTIVO en cristiano, o `null` si salió bien. */
+async function altaDeTienda_(d) {
+  const { data, error } = await sb.rpc('alta_tienda', {
+    p_codigo:     d.codigo || '',
+    p_store_id:   d.store_id || '',
+    p_nombre:     d.nombre || '',
+    p_ciudad:     d.ciudad || '',
+    p_empno:      d.empno || '',
+    p_emp_nombre: d.emp_nombre || ''
+  });
+  if (error) return 'No se pudo crear la tienda: ' + (error.message || 'error de Supabase');
+  const r = data || {};
+  if (r.ok) return null;
+  if (r.error === 'otra_tienda' && r.store_id)
+    return 'Ese código es para la tienda ' + r.store_id + '.';
+  return _MOTIVO_ALTA[r.error] || ('No se pudo crear la tienda (' + (r.error || 'motivo desconocido') + ').');
+}
+
+/* El alta que quedó guardada en este navegador, terminada en cuanto hay sesión.
+
+   Solo pasa si la confirmación de correo está encendida en el panel: entonces
+   `signUp` no deja sesión y la tienda no se puede crear hasta el primer
+   ingreso. Con ella apagada esto no se usa nunca, y por eso empieza mirando si
+   hay algo pendiente en vez de dar por hecho que lo hay. */
 async function crearTiendaPendiente(user) {
   let p = null;
   // Ilegible o sin permiso de almacenamiento: no hay alta pendiente que atender,
   // que es exactamente lo que pasa el 99% de las veces.
   try{ p = JSON.parse(localStorage.getItem('hes_alta_pendiente') || 'null'); }catch(e){}
   if (!p || !p.store_id) return null;
+  // El pendiente es de QUIEN lo escribió: si en este navegador entra otra
+  // persona, su alta no puede colgarse de la sesión ajena.
   if (!user || !user.email || !p.email ||
       user.email.toLowerCase() !== String(p.email).toLowerCase()) return null;
 
-  const { error:eT } = await sb.from('tiendas').insert({
-    user_id: user.id, store_id: p.store_id, nombre: p.nombre,
-    ciudad: p.ciudad || '', vendedores: [], admin_pin: p.store_id });
-  // Ya existía: la creó otro intento. No es un fallo, es haber llegado tarde.
-  if (eT && eT.code !== '23505') return eT.message || 'no se pudo crear la tienda';
+  const fallo = await altaDeTienda_(p);
 
-  if (p.empno && p.emp_nombre) {
-    const { error:eE } = await sb.from('empleados').insert({
-      store_id: p.store_id, empno: p.empno, nombre: p.emp_nombre,
-      puesto: 'Gerente de Tienda', admin: true, activo: true });
-    if (eE && eE.code !== '23505')
-      return 'La tienda quedó creada, pero no pude darte de alta ('
-           + (eE.message || 'error') + '). Entra a Admin → 👥 Equipo y date de alta ahí.';
+  /* «Ya está usado» con un alta pendiente delante casi siempre significa que la
+     creó un intento anterior —la llamada llegó y la respuesta no—. Parar el
+     ingreso por eso dejaría fuera al dueño de una tienda que SÍ existe, así que
+     se limpia y se sigue: lo que venga después dirá si la tienda está o no. */
+  if (fallo && p.codigo && /ya se usó|ya está registrado/.test(fallo)) {
+    // No poder borrarlo no cambia nada: el alta ya está hecha y el próximo
+    // intento vuelve a caer aquí, con el mismo resultado.
+    try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
+    return null;
   }
+  if (fallo) return fallo;
+
   /* Se borra solo cuando ya está todo dentro: si se borrara antes y algo
      fallara, esos datos no estarían en ningún sitio y habría que volver a
      escribirlos sin saber cuáles eran. */
-  // Si no se puede borrar, la tienda YA está creada: el siguiente intento choca
-  // con el 23505 y se ignora igual. Molesta menos que interrumpir el ingreso.
+  // Si no se puede borrar, la tienda YA está creada: el siguiente intento
+  // recibe «usado» y se limpia arriba. Molesta menos que cortar el ingreso.
   try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
   return null;
 }
@@ -856,6 +911,11 @@ async function doRegister() {
   const ciudad = document.getElementById('regCiudad').value.trim();
   const empNom = document.getElementById('regEmpNombre').value.trim().replace(/\s+/g,' ');
   const empNo  = document.getElementById('regEmpNo').value.trim();
+  /* En mayúsculas y sin espacios: el código se dicta por WhatsApp y se teclea
+     de una foto. La función del servidor también lo normaliza —no se fía de
+     esto—, pero aquí evita un «no existe» por haberlo escrito en minúsculas. */
+  const codigo = (document.getElementById('regCodigo').value || '')
+                   .toUpperCase().replace(/\s+/g, '');
   /* Completando la tienda de una cuenta que ya existe, el correo y la
      contraseña están ocultos y vacíos: exigirlos aquí hacía que el formulario
      dijera «Llena todos los campos obligatorios» con todo lleno. */
@@ -870,7 +930,29 @@ async function doRegister() {
   if (!_modoEquipo && empNom.split(' ').length < 2) { showErr('regErr','Escribe tu nombre completo, como quieres que aparezca en tus ventas'); return; }
   if (!completando && pass !== pass2) { showErr('regErr','Las contraseñas no coinciden'); return; }
   if (!completando && pass.length < 6) { showErr('regErr','La contraseña debe tener mínimo 6 caracteres'); return; }
+  // Quien solo crea su cuenta de subgerente no abre tienda: no le toca código.
+  if (!_modoEquipo && !codigo) { showErr('regErr','Falta el código de invitación. Lo da quien lleva la red — pídeselo por WhatsApp.'); return; }
   const btn = document.getElementById('btnReg');
+
+  /* El código se comprueba ANTES de crear la cuenta (20-sep-2026).
+
+     Al revés queda una cuenta registrada y sin tienda, y el segundo intento
+     choca con «este correo ya está registrado»: la persona se queda encerrada
+     entre dos errores que se contradicen. Esto no sustituye a la comprobación
+     del servidor —`alta_tienda` la vuelve a hacer, y es la que manda—, es solo
+     no romper nada antes de tiempo. */
+  if (!_modoEquipo && !completando) {
+    btn.disabled = true; btn.textContent = 'Comprobando código…';
+    const v = await sb.rpc('invitacion_valida', { p_codigo: codigo });
+    btn.disabled = false; btn.textContent = 'Crear cuenta';
+    if (v.error) { showErr('regErr','No pude comprobar el código: ' + (v.error.message||'sin conexión con el servidor')); return; }
+    const r = v.data || {};
+    if (!r.ok) { showErr('regErr', _MOTIVO_ALTA[r.error] || 'Ese código de invitación no sirve.'); return; }
+    if (r.store_id && r.store_id !== storeId) {
+      showErr('regErr','Ese código es para la tienda ' + r.store_id + ', no para la ' + storeId + '.');
+      return;
+    }
+  }
 
   /* Completando la tienda de una cuenta que ya existe: no hay nada que
      registrar, solo que crear. Y aquí SÍ hay sesión, así que la política de
@@ -878,29 +960,16 @@ async function doRegister() {
   if (_usuarioSinTienda) {
     btn.disabled = true; btn.textContent = 'Creando…';
     const u = _usuarioSinTienda;
-    const { error:eT } = await sb.from('tiendas').insert({
-      user_id:u.id, store_id:storeId, nombre, ciudad, vendedores:[], admin_pin:storeId });
+    const fallo = await altaDeTienda_({ codigo, store_id:storeId, nombre, ciudad,
+                                        empno:empNo, emp_nombre:empNom });
     btn.disabled = false; btn.textContent = 'Crear mi tienda';
-    if (eT) {
-      showErr('regErr', eT.code==='23505'
-        ? 'El ID de tienda ' + storeId + ' ya está registrado.'
-        : 'No se pudo crear la tienda: ' + (eT.message||'error de Supabase'));
-      return;
-    }
-    const { error:eE } = await sb.from('empleados').insert({
-      store_id:storeId, empno:empNo, nombre:empNom,
-      puesto:'Gerente de Tienda', admin:true, activo:true });
-    if (eE && eE.code !== '23505') {
-      showErr('regErr','Tu tienda quedó creada, pero no pude darte de alta ('
-        + (eE.message||'error') + '). Entra a Admin → 👥 Equipo y date de alta ahí.');
-      return;
-    }
+    if (fallo) { showErr('regErr', fallo); return; }
     try{ localStorage.removeItem('hes_alta_pendiente'); }
-    catch(e){ /* la tienda ya está creada; el pendiente sobra y el 23505 lo cubre */ }
-    const correo = u.email || email;
+    catch(e){ /* la tienda ya está creada; el pendiente sobra */ }
     _usuarioSinTienda = null;
-    alLoginConAviso_('<b>¡Listo!</b> Tu tienda quedó creada y ya estás dado de alta. '
-      + 'Inicia sesión para entrar.', correo);
+    /* Ya hay sesión —por eso se llegó aquí—, así que no se le manda a iniciarla
+       otra vez: se entra. */
+    await entrarConSesion_(u, 'regErr');
     return;
   }
 
@@ -925,63 +994,57 @@ async function doRegister() {
   btn.disabled = false; btn.textContent = 'Crear cuenta';
   if (error) { showErr('regErr', error.message.includes('already')?'Este correo ya está registrado. Inicia sesión.':error.message); return; }
   if (data.user && !_modoEquipo) {
-    /* El token de escritura NO se manda desde aquí: lo pone la base sola
+    /* La tienda la crea el SERVIDOR, de una vez (20-sep-2026).
+
+       Antes eran dos INSERT sueltos desde aquí, y entre uno y otro cabía todo:
+       la tienda creada sin gerente dentro, o la fila rechazada por la política
+       porque `signUp` todavía no había dejado sesión. `alta_tienda` valida el
+       código, crea la tienda, da de alta al gerente y quema el código en una
+       sola transacción: o queda todo, o no queda nada.
+
+       El token de escritura NO se manda desde aquí: lo pone la base sola
        (`tiendas.gas_token` tiene DEFAULT, ver supabase_token_alta.sql). Escrito
        por el navegador acabaría siendo el número de tienda o algo igual de
        adivinable, y esa cadena es lo único que separa a quien puede guardar
-       ventas de quien no. Sin esto la tienda se registra y no puede vender:
-       `escritura_ok_` rechaza todo lo que llegue sin token. */
-    /* La tienda no siempre se puede crear AQUÍ (3-sep-2026).
+       ventas de quien no. */
+    const pendiente = { codigo, store_id:storeId, nombre, ciudad,
+                        empno:empNo, emp_nombre:empNom, email };
 
-       Con la confirmación de correo activada —que es lo que evita que cualquiera
-       registre tiendas con correos que no existen—, `signUp` crea la cuenta pero
-       NO deja sesión hasta que la persona abre el enlace del correo. Sin sesión,
-       `auth.uid()` es NULL y la política `crear_tienda`, que exige
-       `auth.uid() = user_id`, rechaza la fila:
+    /* Sin sesión no hay dueño a quien ponerle la tienda, así que no se intenta:
+       se guarda y se crea en cuanto la haya. Pasa cuando la confirmación de
+       correo está encendida en el panel; con ella apagada —que es como está
+       pensado esto— `signUp` ya deja sesión y se sigue de largo.
 
-           new row violates row-level security policy for table "tiendas"
-
-       Así que se intenta ahora —si la confirmación está apagada, funciona y se
-       acaba aquí— y si no, los datos quedan guardados en ESTE navegador y la
-       tienda se crea sola en el primer inicio de sesión, que es cuando por fin
-       hay sesión. Ver `crearTiendaPendiente()`.
-
-       Esto llevaba roto y en silencio: el error se miraba solo para el caso del
-       ID duplicado, y cualquier otro se ignoraba. La pantalla decía «¡Cuenta
-       creada!» con la tienda sin crear. */
-    const pendiente = { store_id:storeId, nombre, ciudad, empno:empNo, emp_nombre:empNom, email };
-    const { error:eT } = await sb.from('tiendas').insert({ user_id:data.user.id, store_id:storeId, nombre, ciudad, vendedores:[], admin_pin:storeId });
-    if (eT && eT.code==='23505') { showErr('regErr','El ID de tienda '+storeId+' ya está registrado.'); return; }
-    if (eT) {
-      /* Sin sitio para guardarlo (modo privado, cuota llena) el aviso de abajo
-         sigue siendo cierto salvo por el «se crea sola»: entonces la tienda se
-         crea al volver a registrarla, que dirá que el correo ya existe. Es un
-         caso raro y con salida; romper el registro aquí no ayudaría a nadie. */
+       Se guarda ANTES de llamar, no después: si la llamada se corta a medias
+       —sin red, pestaña cerrada—, los datos siguen aquí y el siguiente inicio
+       de sesión termina el alta. Un código ya quemado no se vuelve a quemar:
+       `alta_tienda` responde «usado» y `crearTiendaPendiente` lo distingue. */
+    if (!data.session) {
       try{ localStorage.setItem('hes_alta_pendiente', JSON.stringify(pendiente)); }
-      catch(e){ /* sin sitio donde guardarlo: el caso raro que se explica arriba */ }
-      irAlCodigo_(email, 'Tu tienda se crea en cuanto confirmes: los datos que '
-        + 'escribiste quedaron guardados en este navegador.');
+      catch(e){ /* modo privado o cuota llena: se avisa igual, y el alta se
+                   termina volviendo a registrarse con el mismo código */ }
+      irAlCodigo_(email, 'Tu tienda se crea en cuanto confirmes.');
       return;
     }
 
-    /* Y el gerente, dado de alta en su propia tienda. VA DESPUÉS: la política
-       que deja escribir en `empleados` pregunta por el dueño de esa tienda, y
-       la tienda tiene que existir para que la encuentre.
-
-       Si esto falla, la tienda ya está creada y funciona: se dice qué pasó y
-       dónde arreglarlo, en vez de dejar creer que el registro entero se cayó. */
-    const { error:eE } = await sb.from('empleados').insert({
-      store_id: storeId, empno: empNo, nombre: empNom,
-      puesto: 'Gerente de Tienda', admin: true, activo: true });
-    if (eE) {
-      // Lo mismo: la tienda existe, el pendiente sobra y el 23505 lo cubre.
-      try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
-      showErr('regErr','Tu tienda quedó creada, pero no pude darte de alta ('
-        + (eE.code==='23505' ? 'ese número ya existe en la tienda' : (eE.message||'error'))
-        + '). Entra a Admin → 👥 Equipo y date de alta ahí; hasta entonces no se '
-        + 'podrá elegir vendedor al capturar.');
+    /* Guardado antes de llamar, por si la llamada se corta a medias. Sin sitio
+       donde guardarlo —modo privado, cuota llena— el alta de abajo se hace
+       igual; lo único que se pierde es poder terminarla en otro momento. */
+    try{ localStorage.setItem('hes_alta_pendiente', JSON.stringify(pendiente)); }
+    catch(e){ /* sin sitio donde guardarlo: el alta de abajo se hace igual, solo
+                 se pierde poder terminarla en otro momento */ }
+    const fallo = await altaDeTienda_(pendiente);
+    if (fallo) {
+      /* La CUENTA ya existe aunque la tienda no, así que volver a registrarse
+         daría «este correo ya está registrado». Se dice qué pasó y por dónde
+         seguir, que es iniciar sesión: ahí se reintenta el alta guardada. */
+      showErr('regErr', fallo + ' Tu cuenta ya quedó creada: arregla esto e inicia '
+        + 'sesión con tu correo y contraseña para terminar el alta.');
       return;
     }
+    // La tienda quedó creada. Que el borrado falle solo deja un pendiente que
+    // el próximo ingreso descarta al recibir «usado».
+    try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
   }
   /* Con la confirmación de correo APAGADA, `signUp` ya devuelve sesión: no hay
      código que pedir y hacerlo dejaría a la gente esperando un correo que nadie
