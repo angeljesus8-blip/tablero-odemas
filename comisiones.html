@@ -73,6 +73,17 @@
 <body>
 <script src="./continuidad.js"></script>
 
+<!-- supabase-js (20-sep-2026). Aquí NO se usa para leer datos —eso sigue yendo
+     por `fetch` a la RPC— sino para una sola cosa: saber si quien abre esta
+     pantalla tiene una sesión de correo y contraseña, y poder preguntarle al
+     SERVIDOR si manda en esta tienda. Hace falta porque el gerente DUEÑO entra
+     con el correo de la tienda y `index.html` no le deja ficha de empleado
+     (ver el `else removeItem` de doLogin): sin esto sería indistinguible de un
+     desconocido y se quedaría fuera de las comisiones de su propio equipo.
+     Si el CDN no responde, no pasa nada grave: se sigue sin sesión, que es el
+     lado seguro — sin comisiones, no con las de todos. -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
 
 <header>
   <a href="index.html" class="back" title="Menú">‹</a>
@@ -104,8 +115,13 @@ const _storeConfig = (function(){ try{ return JSON.parse(localStorage.getItem('o
    Ojo, que el nombre engaña: `gas_token` YA NO es el token del Apps Script. Es
    la credencial de escritura de Supabase —`escritura_ok_` la compara contra
    `tiendas.gas_token` y la exigen 36 funciones—, asi que se queda aunque el
-   Apps Script no exista. Aqui no se comprueba porque esta pantalla solo LEE
-   (`comisiones_lista` pide `p_store` y nada mas); donde se escribe si se avisa. */
+   Apps Script no exista.
+
+   20-sep-2026: esta pantalla SOLO LEE, pero desde la firma nueva de
+   `comisiones_lista` tambien lo necesita — es lo que dice de que tienda se
+   piden las comisiones. Aun asi no se corta la entrada si falta: sin token la
+   nube responde vacio y el aviso de "la nube no contesto" ya cubre el caso,
+   mientras que cortar aqui dejaria la pantalla en blanco sin explicar nada. */
 
 if(!_storeConfig || !_storeConfig.store_id){
   // Se avisa a continuidad.js de que esta salida es voluntaria. Hoy el menú ya
@@ -120,12 +136,98 @@ const _storeId = _storeConfig.store_id;
 document.getElementById('storeSub').textContent = 'HES ' + _storeId + ' · ' + (_storeConfig.nombre || 'Odemás');
 document.getElementById('footerTxt').textContent = 'Odemás · Grupo Gigante — uso interno HES ' + _storeId;
 
+/* ── Quién está mirando (20-sep-2026, portado de la 1217) ─────────────────
+   Hasta hoy esta pantalla no se lo preguntaba: pintaba el equipo entero a
+   quien la abriera. Ahora cada quien ve lo suyo y gerente y subgerente ven a
+   todos, y quien decide es el SERVIDOR — aquí solo se dice quién eres.
+
+   ⚠️ MISMA REGLA DE PUESTOS QUE `tablero.html` y `horarios.html`, y por tercera
+   vez escrita aparte: estas pantallas no comparten ningún archivo de JS.
+   Que las tres listas no se separen lo vigila `r_puestos_gestion`.
+
+   ⚠️ Esto es la red del CLIENTE, no el filtro del servidor. `comisiones_lista`
+   sigue devolviendo el equipo entero a quien traiga el token de la tienda: el
+   dato VIAJA al teléfono aunque la pantalla no lo enseñe. Para cerrarlo de
+   verdad falta pegar el SQL del filtro por persona. */
+const PUESTOS_GESTION_C = ['gerente', 'subgerente'];
+function esPuestoDeGestion_(puesto){
+  const p = String(puesto || '').toLowerCase()
+              .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]','g'), '').trim();
+  return PUESTOS_GESTION_C.some(function(x){ return p.indexOf(x) === 0; });
+}
+
+let _yo = null;
+// Ficha ilegible: se sigue sin identidad, y sin identidad esta pantalla NO
+// enseña comisiones — se pide entrar con el número. Fallar hacia «no sé quién
+// eres» es lo correcto aquí; lo peligroso sería caer hacia «enséñalo todo».
+try{ _yo = JSON.parse(localStorage.getItem('odemas_empleado')||'null'); }catch(e){}
+const MI_EMPNO = (_yo && _yo.empno) ? String(_yo.empno) : '';
+
+/* La credencial de escritura de la tienda. El nombre engaña —ya no es del Apps
+   Script—: `escritura_ok_` la compara contra `tiendas.gas_token`, y la firma
+   nueva de `comisiones_lista` la exige a todos, también a quien manda. Es lo
+   que dice DE QUÉ TIENDA se están pidiendo las comisiones. */
+const GAS_TOKEN = _storeConfig.gas_token || '';
+
+// El token de la sesión, para que la RPC viaje firmada. Vacío = se pregunta con
+// la clave publicable, y entonces `admin_de` responde que no.
+let _tokenSesion = '';
+
+/* ⚠️ `let`, no `const`: hay una TERCERA forma de mandar aquí y no se sabe al
+   arrancar, hay que preguntarla.
+
+   Las dos que ya había van por la ficha de empleado. La tercera es el gerente
+   DUEÑO de la tienda, que entra con el correo de la tienda: su cuenta vive en
+   `tiendas.user_id` y no en `empleados`, así que `index.html` no le guarda
+   `odemas_empleado` (ver el `else removeItem` de doLogin) y aquí llegaría sin
+   número y sin puesto — o sea, indistinguible de un desconocido. Sin esto, el
+   gerente vería «entra con tu número de empleado» en su propia tienda.
+
+   NO vale caer en `odemas_role`, que sería más corto: el rol lo escribe el
+   navegador y esto es el sueldo del equipo. Se le pregunta al servidor
+   —`admin_de`, la misma que usan Admin y el horario— y él contesta. */
+let VEO_TODAS = esPuestoDeGestion_(_yo && _yo.puesto);
+
+/* Mientras no se sepa, esta pantalla no es «de nadie»: está preguntando. Solo
+   se pregunta cuando hace falta —sin ficha y sin puesto de gestión—, así que
+   para todo el que entra con su número esto vale `false` y no cambia nada: ni
+   una llamada de más, ni un milisegundo de espera. */
+const SESION_POR_RESOLVER = !VEO_TODAS && !MI_EMPNO;
+let _comprobandoSesion = SESION_POR_RESOLVER;
+
 /* ====== Datos: caché local de esta tienda -> Supabase ====== */
 const COMISKEY = 'hes' + _storeId + '_comisiones';
 let D = { empleados: [] };
 // Cache ilegible: se arranca vacio y la nube lo llena; si tampoco responde,
 // avisoNube() lo dice en pantalla.
 try{ const c = JSON.parse(localStorage.getItem(COMISKEY)||'null'); if(c && Array.isArray(c.empleados)) D = c; }catch(e){}
+
+/* La caché del teléfono trae el equipo entero, guardado antes de que esto
+   filtrara. Sin esta línea, el asesor seguiría abriendo la app y viendo el
+   sueldo de sus compañeros —el dato ya está en SU teléfono— hasta que la nube
+   contestara, y para siempre si no hay red.
+
+   Lo que había guardado se conserva SOLO mientras se pregunta al servidor quién
+   eres: si resulta que mandas, es tu propia caché y se te devuelve entera —así
+   el gerente sin señal sigue viendo al equipo—; si resulta que no, se tira y se
+   reescribe filtrada. */
+const _cacheCruda = D.empleados;
+D.empleados = soloLoMio_(D.empleados);
+// Mientras se pregunta no se reescribe: borrarla ahora sería tirar la del
+// gerente por una respuesta que aún no ha llegado.
+if(!VEO_TODAS && !SESION_POR_RESOLVER){ guardarCache_(); }
+function guardarCache_(){
+  // Callar es correcto: sin espacio para guardar se pierde la limpieza de la
+  // caché, no el filtro — lo que se pinta ya salió de `soloLoMio_`. Se reintenta
+  // en la próxima apertura, y avisar aquí no le daría a nadie nada que hacer.
+  try{ localStorage.setItem(COMISKEY, JSON.stringify(D)); }catch(e){}
+}
+
+function soloLoMio_(lista){
+  if(VEO_TODAS) return Array.isArray(lista) ? lista : [];
+  if(!Array.isArray(lista)) return [];
+  return lista.filter(function(e){ return String(e.empNo || '') === MI_EMPNO; });
+}
 
 function pintarPeriodos(){
   document.getElementById('updated').textContent = D.actualizado || '—';
@@ -173,13 +275,38 @@ function cardEmpleado(e){
 
 function render(){
   const list = (D.empleados||[]).slice().sort((a,b)=> (b.venta||0)-(a.venta||0));
-  if(!list.length){
+  /* Todavía se le está preguntando al servidor si quien mira manda aquí. No es
+     lo mismo que «no sé quién eres»: decirle al gerente que entre con su número
+     y cambiárselo medio segundo después por el equipo entero es un parpadeo que
+     se lee como un fallo. Dura lo que tarde `admin_de`, y si el CDN no cargó
+     se resuelve solo con el DOMContentLoaded. */
+  if(_comprobandoSesion){
     document.getElementById('app').innerHTML =
-      '<div class="nota">Aún no hay comisiones cargadas para esta tienda. Pide al gerente que las suba.</div>';
+      '<div class="nota">Comprobando tu sesión…</div>';
+    return;
+  }
+  if(!VEO_TODAS && !MI_EMPNO){
+    document.getElementById('app').innerHTML =
+      '<div class="nota">Para ver tu comisión, entra con <b>tu número de empleado</b>. '
+      + 'Esta pantalla es personal: cada quien ve la suya.<br><br>'
+      + '<a href="index.html" style="color:var(--rojo);font-weight:700">Volver a entrar</a></div>';
+    return;
+  }
+  if(!list.length){
+    document.getElementById('app').innerHTML = VEO_TODAS
+      ? '<div class="nota">Aún no hay comisiones cargadas para esta tienda. Pide al gerente que las suba.</div>'
+      /* Para el asesor, «no hay para esta tienda» sería falso el mes en que las
+         hay para los demás y no para él: lo que pasa es que su número no está en
+         el reporte, y eso lo arregla el gerente, no esperar. */
+      : '<div class="nota">Todavía no aparece tu comisión de este periodo. '
+        + 'Si tus compañeros ya ven la suya, pídele al gerente que revise tu número '
+        + 'en el reporte.</div>';
     return;
   }
   document.getElementById('app').innerHTML =
-    `<div class="grupo-titulo">👥 Equipo — ${list.length} integrante${list.length!==1?'s':''}</div>` +
+    (VEO_TODAS
+      ? `<div class="grupo-titulo">👥 Equipo — ${list.length} integrante${list.length!==1?'s':''}</div>`
+      : `<div class="grupo-titulo">💰 Tu comisión</div>`) +
     list.map(cardEmpleado).join('');
 }
 render();
@@ -213,28 +340,63 @@ function avisoNube(msg){
 const SB_URL_CO = 'https://ecuqtqxmdehzbbsmlxrh.supabase.co';
 const SB_KEY_CO = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce';
 
-async function comisionesDeSupabase(){
-  if(!_storeId) return { err:'sin_tienda' };
+/* Una sola llamada a la RPC, con el cuerpo que se le pase. Separada para poder
+   intentar la firma nueva y caer a la vieja sin repetir la fontanería. */
+async function _rpcComisiones(cuerpo){
   const ctl = new AbortController();
   const t = setTimeout(function(){ ctl.abort(); }, 8000);
   try{
+    /* Con sesión se firma con ella; sin sesión, con la clave publicable. Es lo
+       único que separa «soy el gerente de esta tienda» de «traigo la clave que
+       viene dentro del HTML» — y `admin_de`, del lado del servidor, lee ese
+       JWT. Mandar siempre la clave publicable dejaría al dueño sin ver nada. */
     const r = await fetch(SB_URL_CO + '/rest/v1/rpc/comisiones_lista', {
       method:'POST', signal: ctl.signal,
-      headers:{ apikey:SB_KEY_CO, Authorization:'Bearer '+SB_KEY_CO, 'Content-Type':'application/json' },
-      body: JSON.stringify({ p_store: String(_storeId) })
+      headers:{ apikey:SB_KEY_CO, Authorization:'Bearer '+(_tokenSesion || SB_KEY_CO), 'Content-Type':'application/json' },
+      body: JSON.stringify(cuerpo)
     });
     if(!r.ok) return { err:'rechazo', codigo:r.status };
     const filas = await r.json();
+    return { filas: Array.isArray(filas) ? filas : [] };
+  }catch(e){
+    // El timeout se distingue del corte de red: uno se reintenta solo al volver
+    // a entrar, el otro no depende de la señal del teléfono.
+    return { err: (e && e.name === 'AbortError') ? 'lento' : 'red' };
+  }
+  finally{ clearTimeout(t); }
+}
+
+async function comisionesDeSupabase(){
+  if(!_storeId) return { err:'sin_tienda' };
+  try{
+    /* Primero la versión que filtra EN EL SERVIDOR. Mientras
+       `supabase_comisiones_privadas.sql` no esté pegado, esa firma no existe y
+       PostgREST responde 404: entonces se llama a la vieja, que devuelve el
+       equipo entero, y el filtro lo hace `soloLoMio_` aquí abajo. La pantalla
+       funciona en los dos mundos, así que da igual si se publica la app antes o
+       después de pegar el SQL — pero hasta pegarlo, el dato SIGUE VIAJANDO al
+       teléfono aunque no se pinte. */
+    let res = await _rpcComisiones({ p_store: String(_storeId),
+                                     p_token: GAS_TOKEN,
+                                     p_empno: MI_EMPNO });
+    /* Solo se reintenta con la firma vieja si la nueva NO EXISTE (404). Un 403
+       —token malo, o «no sé quién eres»— es una respuesta legítima del filtro y
+       reintentar sin argumentos sería saltárselo por la puerta de atrás. */
+    if(res.err === 'rechazo' && res.codigo === 404){
+      res = await _rpcComisiones({ p_store: String(_storeId) });
+    }
+    if(res.err) return { err: res.err, codigo: res.codigo };
+    const filas = res.filas;
     // Vacío NO es un fallo de conexión: es que nadie ha cargado el reporte de
     // este periodo. Decirlo como "sin conexión" manda a revisar el teléfono
     // cuando lo que falta es que suban el archivo.
-    if(!Array.isArray(filas) || !filas.length) return { err:'vacio' };
+    if(!filas.length) return { err:'vacio' };
     // Supabase devuelve filas; esta pantalla espera un objeto.
     return { datos:{
       actualizado: filas[0].actualizado ? String(filas[0].actualizado).slice(0,10) : '',
       periodoComisiones: filas[0].periodo || '',
       periodoGarantias:  filas[0].periodo_gar || '',
-      empleados: filas.map(function(k){
+      empleados: soloLoMio_(filas.map(function(k){
         return { empNo:k.empno||'', nombre:k.nombre||'', puesto:k.puesto||'',
                  venta:Number(k.venta)||0, pptoPct:Number(k.ppto_pct)||0,
                  alcance:Number(k.alcance)||0,
@@ -244,14 +406,13 @@ async function comisionesDeSupabase(){
                  garantiaPzas: k.gar_pzas==null ? null : Number(k.gar_pzas),
                  garantiaElegible: k.gar_elegible==null ? null : Number(k.gar_elegible),
                  garantiaMonto: k.gar_monto==null ? null : Number(k.gar_monto) };
-      })
+      }))
     }};
   }catch(e){
-    // El timeout se distingue del corte de red: uno se reintenta solo al volver
-    // a entrar, el otro no depende de la señal del teléfono.
-    return { err: (e && e.name === 'AbortError') ? 'lento' : 'red' };
+    // Red de seguridad: el timeout y el corte de señal ya los distingue
+    // `_rpcComisiones`. Aquí solo puede caer algo al armar el objeto.
+    return { err:'red' };
   }
-  finally{ clearTimeout(t); }
 }
 
 /* Trae la versión más reciente desde Supabase.
@@ -261,7 +422,57 @@ async function comisionesDeSupabase(){
    tenga señal, y mandar a revisar la conexión cuando lo que falta es el archivo
    hace perder el rato a quien lo lea. Ninguno se queda callado: callarse deja
    en pantalla el sueldo del mes pasado con cara de ser el de este. */
+// Esperar a supabase-js sin colgar la pantalla si el CDN no llega.
+function supaListo_(){
+  return new Promise(function(res){
+    function ya(){ res((window.supabase && window.supabase.createClient) ? window.supabase : null); }
+    if(window.supabase && window.supabase.createClient) return ya();
+    if(document.readyState !== 'loading') return ya();
+    addEventListener('DOMContentLoaded', ya);
+    // El CDN que ni responde ni falla: a los 5 s se sigue sin él.
+    setTimeout(ya, 5000);
+  });
+}
+
+/* ¿Quien mira manda en ESTA tienda? Lo contesta el servidor. Cualquier tropiezo
+   —sin CDN, sin sesión, RPC que no está— devuelve `false`, que es el lado
+   seguro: se cae al camino del número, no a enseñarlo todo. */
+async function confirmarSesion_(){
+  try{
+    const lib = await supaListo_();
+    if(!lib) return false;
+    const cli = lib.createClient(SB_URL_CO, SB_KEY_CO);
+    const ses = ((await cli.auth.getSession()).data || {}).session;
+    if(!ses || !ses.access_token) return false;
+    /* Se guarda AUNQUE `admin_de` acabe diciendo que no: el servidor necesita
+       el JWT para poder contestar esa misma pregunta cuando se pidan las
+       comisiones. Firmar con la clave publicable dejaría al dueño —que no
+       tiene ficha de empleado ni número que enseñar— sin ver a su equipo. */
+    _tokenSesion = ses.access_token;
+    const r = await cli.rpc('admin_de', { p_store_id: String(_storeId) });
+    if(r && r.error) console.warn('admin_de no disponible:', r.error.message);
+    return !!(r && r.data === true);
+  }catch(e){ return false; }
+}
+
 async function refreshComisionesCloud(){
+  /* Primero, quién mira — y solo si no se sabía ya. Va ANTES de pedir las
+     comisiones porque decide qué se puede pintar de lo que vuelva. */
+  if(SESION_POR_RESOLVER){
+    const manda = await confirmarSesion_();
+    _comprobandoSesion = false;
+    if(manda){
+      // Era su caché: se le devuelve entera mientras llega la nube. Sin esto, el
+      // gerente sin señal ve la pantalla vacía teniendo el dato en el teléfono.
+      VEO_TODAS = true;
+      D.empleados = _cacheCruda;
+    }else{
+      // No manda: ahora sí se limpia lo que quedó guardado de antes.
+      guardarCache_();
+    }
+    render();
+  }
+
   const r = await comisionesDeSupabase();
   if(r && r.datos){
     D = r.datos;

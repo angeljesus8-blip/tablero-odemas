@@ -321,12 +321,13 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
     </div>
     <div class="divider">o desde CEA de Promos (PDF)</div>
     <div class="card">
-      <h2>📎 Desde CEA de Promos (PDF)</h2>
-      <p class="note">Sube el PDF del CEA o del ADENDUM. La app saca los productos EOL: los que traen ESTATUS EOL en su renglón, y también los de un comunicado que ya es de EOL completo (como «PROMOCIONES EOL»), aunque su tabla no traiga esa columna.</p>
+      <h2>📎 Desde CEA de listado EOL (PDF)</h2>
+      <p class="note">Sube el PDF del CEA o del ADENDUM del <b>listado de artículos EOL</b> (el CEA 189 y sus adendums): los renglones con ESTATUS EOL, <b>sin precio</b>. Aquí la tienda cobra la última pieza de exhibición al <b>50% del precio regular</b>.<br><br>⚠️ Si el comunicado trae <b>precio de promoción</b> —como «PROMOCIONES EOL»— va por la pestaña <b>Promociones</b>, no por aquí: ahí se guarda el precio que el CEA manda cobrar, con su vigencia y sus MSI.</p>
       <input type="file" id="filePdfEol" accept="application/pdf,.pdf" hidden>
       <div class="filebox" id="fboxEol" onclick="document.getElementById('filePdfEol').click()">
         <div class="ph" id="fphEol">📄 Toca para elegir el PDF del CEA</div>
       </div>
+      <div class="result" id="resEol"></div>
     </div>
     <div id="previewEol" style="display:none">
       <div class="prev-hdr" id="prevHdrEol"></div>
@@ -607,19 +608,42 @@ function abrirAdmin(){
 /* Dos formas de entrar, ninguna con PIN compartido:
      · la sesión de gerente (correo y contraseña), o
      · haber entrado con un número de empleado que tenga permiso.
-   El permiso se pregunta AL SERVIDOR cada vez (puede_admin): lo que diga el
-   navegador no basta, porque el localStorage se puede editar a mano. */
+   El permiso se pregunta AL SERVIDOR cada vez —`admin_de` para la sesión de
+   correo, `puede_admin` para el número—: lo que diga el navegador no basta,
+   porque el localStorage se puede editar a mano. */
 async function verificarAcceso(){
+  const tienda = (_cfg && _cfg.store_id) || '';
   try{
     if(!initSB()) return { ok:false, motivo:'sin_conexion' };
     const { data } = await sb.auth.getSession();
-    if(data && data.session) return { ok:true, via:'sesión de gerente' };
+    if(data && data.session){
+      /* ⚠️ TENER SESIÓN NO ES MANDAR AQUÍ (20-sep-2026, portado de la 1217).
+         Hasta hoy bastaba con que hubiera una sesión abierta, la de quien fuera.
+         Y `localStorage` —y con él la sesión de Supabase— es POR ORIGEN: todo lo
+         que se publica bajo el mismo usuario de GitHub Pages lo comparte. Esta
+         app es multi-tienda, así que el agujero es peor que en la 1217: la
+         sesión del gerente de CUALQUIER tienda de la red abría este Admin, y lo
+         que se administrara era la tienda que dijera el `store_id` guardado en
+         el navegador. No daba ningún error: entraba y ya. Y las RPC de carga
+         tampoco preguntan quién llama, así que esta puerta es la única.
+
+         Se cierra como en el horario y como en la 1217: quién manda EN ESTA
+         TIENDA lo dice el servidor. `admin_de` vale para el dueño (correo de
+         tienda) y para el subgerente vinculado con permiso.
+
+         Si no manda —o si no se pudo preguntar— NO se entra por aquí, pero
+         tampoco se corta: se sigue al camino del número. El gerente dueño queda
+         dado de alta con `admin: true` al registrar la tienda, así que esa
+         puerta lo sigue dejando pasar aunque la RPC no conteste. */
+      const r = await sb.rpc('admin_de', { p_store_id: tienda });
+      if(r && r.data === true) return { ok:true, via:'sesión de gerente' };
+      if(r && r.error) console.warn('admin_de no disponible:', r.error.message);
+    }
   }catch(e){ console.warn('No pude verificar la sesión:', e); }
 
   let emp = null;
   // Ficha ilegible: se cae al camino de sesion de gerente.
   try{ emp = JSON.parse(localStorage.getItem('odemas_empleado')||'null'); }catch(e){}
-  const tienda = (_cfg && _cfg.store_id) || '';
   if(!emp || !emp.empno || !tienda) return { ok:false, motivo:'sin_identificar' };
 
   try{
@@ -1367,14 +1391,30 @@ function _ceaEsPrecio(t,hayDolar){
   const n=_ceaNum(t); return n!==null&&n>=50;
 }
 
+/* Una columna de promo que NO es la que se cobra: el precio del que se viene,
+   puesto ahí para que se vea la rebaja. El CEA 265 la titula "PROMOCIÓN
+   ANTERIOR" y el 257 "PROMO ACTUAL" — las dos son el precio VIEJO. */
+const _CEA_PROMO_VIEJA=/ANTERIOR|ACTUAL|VIGENTE|PREVIA/i;
+
 /* Elige precio regular y precio a cobrar por la etiqueta de la columna; si el
    encabezado no se pudo leer, cae al primero y al último del renglón. */
 function _ceaPrecios(px,etiqueta){
   const como=(p,re)=>re.test(etiqueta(p.c)||'');
   const base=px.filter(p=>!como(p,_CEA_NO_PRECIO));
   const lista=base.length?base:px;
-  let pp = lista.find(p=>como(p,/NUEVA\s*PROMO/i))
+  /* ⚠️ Las dos palabras se buscan POR SEPARADO, no como frase. `/NUEVA\s*PROMO/`
+     casaba el "NUEVA PROMO" del CEA 257 y NO el "PROMOCIÓN NUEVA" del 265 —la
+     misma columna con las palabras al revés—, así que el 265 se caía al
+     comodín de abajo y ahí ganaba "PROMOCIÓN ANTERIOR" por estar antes en el
+     renglón: se cobraba el precio del que se venía. Medido contra el CEA 265
+     del 7-sep: $31,999 en vez de $23,698 en el Pura 80 Ultra. */
+  let pp = lista.find(p=>como(p,/NUEVA?\b/i)&&como(p,/PROMO/i))
         || lista.find(p=>como(p,/PRICE\s*MATCH/i))
+        /* Antes de tirar del comodín se descartan las columnas de precio viejo.
+           El último `find` las vuelve a admitir a propósito: un CEA cuya única
+           columna de promo sea "PROMO ACTUAL" tiene ahí el precio a cobrar, y
+           quedarse sin precio es peor que quedarse con ese. */
+        || lista.find(p=>como(p,/PROMO|OFERTA|ESPECIAL|PREVENTA/i)&&!como(p,_CEA_PROMO_VIEJA))
         || lista.find(p=>como(p,/PROMO|OFERTA|ESPECIAL|PREVENTA/i));
   let pr = lista.find(p=>como(p,/REGULAR|LISTA|P[UÚ]BLICO/i))
         || lista.find(p=>como(p,/VENTA/i))
@@ -2080,15 +2120,66 @@ async function parseEolPDF(file){
   return {rows,vig:t.vig};
 }
 
+/* ⚠️ Dos comunicados distintos comparten la palabra EOL, y por esta puerta solo
+   cabe uno.
+
+     · CEA 189 «LISTADO DE ARTÍCULOS EOL» → SKU · DESCRIPCIÓN · ESTATUS, SIN
+       precio. La regla es la última pieza de EXHIBICIÓN al 50% del regular, y
+       pierde garantía de fábrica y elegibilidad de Assurant.
+     · CEA 265 «PROMOCIONES EOL» → trae PRECIO REGULAR · PROMOCIÓN ANTERIOR ·
+       PROMOCIÓN NUEVA y los MSI por SKU. Es un PRECIO para el SKU, con
+       vigencia, y el comunicado NO dice que se pierda el seguro.
+
+   Metidos por aquí, los del segundo se guardan con el precio REGULAR y
+   `eol_precio_venta` cobra la mitad — un número que el CEA no dice en ninguna
+   parte, y que se equivoca en las dos direcciones (medido en el CEA 265 del
+   7-sep: $19,999 contra los $23,698 que manda cobrar; y $10,745 contra $8,890).
+
+   ⚠️ Y lo que más caro sale no es el precio: marcarlos EOL le dice al equipo
+   que ahí NO se vende seguro. Eso pega en el attach de Assurant, que es el KPI
+   crítico de la tienda, sobre la serie que más se mueve.
+
+   Por eso se avisa y NO se deja guardar: el camino bueno —la pestaña de
+   Promociones— ya guarda el precio del CEA con su vigencia y sus MSI. Si además
+   hay que marcarlos como no resurtibles, para eso está el listado 189, que por
+   aquí entra sin problema porque no trae precio. */
+function _eolFilasConPromo(rows){ return (rows||[]).filter(r=>r&&r.pp); }
+
 document.getElementById('filePdfEol').onchange=async function(e){
   const f=e.target.files&&e.target.files[0]; if(!f) return;
   const ph=document.getElementById('fphEol');
   const fbox=document.getElementById('fboxEol');
   fbox.classList.remove('ok'); ph.innerHTML='<em>Leyendo PDF…</em>';
   document.getElementById('previewEol').style.display='none';
+  /* Se vacía, no solo se esconde: sin esto el aviso del PDF anterior sigue
+     dentro del elemento y cualquier cosa que vuelva a enseñarlo —o que lo
+     lea— saca el texto de un comunicado que ya no está en pantalla. */
+  const res=document.getElementById('resEol');
+  res.className='result'; res.innerHTML='';
   try{
     const result=await parseEolPDF(f);
     if(!result.rows.length) throw new Error('No encontré productos EOL — ¿es el CEA con la tabla de promos?');
+
+    const conPromo=_eolFilasConPromo(result.rows);
+    if(conPromo.length){
+      /* Se enseña con el SKU de verdad y las dos cifras: "va por otra pestaña"
+         se discute, "aquí cobrarías $19,999 y el CEA dice $23,698" no. */
+      const ej=conPromo[0];
+      const num=s=>Number(String(s).replace(/[^0-9.]/g,''))||0;
+      const mitad=num(ej.pr)?('$'+(num(ej.pr)/2).toLocaleString('es-MX',{minimumFractionDigits:2})):'la mitad del regular';
+      fbox.classList.remove('ok');
+      ph.textContent='📄 Toca para elegir el PDF del CEA';
+      document.getElementById('btnSaveEol')._rows=null;
+      showResult('resEol',false,
+        `⚠️ <b>Este comunicado trae precio de promoción</b> (${conPromo.length} de ${result.rows.length} SKU).<br><br>`+
+        `Por aquí se guardaría el <b>precio regular</b> y la tienda cobraría la mitad. `+
+        `En el SKU <b>${ej.sku}</b> eso son <b>${mitad}</b>, y el CEA manda cobrar <b>$${ej.pp}</b>.<br><br>`+
+        `👉 Súbelo por la pestaña <b>Promociones</b>: ahí va el precio del CEA, su vigencia y los MSI que da por SKU — `+
+        `y los productos siguen siendo elegibles para Assurant.<br><br>`+
+        `Por esta pestaña van los <b>listados EOL sin precio</b> (CEA 189 y sus adendums).`);
+      return;
+    }
+
     fbox.classList.add('ok');
     ph.innerHTML=`✓ ${f.name}<br>${result.rows.length} SKU(s) EOL · vigencia ${result.vig||'no detectada'}`;
     document.getElementById('prevHdrEol').textContent=result.rows.length+' productos EOL encontrados:';
@@ -3117,7 +3208,17 @@ async function cargarComisionesCloud(){
   try{
     // comisiones_lista devuelve FILAS; aqui se espera {actualizado, periodo…,
     // empleados:[…]}, que es la forma que armaba el Apps Script.
-    const _f = await sbLeer('comisiones_lista');
+    /* Token y numero desde el 20-sep-2026: las comisiones se filtran por quien
+       mira, y la firma de un solo argumento queda revocada —era la que dejaba
+       leerlas a cualquiera con la clave publicable, y en esta copia de
+       CUALQUIER tienda de la red—.
+
+       Se intentan las dos: mientras `supabase_comisiones_privadas.sql` no este
+       pegado, la firma de tres argumentos no existe y PostgREST responde 404.
+       Sin esta caida, Admin diria "aun no se ha cargado ningun reporte" con el
+       reporte subido — un vacio que se lee como dato y manda a resubirlo. */
+    let _f = await sbLeer('comisiones_lista', { p_token: GAS_TOKEN, p_empno: _miEmpno() });
+    if(!_f.length) _f = await sbLeer('comisiones_lista');
     const data = _f.length ? {
       actualizado: _f[0].actualizado ? String(_f[0].actualizado).slice(0,10) : '',
       periodoComisiones: _f[0].periodo || '',

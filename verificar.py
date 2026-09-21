@@ -344,6 +344,42 @@ def r_copias():
                            'del tablero se queda atrás.' % (copia, origen))
 
 
+# ── 3b-ante · Quién lleva la tienda, dicho en cuatro archivos ──
+# `tablero.html` decide con `PUESTOS_GESTION` quién ve Resurtir, `horarios.html`
+# con `PUESTOS_GESTION_H` quién ve el horario del equipo, `comisiones.html` con
+# `PUESTOS_GESTION_C` quién ve las comisiones de todos, y `captura_series.html`
+# con `_PUESTOS_GESTION_CS` quién ve el ✏️ de corregir una venta. Es la MISMA
+# pregunta escrita cuatro veces, y no se puede compartir: estas pantallas no
+# tienen ningún archivo de JS en común.
+#
+# Si las listas se separan, ascender a alguien le abre una cosa y no la otra
+# —o peor, se le quita el horario del equipo y sigue viendo los pedidos—, sin
+# ningún error y sin nadie que ate el síntoma a cuatro listas distintas.
+def r_puestos_gestion():
+    def lista(archivo, nombre):
+        txt = leer(archivo)
+        if txt is None: return None
+        m = re.search(r'(?:const|let|var)\s+' + nombre + r'\s*=\s*\[(.*?)\]', txt, re.S)
+        if not m: return None
+        return sorted(re.findall(r"'([^']+)'", m.group(1)))
+
+    esperadas = [('horarios.html',       'PUESTOS_GESTION_H'),
+                 ('comisiones.html',     'PUESTOS_GESTION_C'),
+                 ('captura_series.html', '_PUESTOS_GESTION_CS')]
+
+    a = lista('tablero.html', 'PUESTOS_GESTION')
+    if a is None:
+        falla('puestos', 'no encuentro PUESTOS_GESTION en tablero.html'); return
+    for archivo, nombre in esperadas:
+        b = lista(archivo, nombre)
+        if b is None:
+            falla('puestos', 'no encuentro %s en %s: sin ella, esa pantalla '
+                             'decide quién ve qué por otra regla' % (nombre, archivo))
+        elif a != b:
+            falla('puestos', 'los puestos que llevan la tienda no coinciden: '
+                             'tablero.html %s vs %s %s' % (a, archivo, b))
+
+
 # ── 3b-bis · La sesión, separada por app ────────────────────
 def r_sesion_prefijada():
     """Las tres claves de sesión llevan el prefijo de la app. Siempre.
@@ -1019,7 +1055,8 @@ def r_pruebas():
     APOYO = ('dom.js', 'entorno.js', 'casos_tablero.js')
     GUIONES = ('humo_tablero.js', 'humo_captura.js', 'humo_menu.js',
                'login_a_captura.js', 'navegacion.js', 'actualizacion.js',
-               'cola_ventas.js', 'cea_vigencia.js')
+               'cola_ventas.js', 'cea_vigencia.js', 'cea_precio_nuevo.js',
+               'comisiones_privadas.js')
 
     # La lista de arriba es explícita a propósito —así falta un archivo y se
     # nota—, pero eso deja el hueco contrario: una prueba escrita y no añadida
@@ -1913,7 +1950,7 @@ def main():
     # conviene saberlo antes de leer 24 «ok» que no cubren lo que parecen.
     r_git()
     r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token(); r_argumentos_cruzados()
-    r_sintaxis(); r_helpers(); r_version(staged); r_copias()
+    r_sintaxis(); r_helpers(); r_version(staged); r_copias(); r_puestos_gestion()
     r_sesion_prefijada(); r_cupo()
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()
     r_porteros(); r_contrato_sql(); r_join_sql()

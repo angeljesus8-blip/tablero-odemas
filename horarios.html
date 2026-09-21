@@ -120,6 +120,17 @@ tr.sep-naranja td { background: var(--naranja); height: 3px; padding: 0; border:
    La tabla sigue ahí para quien la quiera — botón "Ver tabla completa". */
 #vista-movil { display: none; }
 
+/* Al asesor se le sirve SU semana en cualquier pantalla (20-sep-2026, portado
+   de la 1217). En un celular ya era así; en la tablet de piso o en la
+   computadora de la trastienda mandaba la tabla, que es la del equipo entero.
+   Sin esto, «solo su horario» habría dependido del ancho del aparato desde el
+   que mira. Es solo la mitad visible del asunto: la tabla tampoco se ESCRIBE
+   con datos ajenos (ver renderTabla), porque esconder con CSS deja el horario
+   de los demás dentro del HTML. */
+body.solo-mi-horario #vista-movil { display: block; }
+body.solo-mi-horario .wrapper-tabla,
+body.solo-mi-horario .leyenda { display: none; }
+
 @media (max-width: 700px) {
   body { padding: 8px; }
   header { flex-wrap: wrap; gap: 10px; }
@@ -564,6 +575,9 @@ const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let _tienda = null;      // { store_id, nombre }
 let _empno  = null;      // número de quien entró, si entró por número
 let _puedeEditar = false;
+/* ¿Ve el horario del equipo, o solo el suyo? Arranca en `false` —el lado
+   seguro— y lo fija `fijarSesion` cuando ya se sabe quién entró. */
+let _verTodo = false;
 
 let _tabAdmin = 'equipo';
 let _semProxOffset = 1;
@@ -649,11 +663,43 @@ function aplicarEquipo(data) {
 
 const COLS_TIENDA = 'store_id,nombre';
 
+/* ¿Este puesto es de los que llevan la tienda?
+
+   ⚠️ MISMA REGLA QUE `esPuestoDeGestion_` DE `tablero.html`, escrita dos veces
+   a propósito: estas pantallas no comparten ningún archivo de JS. Que las dos
+   listas no se separen lo vigila `r_puestos_gestion` en `verificar.py`; sin
+   eso, ascender a alguien le abriría el tablero y no el horario, o al revés, y
+   nadie ataría el síntoma a dos listas distintas.
+
+   Se compara por el PRINCIPIO del puesto: en la ficha caben «Gerente de
+   Tienda» y «Subgerente», y también «GERENTE» a secas. */
+const SIN_ACENTOS_H     = new RegExp('[\\u0300-\\u036f]', 'g');
+const PUESTOS_GESTION_H = ['gerente', 'subgerente'];
+function esPuestoDeGestion_(puesto) {
+  const p = String(puesto || '').toLowerCase()
+              .normalize('NFD').replace(SIN_ACENTOS_H, '').trim();
+  return PUESTOS_GESTION_H.some(x => p.indexOf(x) === 0);
+}
+
+/* El único portero de «¿puedo ver el horario de los demás?». Lo preguntan la
+   vista de celular, la tabla, el pie de descansos y el botón de tabla completa:
+   si cada uno lo decidiera por su cuenta, bastaría olvidar uno para que el
+   horario ajeno siguiera saliendo por ahí. */
+function veElEquipo_() { return _verTodo; }
+
 // Le pega la tienda y el permiso a quien acaba de identificarse.
 function fijarSesion(tienda, opciones) {
   _tienda = { store_id: tienda.store_id, nombre: tienda.nombre || '' };
   _empno  = (opciones && opciones.empno) || null;
   _puedeEditar = !!(opciones && opciones.puedeEditar);
+  /* Quien edita, ve. Y quien entró con su número, según su puesto: el
+     subgerente que entra por el tablero no edita aquí, pero sí lleva la tienda.
+
+     Sin puesto se cae en `puedeEditar`, y eso NO es un agujero: es el gerente
+     dueño de la tienda, que entra con el correo y por eso no tiene ficha de
+     empleado de la que sacar un puesto. Un asesor nunca llega ahí. */
+  _verTodo = _puedeEditar || esPuestoDeGestion_(opciones && opciones.puesto);
+  document.body.classList.toggle('solo-mi-horario', !_verTodo);
   const h = document.getElementById('hdr-tienda');
   if (h) h.textContent = 'HES ' + _tienda.store_id + (_tienda.nombre ? ' · ' + _tienda.nombre : '');
 }
@@ -697,7 +743,11 @@ async function doLoginEmpleado() {
   const fila  = Array.isArray(quien) ? quien[0] : quien;
   if (!fila) { err.textContent = 'No reconozco ese número. ¿Ya te dieron de alta?'; return; }
 
-  fijarSesion({ store_id: fila.store_id, nombre: fila.nombre }, { empno: empno });
+  /* `emp_puesto` lo devuelve `login_empleado` (ver supabase_empleados.sql). Si
+     no se nombrara aquí, llegaría `undefined` y el subgerente que entra por la
+     URL suelta vería solo su semana — sin ningún error. */
+  fijarSesion({ store_id: fila.store_id, nombre: fila.nombre },
+              { empno: empno, puesto: fila.emp_puesto });
   const datos = (await _sb.rpc('horario_equipo', { p_store_id: fila.store_id, p_empno: empno })).data;
   if (!datos) { err.textContent = 'Tu tienda todavía no tiene horario publicado.'; return; }
   mostrarHorarioEquipo(datos);
@@ -1609,7 +1659,7 @@ function renderMovil(dias, comidas, domingo) {
   /* Sin `yo` —el gerente que entró por correo— no hay a quién destacar, así que
      el equipo entero va desplegado en vez de plegado: si no, abriría a una
      pantalla vacía. */
-  const resto = PERSONAS.filter(p => p !== yo && !EQUIPO[p].vacante);
+  const resto = veElEquipo_() ? PERSONAS.filter(p => p !== yo && !EQUIPO[p].vacante) : [];
   if (resto.length) {
     html += `<div class="mv-sec">${yo ? 'El equipo' : 'Horario de la semana'}</div>`;
     resto.forEach(p => {
@@ -1621,11 +1671,39 @@ function renderMovil(dias, comidas, domingo) {
     });
   }
 
-  html += `<button class="mv-btn-tabla" onclick="verTablaCompleta(true)">📊 Ver tabla completa</button>`;
+  /* La tabla es la del equipo entero: al asesor no se le ofrece, porque sería
+     la puerta de al lado a lo que se acaba de esconder. Sin el botón, y con
+     `body.solo-mi-horario` tapando la tabla en pantalla ancha, su horario es lo
+     único que hay en esta página. */
+  if (veElEquipo_())
+    html += `<button class="mv-btn-tabla" onclick="verTablaCompleta(true)">📊 Ver tabla completa</button>`;
+
+  /* ⚠️ Sin `yo` y sin equipo que enseñar, la pantalla quedaría EN BLANCO, y ese
+     hueco lo abre este mismo cambio: antes, quien no se reconocía veía igual el
+     horario de todos y no pasaba nada. Ocurre cuando el número con el que entró
+     no coincide con el de ninguna ficha del planeador —una `emp` mal tecleada, o
+     alguien de alta en `empleados` pero no en el horario—.
+
+     Una pantalla vacía se lee como «la app no sirve» y no como «falta un dato»,
+     así que se dice cuál es el dato y quién lo arregla. */
+  if (!yo && !resto.length) {
+    html += `<div class="mv-card">
+      <div class="mv-head">No encontramos tu horario</div>
+      <div style="padding:12px 14px;font-size:13px;line-height:1.5;color:#555">
+        Tu número de empleado <b>${_empno ? String(_empno) : ''}</b> no coincide
+        con ninguna ficha del planeador. Pídele al gerente que lo revise en
+        <b>Equipo</b>; en cuanto lo corrija, tu semana aparece aquí sola.
+      </div>
+    </div>`;
+  }
+
   cont.innerHTML = html;
 }
 
 function verTablaCompleta(si) {
+  // El cuarto sitio. Sin esto, `verTablaCompleta(true)` en la consola —o un
+  // botón que se quede pintado por caché— abre la tabla del equipo entero.
+  if (si && !veElEquipo_()) return;
   document.body.classList.toggle('ver-tabla', si);
   if (si) {
     /* La tabla no cabe en un celular: se avisa que se arrastra, y se deja cómo
@@ -1696,12 +1774,20 @@ function renderTabla(semana, domingo, dias, comidas) {
     html += rowL2 + '</tr>';
   }
 
-  GERENTES.forEach(bloquePersGer);
-  if (GERENTES.length && ASESORES.length) {
+  /* La tabla se pinta con TODO el equipo o con nadie más que uno mismo: el CSS
+     la esconde en el celular, pero en una tablet de piso o en la computadora de
+     la trastienda se ve entera, y esconderla solo con CSS deja el horario ajeno
+     dentro del HTML —a un «inspeccionar» de distancia—. Aquí ni se escribe. */
+  const yoTabla  = veElEquipo_() ? null : quienSoy();
+  const gerentes = veElEquipo_() ? GERENTES : GERENTES.filter(p => p === yoTabla);
+  const asesores = veElEquipo_() ? ASESORES : ASESORES.filter(p => p === yoTabla);
+
+  gerentes.forEach(bloquePersGer);
+  if (gerentes.length && asesores.length) {
     html += '<tr class="sep-rojo"><td colspan="8"></td></tr>';
     html += '<tr class="sep-naranja"><td colspan="8"></td></tr>';
   }
-  ASESORES.forEach(bloquePersAs);
+  asesores.forEach(bloquePersAs);
 
   document.getElementById('cuerpo').innerHTML = html;
   renderMovil(dias, comidas, domingo);
@@ -1715,14 +1801,22 @@ function renderTabla(semana, domingo, dias, comidas) {
   document.getElementById('badge-semana').textContent =
     `${prefijo}Semana ${semana}  ·  ${fi.getDate()}–${ff.getDate()} ${fi.toLocaleString('es-MX',{month:'short'})} ${fi.getFullYear()}`;
 
-  const notaPie = PERSONAS.filter(p => !EQUIPO[p].vacante).map(p => {
+  /* El pie de descansos fijos nombra a todo el equipo — es horario ajeno dicho
+     de otra forma, y es justo el sitio que se olvida porque no parece una
+     tabla. Para el asesor queda el suyo, que sigue sirviéndole: es el dato que
+     usa para pedir un cambio de descanso. */
+  const notaPie = PERSONAS.filter(p => !EQUIPO[p].vacante)
+    .filter(p => veElEquipo_() || p === quienSoy())
+    .map(p => {
     const df = EQUIPO[p].descFijo;
     const dia = (df == null || df === -1) ? 'Variable' : (DIAS_NOMBRES[df] || 'Variable');
     return `<strong>${EQUIPO[p].nombre.split(' ')[0]}:</strong> ${dia}`;
   }).join(' &nbsp;·&nbsp; ');
   let avisoMov = '';
-  if (dias._descMovidos?.length) {
-    avisoMov = '<br>' + dias._descMovidos.map(m => {
+  // Mismo motivo que el pie: «a Fulano le movieron el descanso» es horario ajeno.
+  const movidos = (dias._descMovidos || []).filter(m => veElEquipo_() || m.persona === quienSoy());
+  if (movidos.length) {
+    avisoMov = '<br>' + movidos.map(m => {
       const nom = EQUIPO[m.persona].nombre.split(' ')[0];
       const aTxt = m.a === -1 ? 'sin descanso (cubre toda la semana)' : DIAS_NOMBRES[m.a];
       return `⚠ <strong>${nom}</strong>: descanso movido de ${DIAS_NOMBRES[m.de]} → ${aTxt} para no dejar la tienda sin gerente.`;
@@ -2058,7 +2152,8 @@ async function arrancar() {
 
   // 2 · Alguien del equipo que ya entró al tablero con su número.
   if (heredada && heredada.emp && heredada.emp.empno) {
-    fijarSesion(heredada.cfg, { empno: heredada.emp.empno });
+    // El puesto viene en `odemas_empleado`, que lo guarda index.html al entrar.
+    fijarSesion(heredada.cfg, { empno: heredada.emp.empno, puesto: heredada.emp.puesto });
     const datos = (await _sb.rpc('horario_equipo', {
       p_store_id: heredada.cfg.store_id, p_empno: heredada.emp.empno })).data;
     if (datos) return mostrarHorarioEquipo(datos);

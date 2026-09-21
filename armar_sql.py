@@ -57,6 +57,9 @@ ORDEN = [
    'supabase_equipo_por_numero.sql',
    'supabase_token_alta.sql',
  ]),
+ ('Septiembre — cada quien ve lo suyo', [
+   'supabase_comisiones_privadas.sql',
+ ]),
 ]
 
 # (antes, despues, por que). `comprobar()` los verifica contra ORDEN.
@@ -96,6 +99,18 @@ POR_QUE = [
   'token_alta va al final: necesita la tabla y no la toca nadie despues'),
  ('supabase_preventa_series.sql', 'supabase_token_alta.sql',
   'escritura_ok_ se define en preventa_series y token_alta la explica'),
+ ('supabase_funciones_lectura_resto.sql', 'supabase_comisiones_privadas.sql',
+  'los dos definen comisiones_lista. La de lectura_resto es la de UN argumento, '
+  'que devuelve el sueldo del equipo entero —y en esta copia el de CUALQUIER '
+  'tienda— a quien traiga la clave publicable, que viaja dentro del HTML. Al '
+  'reves se recrea esa version y se deshace el REVOKE: la app sigue viendose '
+  'igual y el agujero queda abierto, sin dar un error'),
+ ('supabase_preventa_series.sql', 'supabase_comisiones_privadas.sql',
+  'comisiones_privadas llama a escritura_ok_ y ademas la EXIGE al empezar: sin '
+  'ella el archivo se planta con un RAISE en vez de crear la funcion a medias'),
+ ('supabase_venta_editar.sql', 'supabase_comisiones_privadas.sql',
+  'lo mismo con puede_gestionar_, que es quien decide si gerente y subgerente '
+  'ven al equipo'),
 ]
 
 # Cual es la version buena de cada funcion que aparece en varios archivos.
@@ -114,6 +129,7 @@ ESPERADO_GANA = {
   'venta_guardar':              'supabase_venta_grupo.sql',
   'ventas_detalle':             'supabase_venta_grupo.sql',
   'ventas_hoy':                 'supabase_attach_apartados.sql',
+  'comisiones_lista':           'supabase_comisiones_privadas.sql',
 }
 
 SALIDA = 'supabase_TODO.sql'
