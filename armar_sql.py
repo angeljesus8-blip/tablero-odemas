@@ -62,6 +62,7 @@ ORDEN = [
    'supabase_alta_por_invitacion.sql',
    'supabase_venta_capturado_por.sql',
    'supabase_llaves_tienda.sql',
+   'supabase_permiso_por_sesion.sql',
  ]),
 ]
 
@@ -124,6 +125,12 @@ POR_QUE = [
   'p_quien recibe PGRST202 y deja de guardar ventas'),
  ('supabase_preventa_series.sql', 'supabase_venta_capturado_por.sql',
   'venta_guardar llama a escritura_ok_, que se define en preventa_series'),
+ ('supabase_equipo_por_numero.sql', 'supabase_permiso_por_sesion.sql',
+  'los dos definen empleado_permiso. La de permiso_por_sesion deja dar de baja '
+  'tambien al gerente que entra con correo (sin numero de empleado). Al reves '
+  'gana la vieja y ese gerente vuelve a leer «no administras esta tienda»'),
+ ('supabase_cuenta_subgerente.sql', 'supabase_permiso_por_sesion.sql',
+  'empleado_permiso llama a admin_de, que se define en cuenta_subgerente'),
  ('supabase_alta_por_invitacion.sql', 'supabase_llaves_tienda.sql',
   'la llave de invitaciones.usado_store necesita la tabla invitaciones, que se '
   'crea en alta_por_invitacion. Al reves el ALTER TABLE falla y el pegado se '
@@ -153,6 +160,7 @@ ESPERADO_GANA = {
   'ventas_detalle':             'supabase_venta_capturado_por.sql',
   'ventas_hoy':                 'supabase_attach_apartados.sql',
   'comisiones_lista':           'supabase_comisiones_privadas.sql',
+  'empleado_permiso':           'supabase_permiso_por_sesion.sql',
 }
 
 SALIDA = 'supabase_TODO.sql'
