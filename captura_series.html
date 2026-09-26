@@ -51,15 +51,82 @@
 
   main{ max-width:560px; margin:0 auto; padding:14px 16px 0; }
 
-  .scan-hint{ text-align:center; font-size:11px; color:var(--gris); margin:10px 0 2px; }
+  .scan-hint{ text-align:center; font-size:11px; color:var(--gris); margin:11px 0 0; }
+  .card-captura{ padding-top:13px; }
+  .cap-foto{ display:flex; gap:8px; margin-top:9px; }
+
+  /* ── Las cuatro pestañas ──────────────────────────────────────────
+     Con nombre y no con iconos: un icono sin etiqueta se aprende probando, y
+     con el cliente enfrente nadie prueba. El concurso enseña además los días
+     que le quedan, porque un concurso escondido no compite. */
+  .tabs{ background:#fff; border-bottom:1px solid var(--linea); padding:0 12px;
+    display:flex; gap:18px; position:sticky; top:64px; z-index:22; overflow-x:auto;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tab{ background:none; border:none; font-family:inherit; font-size:13.5px; font-weight:700;
+    color:#7a7a7a; padding:13px 2px 11px; border-bottom:3px solid transparent; cursor:pointer;
+    white-space:nowrap; min-height:46px; display:flex; align-items:center; gap:6px; }
+  .tab.on{ color:var(--rojo); font-weight:800; border-bottom-color:var(--rojo); }
+  .tab-dias{ background:#fdf4e0; color:#8a6608; border-radius:7px; padding:2px 6px;
+    font-size:9.5px; font-weight:800; }
+  /* El candado ocupa el sitio de «Ventas» cuando no hay permiso: sin esto la
+     fila de pestañas cambia de ancho según quién entre, y la pestaña de al
+     lado se mueve de sitio entre una sesión y otra. */
+  .tab-lock{ display:none; align-items:center; font-size:13px; font-weight:700;
+    color:#bdbdbd; padding:13px 2px 11px; white-space:nowrap; }
+
+  /* ── Los tres pasos ── */
+  .pasos{ margin-bottom:14px; }
+  .pasos-barra{ display:flex; gap:7px; }
+  .pb{ flex:1; height:5px; border-radius:3px; background:var(--linea); transition:.2s; }
+  .pb.on{ background:var(--rojo); }
+  .pb.hecho{ background:#178046; }
+  .pasos-lbl{ display:flex; justify-content:space-between; margin-top:6px; }
+  .pasos-lbl span{ font-size:10.5px; font-weight:700; color:#9a9a9a; letter-spacing:.4px; }
+  .pasos-lbl span.on{ color:var(--rojo); font-weight:800; }
+  .pasos-lbl span.hecho{ color:#178046; }
+
+  .paso-t{ font-size:22px; font-weight:800; letter-spacing:-.6px; line-height:1.2; margin:0; }
+  .paso-s{ font-size:13px; color:#5f5f5f; line-height:1.5; margin:8px 0 0; }
+  .paso2-cab{ display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .volver{ background:#f2f2f4; border:none; border-radius:11px; width:38px; height:38px;
+    font-size:22px; font-weight:700; color:#555; cursor:pointer; line-height:1; flex-shrink:0; }
+
+  /* La foto es la acción del paso 1 y aquí SÍ es sólida: es lo único que se
+     puede hacer en esta pantalla. En el paso 2 el sólido es «Agregar».
+
+     (Aquí vivía un «visor»: un marco con esquinas rojas que parecía la cámara
+     y no lo era —la cámara la abre el teléfono al pulsar—. Se quitó el mismo
+     día: 230 px enseñando algo que no pasa, y con ellos la lista del día
+     cabe sin desplazar la pantalla.) */
+  .btn-foto{ background:var(--rojo); color:#fff; margin-top:18px; font-size:16.5px; padding:18px; }
+  .vend-seguros{ margin-left:10px; font-size:11.5px; font-weight:700; color:#178046; }
 
   .btn{ width:100%; border:none; font-family:inherit; font-weight:700; font-size:15px;
     padding:14px; border-radius:12px; cursor:pointer; transition:.12s; display:flex;
     align-items:center; justify-content:center; gap:8px; }
   .btn:active{ transform:scale(.985); }
-  .btn-cam{ background:var(--rojo); color:#fff; }
-  .btn-cam.on{ background:#333; }
-  .btn-add{ background:var(--verde); color:#fff; }
+  /* ── UN SOLO BOTÓN SÓLIDO POR PANTALLA (21-sep-2026) ──────────────
+     Medido antes de tocar nada: seis botones a la vista y seis colores de
+     fondo distintos —rojo, gris, verde, naranja, dorado, azul—. Todos
+     gritaban igual de fuerte, así que lo que el asesor hace veinte veces al
+     día pesaba lo mismo que lo que hace dos, y la pantalla no se parecía al
+     menú nuevo (blanco, gris claro e iconos 3D).
+
+     Ahora el único sólido es «Agregar al reporte», que es el que CIERRA la
+     tarea. Todo lo demás pasa a tinte: el mismo color, en fondo claro con la
+     letra del color. Se conserva a propósito qué color es cada cosa —azul la
+     hoja de ventas— porque eso no es adorno: dice a qué flujo va cada botón.
+
+     Y `Agregar` sigue VERDE, no rojo de marca: lleva meses en piso siendo
+     verde, y en un botón el rojo también se lee como «cuidado». Cambiárselo
+     al asesor no arreglaba nada que estuviera roto. */
+  .btn-cam{ background:#fdeaea; color:var(--rojo); }
+  /* Un punto más oscuro que `--verde` y sólo aquí: el blanco sobre el verde de
+     la variable daba 4.28:1 y ahora da 4.99:1. La variable no se toca porque
+     la usan los textos y las insignias de toda la pantalla, donde el verde va
+     sobre blanco y ahí el problema no existe. */
+  .btn-add{ background:#178046; color:#fff; }
   .btn-ghost{ background:#fff; color:#555; border:1.5px solid var(--linea); }
 
   .card{ background:#fff; border:1px solid var(--linea); border-radius:14px; padding:15px; margin-top:12px; }
@@ -181,7 +248,10 @@
     max-width:560px; margin:0 auto; box-shadow:0 -4px 18px rgba(0,0,0,.06); }
   .footbar .btn{ font-size:14px; padding:13px; }
   .footbar .btn, .footbar .lock-msg{ min-width:132px; }
-  .btn-csv{ background:var(--azul); color:#fff; flex:1; }
+  /* En tinte desde el 21-sep-2026: la barra de abajo son HERRAMIENTAS, no
+     acciones de esta pantalla — se va a ellas, no se hace algo aquí. El único
+     botón sólido es el de agregar la venta. */
+  .btn-csv{ background:#eef3fa; color:var(--azul); flex:1; }
   .lock-msg{ flex:1; text-align:center; font-size:12.5px; color:var(--gris); font-weight:600;
     padding:13px; background:#f6f6f7; border-radius:12px; }
   .lock-msg b{ color:var(--rojo); }
@@ -346,6 +416,7 @@
 </head>
 <body>
 <script src="./continuidad.js"></script>
+<script src="./lector_etiqueta.js"></script>
 
 
 <!-- Pantalla de inicio: selección de vendedor -->
@@ -368,22 +439,78 @@
   <div class="count"><div class="n" id="count">0</div><div class="l">capturadas</div></div>
 </header>
 
+<!-- ── LAS PESTAÑAS (21-sep-2026, traídas de la 1217) ─────────────
+     Sustituyen a la barra de abajo. Los identificadores son los MISMOS
+     (`btnCsv`, `lockMsg`), así que todo lo que ya sabía abrir Ventas del día
+     —y el permiso que la esconde— sigue funcionando sin tocarse. Lo que cambia
+     es dónde se toca, no qué pasa al tocar.
+
+     En la 1217 son cuatro (Serie, Mr Fix, Concurso, Ventas); aquí solo las dos
+     que existen en esta copia. Con NOMBRE y no con iconos: un icono sin
+     etiqueta arriba se aprende a base de probar. -->
+<nav class="tabs" aria-label="Qué vas a capturar">
+  <button class="tab on" id="tabSerie" aria-current="page">Serie</button>
+  <button class="tab" id="btnCsv">Ventas</button>
+  <span class="tab-lock" id="lockMsg" title="Solo quien tiene el permiso abre la hoja de ventas">🔒 Ventas</span>
+</nav>
+
 <div class="vendbar">
   <span>👤 <b id="vendLabel">—</b></span>
+  <span class="vend-seguros" id="vendSeguros"></span>
   <button id="btnChange">Cambiar</button>
 </div>
 
 <main>
   <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
   <input type="file" id="fileGal" accept="image/*" hidden>
-  <div style="display:flex;gap:8px;">
-    <button class="btn btn-cam" id="btnPhoto" style="flex:1;">📸 Tomar foto</button>
-    <button class="btn btn-cam" id="btnGal" style="flex:1;background:#555;">🖼️ Galería</button>
-  </div>
-  <p class="scan-hint" id="hint">Acerca el teléfono al código de barras (que llene la foto) · con buena luz</p>
   <div id="reader-file" style="position:absolute;width:0;height:0;overflow:hidden;"></div>
 
-  <div class="card">
+  <!-- ── UNA COSA A LA VEZ: ESCANEA → REVISA → GUARDA (21-sep-2026) ──
+       Antes era un formulario de arriba abajo donde todo pesaba igual. Ahora
+       la pantalla enseña SOLO el paso en el que vas, porque esto se usa de
+       pie, con el cliente enfrente y una mano ocupada.
+
+       El paso 3 no se inventó: es el modal del seguro, que ya existía y ya
+       estaba probado. Por eso `btnAdd` y `finalizarVenta` no se tocaron — lo
+       único nuevo es qué se ve en cada momento. -->
+  <div class="pasos" id="pasos">
+    <div class="pasos-barra">
+      <span class="pb on" id="pb1"></span><span class="pb" id="pb2"></span><span class="pb" id="pb3"></span>
+    </div>
+    <div class="pasos-lbl">
+      <span class="on" id="pl1">1 · ESCANEA</span><span id="pl2">2 · REVISA</span><span id="pl3">3 · GUARDA</span>
+    </div>
+  </div>
+
+  <!-- ── Paso 1 ──
+       SIN VISOR (21-sep-2026, el mismo día que nació). Se dibujó un marco con
+       esquinas rojas y un icono de código de barras, y Ángel lo tumbó con la
+       razón correcta: no es la cámara. La cámara la abre el teléfono al pulsar
+       «Tomar foto» (`capture="environment"`), así que ese marco eran 230 px de
+       pantalla enseñando algo que no pasa. Y el precio no era el hueco: era
+       que la lista de lo capturado hoy quedaba debajo del pliegue.
+
+       El paso 1 es ahora lo que de verdad hace: decir qué escanear, el botón,
+       y lo que llevas hoy a la vista sin desplazar. -->
+  <div id="paso1">
+    <h2 class="paso-t">Escanea el código de barras</h2>
+    <p class="paso-s">De ahí salen la serie, el SKU y el precio.</p>
+
+    <button class="btn btn-foto" id="btnPhoto">📸 Tomar foto</button>
+    <div class="cap-foto">
+      <button class="btn btn-ghost" id="btnGal" style="flex:1;">🖼️ Galería</button>
+      <button class="btn btn-ghost" id="btnMano" style="flex:1;">✏️ Escribir a mano</button>
+    </div>
+    <p class="scan-hint" id="hint">Que el código llene la foto · con buena luz</p>
+  </div>
+
+  <!-- ── Paso 2 ── -->
+  <div class="card card-captura" id="paso2" style="display:none">
+    <div class="paso2-cab">
+      <button class="volver" id="btnVolver1" aria-label="Volver a tomar la foto">‹</button>
+      <h2 class="paso-t" style="margin:0">¿Es esto lo que vendiste?</h2>
+    </div>
+
     <div class="field serie">
       <label>Número de serie</label>
       <input type="text" id="serie" placeholder="Escanea o escribe aquí…" autocomplete="off">
@@ -440,13 +567,9 @@
   <footer id="pieCS">Odemás · Grupo Gigante</footer>
 </main>
 
-<div class="footbar">
-  <button class="btn btn-csv" id="btnCsv">📋 Ventas del día</button>
-  <!-- El nombre lo pone updateDownloadAccess() con el de `hoja_auth`. Aquí iba
-       escrito a mano, y en una copia para otra tienda nombraba a alguien que no
-       trabaja ahí. -->
-  <div class="lock-msg" id="lockMsg">🔒 La hoja de ventas la abre solo el asesor autorizado</div>
-</div>
+<!-- La barra de abajo se fue a las pestañas de arriba (21-sep-2026). Sus tres
+     botones conservan sus identificadores allí, así que nada de lo que los
+     usaba tuvo que cambiar. -->
 
 <div class="toast" id="toast"></div>
 
@@ -938,6 +1061,18 @@ function render(){
   const hoy = hoyStr();
   const today = items.filter(i => i.fecha === hoy);   // la pantalla solo muestra HOY
   $('count').textContent = today.length;
+
+  /* Cuántas de las de hoy llevan seguro, junto al nombre del asesor.
+     Es un RECUENTO de lo capturado en este teléfono, no el Assurant de la
+     tienda: por eso dice «2 de 3 con seguro» y nunca un porcentaje. El % con
+     meta del 25 % es el del tablero, sale de Supabase y es de toda la tienda;
+     enseñar aquí otro número con la misma pinta daría dos KPI distintos para
+     la misma pregunta, y el de piso ganaría por estar más a mano. */
+  const vs = $('vendSeguros');
+  if(vs){
+    const con = today.filter(function(i){ return i.seguro === true; }).length;
+    vs.textContent = today.length ? (con + ' de ' + today.length + ' con seguro') : '';
+  }
   // Nota del histórico (todo lo que va en el Excel)
   const dias = new Set(items.map(i => i.fecha)).size;
   $('histNote').innerHTML = items.length
@@ -1124,8 +1259,11 @@ window.finalizarVenta = function(conSeguro){
      cobraría la mitad en la venta siguiente, y eso no lo caza nadie hasta el
      corte — para entonces ya se fue el cliente. */
   refrescarExhibicion('');
+  /* De vuelta al paso 1: la venta se cerró y lo siguiente es otra foto. Sin
+     esto el asesor se quedaba mirando una ficha en blanco, sin señal de que
+     lo suyo ya se guardó. */
+  irPaso(1);
   toast(conSeguro ? '🛡️ Con Assurant · Agregada ✓' : 'Agregada ✓ · sin seguro', 'ok');
-  $('serie').focus();
 };
 
 /* ==========================================================
@@ -1362,26 +1500,21 @@ function reindexarPorSku(){
 
 // Solo códigos de barras 1D: producto (EAN/UPC) y serie (Code 128/39). NADA de QR/2D.
 const FORMATOS = ['code_128','code_39','ean_13','ean_8','upc_a','upc_e'];
-function routeCode(text, fmt){
-  const val = (text||'').trim();
-  if(!val) return false;
-  // Candado: ignora QR y cualquier código 2D (no son números de serie)
-  if(/qr|matrix|aztec|pdf417|maxi/i.test(fmt||'')) return false;
-  const esProducto = /ean|upc/i.test(fmt||'') || /^[0-9]{8}$|^[0-9]{12,13}$/.test(val);
-  if(esProducto){
-    const hit = CATALOGO[val] || CATALOGO[val.replace(/^0+/, '')];
-    if(hit){
-      aplicarProducto(hit);
-    } else {
-      $('sku').value = val;   // deja el EAN como referencia
-      setRecon(false);        // marca "no reconocido" (posible mala lectura)
-      toast('⚠ Producto NO reconocido · revisa o re-toma la foto', 'warn');
-    }
-  } else {
-    $('serie').value = val;
-    toast('Número de serie leído ✓', 'ok');
-  }
-  return true;
+
+/* Un EAN, venga de la foto o del teclado, entra por aquí.
+   Antes esto era la mitad de `routeCode`, que además decidía qué era cada
+   código: todo lo que no fuera EAN lo mandaba a Serie. Esa parte se fue a
+   `lector_etiqueta.js`, donde está medida contra fotos reales; aquí queda
+   sólo lo que esta pantalla sabe hacer: buscar en el catálogo. */
+function aplicarUpc(val){
+  const v = (val||'').trim();
+  if(!v) return false;
+  const hit = CATALOGO[v] || CATALOGO[v.replace(/^0+/, '')];
+  if(hit){ aplicarProducto(hit); return true; }
+  $('sku').value = v;       // deja el EAN como referencia
+  setRecon(false);          // marca "no reconocido" (posible mala lectura)
+  toast('⚠ Producto NO reconocido · revisa o re-toma la foto', 'warn');
+  return false;
 }
 
 /* ---------- Tomar foto y procesar ---------- */
@@ -1412,48 +1545,52 @@ function loadTesseract(){
   return tesseractLoading;
 }
 
-// Lee el número de serie del TEXTO impreso ("S/N: ...") con OCR
-async function ocrSerial(file){
-  try{
-    await loadTesseract();
-    toast('Leyendo número de serie…');
-    const worker = await Tesseract.createWorker('eng');
-    await worker.setParameters({ tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-SN' });
-    const { data } = await worker.recognize(file);
-    await worker.terminate();
-    const T = (data.text || '').toUpperCase().replace(/[ \t]+/g, ' ');
-    // Busca "S/N" (o "SN") seguido del valor alfanumérico
-    const re = /S\s*\/?\s*N\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\-]{7,23})/g;
-    let m, best = null;
-    while((m = re.exec(T))){
-      const cand = m[1].replace(/-/g, '');
-      if(cand.length >= 8 && cand.length <= 22) best = cand;
-    }
-    return best;
-  }catch(e){ return null; }
+/* Devuelve el TEXTO de un lienzo. Nada más: qué hay dentro de ese texto
+   —serie, UPC, o el IMEI que no hay que confundir con la serie— lo decide
+   `lector_etiqueta.js`, que es donde están las reglas y las pruebas.
+
+   Antes esta función leía el texto Y lo interpretaba con un patrón de una
+   línea. Ese patrón tiró dos series que el OCR había leído enteras y bien:
+   `S/N:-7YDTQ...` (dos separadores seguidos) y `SIN 7YDTQ...` (la barra
+   salió como I). No se vio nunca porque el síntoma era una casilla vacía,
+   que es lo mismo que se ve cuando el OCR de verdad no leyó nada. */
+let _ocrEtiqueta = null;
+async function ocrTexto(lienzo){
+  await loadTesseract();
+  /* El worker se crea UNA vez y se queda. Arrancarlo cuesta unos cuatro
+     segundos —descarga el idioma y levanta el WASM— y se estaba pagando
+     en cada foto que llegaba hasta aquí. Se conserva porque el asesor
+     captura una venta detrás de otra: de la segunda en adelante, gratis.
+     Es worker propio, en inglés y con su lista de caracteres: la etiqueta
+     sólo se lee en mayúsculas, números y «:/-». */
+  if(!_ocrEtiqueta){
+    _ocrEtiqueta = (async function(){
+      const w = await Tesseract.createWorker('eng');
+      await w.setParameters({ tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-SN' });
+      return w;
+    })().catch(function(e){ _ocrEtiqueta = null; throw e; });
+  }
+  const worker = await _ocrEtiqueta;
+  const { data } = await worker.recognize(lienzo);
+  return (data.text || '').toUpperCase().replace(/[ 	]+/g, ' ');
 }
 
 async function processImage(file){
   toast('Procesando foto…');
   setRecon(true); setPromo(false);   // limpia avisos de la foto anterior
   try{ lastPhoto = await compressImage(file); }catch(e){ lastPhoto = null; }   // guarda la foto para subirla
-  const vistos = new Set();
-  // 1) Códigos de barras: producto (EAN/UPC) y la serie si su código se puede leer
-  const detectores = [ window.ZXingBD, (('BarcodeDetector' in window) ? window.BarcodeDetector : null) ].filter(Boolean);
-  for(const D of detectores){
-    try{
-      const codes = await tryDetector(D, file);
-      codes.sort((a,b)=> (/ean|upc/i.test(a.format)?1:0) - (/ean|upc/i.test(b.format)?1:0));
-      let alguno = false;
-      codes.forEach(c => {
-        const v = (c.rawValue||'').trim();
-        if(v && !vistos.has(v)){ vistos.add(v); routeCode(v, c.format); alguno = true; }
-      });
-      if(alguno) break;
-    }catch(e){ /* siguiente detector */ }
-  }
-  // 1b) Respaldo de la librería si ningún detector encontró código
-  if(!vistos.size){
+
+  const r = await LECTOR.leerEtiqueta(file, {
+    detectores: [ window.ZXingBD, (('BarcodeDetector' in window) ? window.BarcodeDetector : null) ].filter(Boolean),
+    detectar: tryDetector,
+    ocr: ocrTexto,
+    aviso: function(t){ toast(t); }
+  });
+
+  /* Respaldo de la librería vieja, sólo si no salió absolutamente nada.
+     Sigue aquí porque es el único camino que no depende de ZXing, y un
+     teléfono viejo donde el módulo no cargue todavía captura la venta. */
+  if(!r.upc && !r.serie){
     try{
       const tmp = new Html5Qrcode('reader-file', { formatsToSupport: [
         Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
@@ -1461,40 +1598,112 @@ async function processImage(file){
         Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E ] });
       const text = await tmp.scanFile(file, false);
       try{ tmp.clear(); }catch(e){}   // limpiar el temporal es cortesia, no requisito
-      if(text) routeCode(text, '');
+      const cl = LECTOR.claseCodigo(text, '');
+      if(cl === 'producto') r.upc = (text||'').trim();
+      else if(cl === 'serie' || cl === 'serie_debil'){ r.serie = (text||'').trim().toUpperCase(); r.viaSerie = 'barras'; }
     }catch(e){ /* nada */ }
   }
-  // 2) Si la SERIE sigue vacía, léela del TEXTO "S/N" con OCR
-  if(!$('serie').value.trim()){
-    const s = await ocrSerial(file);
-    if(s) $('serie').value = s;
-  }
-  // 3) Mensaje final según lo que se haya llenado
+
+  if(r.upc) aplicarUpc(r.upc);
+
+  /* ⚠️ NO SE PISA LO QUE EL ASESOR YA ESCRIBIÓ. El paso 2 aparece en cuanto
+     se dispara la foto, así que mientras esto trabaja —y con el código de
+     barras rayado son segundos— él puede estar tecleando la serie a mano.
+     Antes se miraba la casilla ANTES de leer y se escribía DESPUÉS, sin
+     volver a mirar: lo tecleado se perdía sin que nada lo dijera. */
+  if(r.serie && !$('serie').value.trim()) $('serie').value = r.serie;
+
   const okSerie = !!$('serie').value.trim();
   const okProd  = !!$('sku').value.trim();
   if(okSerie || okProd){
     beep(); if('vibrate' in navigator) navigator.vibrate(60);
-    if(okSerie && okProd) toast('Serie y producto leídos ✓ · verifica la serie', 'ok');
-    else if(okSerie)      toast('Serie leída ✓ · verifica que coincida', 'ok');
-    else                  toast('Producto leído · falta la serie, toma otra foto', 'warn');
+    /* El mensaje dice DE DÓNDE salió la serie, porque no se comprueban
+       igual: del código de barras sale el valor exacto o no sale nada; del
+       texto puede salir un carácter cambiado —una S por un 5— que sólo se
+       caza mirando la etiqueta. */
+    const delTexto = /^ocr/.test(r.viaSerie || '');
+    if(okSerie && okProd)  toast(delTexto ? 'Producto ✓ · serie leída del texto: compárala con la etiqueta' : 'Serie y producto leídos ✓', 'ok');
+    else if(okSerie)       toast(delTexto ? 'Serie leída del texto · compárala con la etiqueta' : 'Serie leída ✓', 'ok');
+    else                   toast('Producto leído · falta la serie: acerca la cámara a su código y repite la foto', 'warn');
     return;
   }
   toast('No se detectó nada · acerca más, enfoca el S/N con buena luz', 'warn');
+}
+
+/* ==========================================================
+   LOS TRES PASOS  (21-sep-2026)
+   ==========================================================
+   Esto NO es lógica de venta: es sólo qué se ve en cada momento. La captura,
+   la validación y el guardado siguen donde estaban —`processImage`, `btnAdd`,
+   `finalizarVenta`— y no se tocaron. Por eso el paso 3 es el modal del seguro:
+   ya existía, ya estaba probado en piso, y hacer otro habría sido un segundo
+   sitio donde decidir si una venta lleva Assurant.
+
+   Al paso 2 se pasa EN CUANTO se dispara la foto, sin esperar al OCR. Suena
+   al revés y no lo es: el asesor ve la ficha llenándose sola, que es lo que
+   le dice que la lectura va bien. Esperando, la pantalla se quedaba quieta
+   unos segundos y no había forma de saber si se había colgado.
+
+   Si el OCR no saca nada, el paso 2 aparece vacío y el aviso lo explica: desde
+   ahí se escribe a mano o se vuelve con «‹», que es lo mismo que se podía
+   hacer antes, pero dicho. */
+let _paso = 1;
+function irPaso(n){
+  _paso = n;
+  $('paso1').style.display = (n === 1) ? '' : 'none';
+  /* `n >= 2` y no `n === 2`: el paso 3 es el modal del seguro, que se abre
+     ENCIMA de la ficha. Con `=== 2` los dos pasos se ocultaban a la vez y
+     detrás del modal quedaba la pantalla en blanco — al cancelar el seguro, el
+     asesor se encontraba la nada. Lo cazó la prueba, no la vista. */
+  $('paso2').style.display = (n >= 2) ? '' : 'none';
+  /* La lista del día estorba mientras se revisa una captura: son datos de
+     otras ventas justo cuando hay que mirar ésta. */
+  const lh = document.querySelector('.lista-head');
+  if(lh) lh.style.display = (n === 1) ? '' : 'none';
+  $('lista').style.display = (n === 1) ? '' : 'none';
+  const hn = $('histNote'); if(hn) hn.style.display = (n === 1) ? '' : 'none';
+
+  $('pb1').className = 'pb' + (n === 1 ? ' on' : ' hecho');
+  $('pb2').className = 'pb' + (n === 2 ? ' on' : (n > 2 ? ' hecho' : ''));
+  $('pb3').className = 'pb';
+  $('pl1').className = (n === 1 ? 'on' : 'hecho');
+  $('pl1').textContent = (n === 1 ? '1 · ESCANEA' : '1 · LISTO');
+  $('pl2').className = (n === 2 ? 'on' : '');
+  /* Arriba del todo al cambiar de paso. Sin esto, quien venía mirando la lista
+     del día disparaba la foto y el paso 2 aparecía fuera de la pantalla: la
+     ficha que hay que revisar quedaba por encima del scroll y parecía que no
+     había pasado nada. */
+  try{ window.scrollTo(0, 0); }catch(e){ /* sin ventana (pruebas): da igual */ }
+
+  // El foco es una comodidad, no un dato: si el navegador lo rechaza (campo
+  // aún oculto, teclado a medio abrir), el asesor toca el campo y sigue.
+  if(n === 2) setTimeout(function(){ try{ $('serie').focus(); }catch(e){} }, 60);
 }
 
 /* ---------- Botón "Tomar foto y procesar" ---------- */
 $('btnPhoto').onclick = () => $('fileCam').click();
 $('fileCam').onchange = e => {
   const f = e.target.files && e.target.files[0];
-  if(f) processImage(f);
+  if(f){ irPaso(2); processImage(f); }
   e.target.value = '';
 };
 $('btnGal').onclick = () => $('fileGal').click();
 $('fileGal').onchange = e => {
   const f = e.target.files && e.target.files[0];
-  if(f) processImage(f);
+  if(f){ irPaso(2); processImage(f); }
   e.target.value = '';
 };
+/* Escribir a mano no es el camino raro: es el que queda cuando el código está
+   rayado, y antes había que adivinar que se podía tocar el campo directamente. */
+$('btnMano').onclick = () => irPaso(2);
+$('btnVolver1').onclick = () => irPaso(1);
+
+/* El estado de arranque se fija AQUÍ y no con un `style="display:none"` en el
+   marcado. Parece lo mismo y no lo es: el atributo se borra sin querer al
+   editar el HTML —y entonces la pantalla abre con los dos pasos encima, sin
+   dar error—, mientras que esta línea deja el arranque dicho en un solo sitio,
+   el mismo que gobierna los demás cambios de paso. */
+irPaso(1);
 
 /* ---------- Ventas del día ----------
    Antes esto abría Google Sheets, donde había que buscar el día, seleccionar
@@ -1719,6 +1928,8 @@ function pintarVentasDia(){
                  onclick="event.stopPropagation(); verFoto('${v.captura_id}','${(v.serie||'').replace(/'/g,'')}')">🔍</button>` : ''}
             ${PUEDE_EDITAR && v.captura_id ? `<button class="vd-lupa" title="Corregir esta venta"
                  onclick="event.stopPropagation(); abrirEditarVenta(${i})">✏️</button>` : ''}
+            ${PUEDE_EDITAR && v.captura_id ? `<button class="vd-lupa" title="Borrar esta venta"
+                 onclick="event.stopPropagation(); borrarVentaDia(${i})">🗑️</button>` : ''}
             <div class="vd-check">✓</div>
           </div>`;
         }).join('');
@@ -1891,6 +2102,59 @@ window.guardarEdicionVenta = async function(){
     err('No se pudo guardar · ' + ((e && e.message) || 'sin conexión'));
   }finally{
     btn.disabled = false; btn.textContent = 'Guardar cambios';
+  }
+};
+
+/* ---------- Borrar una venta de la nube ----------
+   21-sep-2026. Faltaba, y no se notó hasta que hizo falta: apareció en la 1217
+   una venta de prueba —vendedor y serie sacados de los archivos de `pruebas/`—
+   y no había forma de quitarla desde ninguna pantalla.
+
+   Borrar SÍ existía, pero sólo en la lista local del día (`window.del`), que es
+   la de las capturas hechas EN ESTE teléfono. Una venta que está en la nube y
+   no en este aparato —la capturó otro, o entró por otro camino— sólo se podía
+   corregir. Y corregir no sirve cuando la venta entera sobra: se queda contando
+   en el inventario, en el conteo del día y en el attach.
+
+   ⚠️ Y hay un daño que no se ve: `ventas` tiene UNIQUE (store_id, serie). Una
+   venta falsa deja esa serie OCUPADA — cuando se venda de verdad, el alta se
+   rechaza por duplicada y el asesor no va a entender por qué.
+
+   Mismo permiso que corregir: gerente y subgerente. La función de la base ya
+   sabía hacer esto (`venta_eliminar`, que además protege las entregas de
+   apartados); lo único que no había era por dónde pedírselo. */
+window.borrarVentaDia = async function(i){
+  const v = _vdVentas[i];
+  if(!v || !v.captura_id) return;
+  /* Se enseña QUÉ se va a borrar, no «¿estás seguro?». Es irreversible y las
+     filas de la lista se parecen entre sí: la serie es lo único que distingue
+     dos ventas del mismo modelo el mismo día. */
+  if(!confirm('¿Borrar esta venta?\n\n' + (v.desc || v.sku || '') +
+              '\nSerie: ' + (v.serie || '—') +
+              '\nVendedor: ' + (v.vend || '—') +
+              '\n\nLa pieza vuelve al inventario y la venta sale del conteo del día.' +
+              '\nNo se puede deshacer.')) return;
+  try{
+    const d = await sbCallCS('venta_eliminar',
+      { p_token: GAS_TOKEN, p_captura_id: v.captura_id }, 12000);
+    /* El error de la base se enseña TAL CUAL: el caso del apartado entregado
+       explica qué hacer («deshazla desde Preventa») y resumirlo a «no se pudo»
+       dejaría al gerente probando otra vez lo mismo. */
+    if(!d || d.ok !== true){
+      toast((d && d.error) || 'No se pudo borrar · revisa la conexión', 'warn');
+      return;
+    }
+    /* Si además estaba en este teléfono, se va de las dos partes locales: de la
+       lista del día y de la cola de subida. Sin lo segundo, una captura que
+       siguiera pendiente la volvería a dar de alta al recuperar la señal. */
+    sbPend = sbPend.filter(c => c.p_captura_id !== v.captura_id);
+    saveSbPend();
+    const j = items.findIndex(x => x && x.id === v.captura_id);
+    if(j >= 0){ items.splice(j, 1); save(); render(); }
+    toast('Venta borrada ✓ · la pieza vuelve al inventario', 'ok');
+    cargarVentasDia(_vdFecha || new Date());   // de la nube, no de memoria
+  }catch(e){
+    toast('No se pudo borrar · ' + ((e && e.message) || 'sin conexión'), 'warn');
   }
 };
 
@@ -2124,12 +2388,15 @@ function puedeVerVentas_(){
 function updateDownloadAccess(){
   const ok = puedeVerVentas_();
   $('btnCsv').style.display = ok ? '' : 'none';
-  $('lockMsg').style.display = ok ? 'none' : '';
-  // Quién es se dice con el nombre de `hoja_auth`, no con uno escrito en el
-  // HTML: sin configurar, el mensaje se queda en genérico y sigue siendo cierto.
-  if(!ok) $('lockMsg').textContent = DESCARGA_AUTORIZADA
-    ? '🔒 Solo ' + DESCARGA_AUTORIZADA + ' abre la hoja de ventas'
-    : '🔒 La hoja de ventas la abre solo el asesor autorizado';
+  /* 'flex' y no '': la pestaña-candado nace en `display:none` en el CSS, así
+     que con '' volvería a esconderse y donde debería estar la explicación
+     quedaría un hueco — el asesor vería las pestañas y ninguna razón. */
+  $('lockMsg').style.display = ok ? 'none' : 'flex';
+  // Quién abre la hoja se dice con el nombre de `hoja_auth`, no con uno escrito
+  // en el HTML: sin configurar, el aviso se queda en genérico y sigue siendo cierto.
+  if(!ok) $('lockMsg').title = DESCARGA_AUTORIZADA
+    ? 'Solo ' + DESCARGA_AUTORIZADA + ' abre la hoja de ventas'
+    : 'La hoja de ventas la abre solo el asesor autorizado';
 }
 function setVend(n){
   currentVend = n || '';

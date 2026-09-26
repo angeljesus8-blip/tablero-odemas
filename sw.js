@@ -2,7 +2,7 @@ importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 // ÚNICO lugar donde vive la versión de la app. Las páginas ya no la repiten:
 // registran './sw.js' con updateViaCache:'none' y el navegador detecta el
 // cambio al ver que este archivo es distinto. Subir el número aquí y ya.
-const VERSION = 'v24';
+const VERSION = 'v25';
 const CACHE = 'odemas-' + VERSION;
 const ARCHIVOS = [
   './index.html',
@@ -16,7 +16,10 @@ const ARCHIVOS = [
   // Sin esto, la pieza que devuelve al asesor donde estaba sería justo la que
   // falta cuando no hay red — que es cuando más se nota volver al menú.
   './continuidad.js',
-  // (adivina el producto) y admin (avisa de codigos que van a empatar).
+  // Quien decide qué código de la etiqueta es la serie (y que no sea el IMEI,
+  // la MAC ni el EID). Un <script src> que no llega no rompe la página: deja
+  // la foto sin leer y sin avisar, así que va al precache.
+  './lector_etiqueta.js',
   // La fuente va al precache: si no, el primer arranque sin red dibuja el
   // tablero con otra letra, que es justo lo que se quiso evitar al traerla
   // del CDN al repo (8-ago-2026).

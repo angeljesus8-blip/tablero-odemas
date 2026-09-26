@@ -1057,7 +1057,8 @@ def r_pruebas():
                'login_a_captura.js', 'navegacion.js', 'actualizacion.js',
                'cola_ventas.js', 'cea_vigencia.js', 'cea_precio_nuevo.js',
                'comisiones_privadas.js', 'registro_invitacion.js',
-               'ventas_dia_seguro.js')
+               'ventas_dia_seguro.js', 'lector_etiqueta.js',
+               'venta_borrar.js')
 
     # La lista de arriba es explícita a propósito —así falta un archivo y se
     # nota—, pero eso deja el hueco contrario: una prueba escrita y no añadida

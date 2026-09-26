@@ -76,6 +76,85 @@ const CASOS = [
 ];
 
 const fallos = [];
+/* ============================================================
+   LOS TRES PASOS Y LAS CUATRO PESTAÑAS (21-sep-2026)
+   ============================================================
+   La pantalla pasó de un formulario de arriba abajo a «una cosa a la vez»:
+   escanea → revisa → guarda, con las herramientas en pestañas arriba en vez
+   de en una barra abajo.
+
+   Lo que se comprueba aquí es lo que, roto, deja al asesor sin poder capturar
+   y NO da ningún error:
+
+     · que el paso 2 aparezca y el 1 se vaya (si los dos se ocultan, la
+       pantalla se queda en blanco con el cliente enfrente);
+     · que al terminar una venta se vuelva al paso 1, o el siguiente cliente
+       se atiende sobre la ficha del anterior;
+     · que sigan existiendo los identificadores que las pestañas heredaron de
+       la barra de abajo — `btnCsv` y `lockMsg`—, porque el código que abre la
+       hoja de ventas los busca por nombre y no se tocó.
+   ============================================================ */
+{
+  const ent = crearEntorno({ html, ruta:'/t/captura_series.html',
+    ls: { 'odemas_store': JSON.stringify(conLista),
+          'odemas_empleado': JSON.stringify(EMP) } });
+
+  if(ent.err){
+    fallos.push('pasos: la pantalla se cae al cargar -> ' + ent.err);
+  } else {
+    const verPaso = () => ({
+      uno: ent.el('paso1').style.display !== 'none',
+      dos: ent.el('paso2').style.display !== 'none'
+    });
+
+    let v = verPaso();
+    if(!v.uno || v.dos) fallos.push('pasos: al abrir no se ve el paso 1 solo');
+
+    ent.correr('irPaso(2)');
+    v = verPaso();
+    if(v.uno || !v.dos) fallos.push('pasos: irPaso(2) no enseña la ficha');
+    if(ent.el('lista').style.display !== 'none'){
+      fallos.push('pasos: la lista del día sigue estorbando en el paso 2');
+    }
+
+    ent.correr('irPaso(1)');
+    v = verPaso();
+    if(!v.uno || v.dos) fallos.push('pasos: no se puede volver al paso 1');
+
+    /* Nunca los dos ocultos: sería la pantalla en blanco. */
+    for(const n of [1, 2, 3]){
+      ent.correr('irPaso(' + n + ')');
+      const x = verPaso();
+      if(!x.uno && !x.dos) fallos.push('pasos: con irPaso(' + n + ') no se ve NINGÚN paso');
+    }
+    ent.correr('irPaso(1)');
+
+    /* Los ids que las pestañas heredaron de la barra de abajo. Si alguien
+       renombra uno, el botón se queda ahí sin abrir nada y sin dar error.
+
+       Se mira el HTML DE VERDAD y no el DOM de pruebas: `crearEntorno` inventa
+       un elemento para cualquier id que se le pida —así imita al navegador
+       durante la carga—, así que preguntarle por uno que ya no existe habría
+       contestado que sí. Probado con un cebo: renombrar `btnCsv` pasaba
+       limpio, y por eso esta comprobación es sobre el texto del archivo. */
+    for(const id of ['btnCsv', 'lockMsg', 'btnPhoto', 'btnGal',
+                     'btnMano', 'btnVolver1', 'serie', 'sku', 'precio', 'desc', 'btnAdd',
+                     'paso1', 'paso2', 'vendSeguros']){
+      if(html.indexOf('id="' + id + '"') < 0){
+        fallos.push('pasos: ya no existe id="' + id + '", y el código lo busca por nombre');
+      }
+    }
+
+    /* Y el candado: cuando no hay permiso tiene que OCUPAR el sitio de
+       «Ventas», no dejar un hueco (por eso es `flex` y no ''). */
+    ent.correr('updateDownloadAccess()');
+    const dv = ent.el('lockMsg').style.display;
+    if(dv !== 'none' && dv !== 'flex'){
+      fallos.push('pasos: el candado se muestra con display "' + dv + '" y el CSS lo tiene en none');
+    }
+  }
+}
+
 for(const [titulo, store, emp, espera] of CASOS){
   const r = escenario(store, emp);
   if(r.error){ fallos.push(titulo + ': la pantalla se cae -> ' + r.error); continue; }
