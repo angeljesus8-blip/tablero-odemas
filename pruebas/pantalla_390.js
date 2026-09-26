@@ -322,6 +322,20 @@ async function main(){
           falla(`captura a ${W}px: un toque real sobre «1 año» no registró la venta con seguro`);
         else if(ult.desc !== 'AUDIF IN EAR HW F-BUDS PRO 4 VD')
           falla(`captura a ${W}px: la venta se guardó con «${ult.desc}» y no con la descripción del sistema`);
+        else {
+          /* «Cerrar venta» a la vista DESPUÉS de agregar (26-sep-2026). Lo
+             reportó el equipo: con el rediseño la barra quedó dentro de la
+             tarjeta del paso 2, y al agregar la pantalla vuelve al paso 1 y la
+             esconde. Para cerrar la venta había que cargar otro SKU. Se mide en
+             el navegador y no en el HTML: lo que importa es si el botón se VE. */
+          const va = await ev(`(() => { const b = document.querySelector('#ventaAbierta button');
+            const r = b ? b.getBoundingClientRect() : null;
+            return { paso1: $('paso1').style.display !== 'none',
+                     visible: !!(b && b.offsetParent && r.width && r.height) }; })()`);
+          if(!va.paso1) falla(`captura a ${W}px: después de agregar, la pantalla no volvió al paso 1`);
+          else if(!va.visible)
+            falla(`captura a ${W}px: después de agregar un artículo no se ve «Cerrar venta» — no se puede cerrar la venta sin cargar otro SKU`);
+        }
       }
 
       // La lista con la venta recién hecha.

@@ -605,14 +605,18 @@
     </label>
     <div class="recon-warn" id="reconWarn">⚠ Producto NO reconocido — pudo ser mala lectura. Revisa o re-toma la foto.</div>
     <button class="btn btn-add mt6" id="btnAdd">＋ Agregar al reporte</button>
+  </div>
 
-    <!-- Venta abierta: se ve SIEMPRE mientras lo esté. Olvidarse de cerrar es
-         el único fallo de este diseño y no da error — pega la compra del
-         siguiente cliente a la anterior. Que esté a la vista es el arreglo. -->
-    <div class="venta-abierta" id="ventaAbierta">
-      <span id="ventaAbiertaTxt"></span>
-      <button onclick="cerrarVentaGrupo()">✓ Cerrar venta</button>
-    </div>
+  <!-- Venta abierta: se ve SIEMPRE mientras lo esté. Olvidarse de cerrar es
+       el único fallo de este diseño y no da error — pega la compra del
+       siguiente cliente a la anterior. Que esté a la vista es el arreglo.
+       FUERA de #paso1 y #paso2, y no es decoración (26-sep-2026): con el
+       rediseño quedó dentro de la tarjeta del paso 2, y al agregar un artículo
+       la pantalla vuelve al paso 1 y la escondía — el equipo no podía cerrar
+       la venta sin cargar otro SKU. Lo cuida pantalla_390.js. -->
+  <div class="venta-abierta" id="ventaAbierta">
+    <span id="ventaAbiertaTxt"></span>
+    <button onclick="cerrarVentaGrupo()">✓ Cerrar venta</button>
   </div>
 
   <!-- Modo preventa: se enciende con ?apartado=<id>&accion=asignar|entregar -->
