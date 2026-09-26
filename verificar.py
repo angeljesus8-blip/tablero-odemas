@@ -999,6 +999,61 @@ def r_precache():
                       'publicados, y la app servira una version vieja sin avisar')
 
 
+# ── 13-ter · Paleta: se puede limpiar, no ensuciar ──────────
+# 22-sep-2026, con el rediseño visual. Ninguna página compartía estilo: Captura
+# usaba 84 colores distintos y el tablero 72, casi todos puestos a mano una vez
+# y nunca más. Así, cada pantalla parecía de otra app.
+#
+# Limpiarlo es trabajo de varias sesiones (ver estilo.css). Esta regla es el
+# TRINQUETE: el número de colores de cada página puede bajar, nunca subir. Un
+# color nuevo se agrega como variable en estilo.css y se usa por su nombre
+# (var(--alerta)), no como #b01c22 suelto en un archivo.
+#
+# Cuando una página baja, se baja aquí su tope en el mismo commit — el aviso lo
+# dice — para que no quede holgura que otro se gaste.
+#
+# Los topes son los de ESTA copia (26-sep-2026, al traer la regla de la 1217),
+# contados sobre sus páginas: no los de allá, que tenían Mr Fix y el concurso.
+PALETA_TOPE = {
+    'index.html': 34, 'tablero.html': 70, 'captura_series.html': 64,
+    'admin.html': 49, 'horarios.html': 41, 'comisiones.html': 23,
+    'actualizar_datos.html': 20,
+    'estilo.css': 19,
+}
+def _colores(texto):
+    return set(c.lower() for c in re.findall(r'#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b', texto))
+
+def r_paleta():
+    sw = leer('sw.js') or ''
+    for arch, tope in PALETA_TOPE.items():
+        s = leer(arch)
+        if s is None:
+            continue
+        n = len(_colores(s))
+        if n > tope:
+            nuevos = ''
+            try:
+                antes = subprocess.run(['git', 'show', 'HEAD:' + arch], cwd=BASE,
+                                       capture_output=True, text=True, encoding='utf-8',
+                                       errors='replace').stdout
+                nuevos = ', '.join(sorted(_colores(s) - _colores(antes))[:6])
+            except (OSError, subprocess.SubprocessError):
+                pass
+            falla('paleta', '%s usa %d colores y su tope es %d%s. Usa una variable de '
+                            'estilo.css (var(--alerta), var(--tinta-3)…) en vez de un '
+                            'color suelto' % (arch, n, tope, (' — nuevos: ' + nuevos) if nuevos else ''))
+        elif n < tope:
+            aviso('paleta', '%s bajó a %d colores (tope %d): baja su tope en PALETA_TOPE '
+                            'para que no quede holgura' % (arch, n, tope))
+    # La página que se apoya en estilo.css sin tenerlo en caché abre SIN
+    # encabezado ni colores cuando no hay señal, y con red se ve perfecta.
+    for pagina in PALETA_TOPE:
+        s = leer(pagina) or ''
+        if re.search(r'<link[^>]+href="\./estilo\.css"', s) and "'./estilo.css'" not in sw:
+            falla('paleta', '%s carga estilo.css pero no está en ARCHIVOS de sw.js: '
+                            'sin señal la página abre sin estilo' % pagina)
+
+
 # ── 13-bis · Los .js que carga cada página existen y se precachean ──────
 # 20-ago-2026, al sacar `accClave`/`accPrefijo` de captura_series.html a
 # `acc_codigos.js` para que Admin usara LA MISMA regla y no una copia.
@@ -1058,7 +1113,7 @@ def r_pruebas():
                'cola_ventas.js', 'cea_vigencia.js', 'cea_precio_nuevo.js',
                'comisiones_privadas.js', 'registro_invitacion.js',
                'ventas_dia_seguro.js', 'lector_etiqueta.js',
-               'venta_borrar.js', 'venta_quien.js')
+               'venta_borrar.js', 'venta_quien.js', 'pantalla_390.js')
 
     # La lista de arriba es explícita a propósito —así falta un archivo y se
     # nota—, pero eso deja el hueco contrario: una prueba escrita y no añadida
@@ -1957,7 +2012,7 @@ def main():
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()
     r_porteros(); r_contrato_sql(); r_join_sql()
     r_sql_volatilidad(); r_galeria(); r_alias_variable(); r_returns_table_drop(); r_funcion_repetida()
-    r_secretos(); r_silencios(); r_cadenas(); r_precache(); r_scripts_locales(); r_pruebas()
+    r_secretos(); r_silencios(); r_cadenas(); r_precache(); r_paleta(); r_scripts_locales(); r_pruebas()
 
     for regla, msg in avisos:
         print('  aviso  [%s] %s' % (regla, msg))

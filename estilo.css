@@ -1,0 +1,141 @@
+/* ============================================================
+   HES Red · estilo común de todas las pantallas
+   ============================================================
+   Nació el 22-sep-2026, con el rediseño visual. Hasta entonces cada página
+   inventaba su propio estilo: Captura usaba 84 colores distintos, el tablero
+   72, Horarios la paleta de Google en vez de la de Odemás, y cada una tenía
+   su propio encabezado. Un arreglo visual se quedaba en una pantalla y la
+   siguiente se veía como otra app.
+
+   Aquí vive lo que TIENE que ser igual en todas. Lo propio de cada pantalla
+   sigue en su <style>, pero construido con estas piezas.
+
+   Las reglas, para que esto no vuelva a llenarse de colores sueltos:
+
+   1. El color dice algo o no se usa.
+        verde  → va bien / se puede       (--ok)
+        ámbar  → hay que hacer algo       (--atencion)
+        rojo   → algo está mal / urgente  (--alerta)
+        azul   → acción que no es alarma  (--info)
+      Un número que solo informa va en tinta (--tinta), no en color.
+      El rojo Odemás de la marca y el rojo de alerta son el mismo a
+      propósito: en una app de piso, rojo siempre es "mira aquí".
+   2. Seis tamaños de letra (--t-*). Si algo no cabe en ninguno, el problema
+      es el diseño, no la escala.
+   3. Un icono por cosa. Los iconos 3D viven en iconos/ (Fluent Emoji de
+      Microsoft, MIT), dentro del repo y en el precache: sin señal en el
+      centro comercial siguen apareciendo.
+
+   `verificar.py` (regla «paleta») cuenta los colores de cada página y no
+   deja que suban: se puede limpiar, no ensuciar.
+   ============================================================ */
+
+@font-face{
+  font-family:'Montserrat';
+  src:url('./fuentes/Montserrat.woff2') format('woff2');
+  font-weight:400 800; font-display:swap;
+}
+
+:root{
+  /* Marca Odemás */
+  --rojo:#D12026; --naranja:#F37021; --azul:#336BB4;
+
+  /* Significado */
+  --ok:#137a43;        --ok-bg:#eafaf1;
+  --atencion:#b45309;  --atencion-bg:#fff5ee;
+  --alerta:#D12026;    --alerta-bg:#fdeaea;
+  --info:#2b5c9c;      --info-bg:#eef3fb;
+
+  /* Neutros: tres tintas para tres niveles de importancia, y nada más */
+  --tinta:#1a1a1a;     /* lo que se lee primero */
+  --tinta-2:#5c5c5c;   /* lo que acompaña */
+  --tinta-3:#8e8e8e;   /* lo que se consulta si hace falta */
+  --linea:#ececec;
+  --fondo:#f6f6f7;
+  --superficie:#ffffff;
+  --mosaico:#f4f2f1;   /* fondo del cuadrito detrás de un icono 3D */
+
+  /* Tipografía */
+  --t-xs:10.5px; --t-sm:11.5px; --t-md:13px; --t-lg:15px; --t-xl:20px; --t-2xl:27px;
+
+  /* Formas */
+  --r-sm:9px; --r-md:14px; --r-pill:999px;
+  --sombra:0 1px 2px rgba(34,27,26,.04), 0 3px 10px rgba(34,27,26,.05);
+  --sombra-alta:0 8px 28px rgba(34,27,26,.14);
+}
+
+/* ---------- Encabezado de todas las pantallas ----------
+   Una sola franja: volver · logo · título y tienda · estado · acción.
+   El título y la tienda se recortan con "…" antes que partirse en
+   renglones — `pruebas/pantalla_390.js` falla si la franja pasa de 76 px. */
+.barra{
+  position:sticky; top:0; z-index:30;
+  display:flex; align-items:center; gap:10px;
+  min-height:60px; padding:8px 12px 8px 6px;
+  background:var(--superficie); border-bottom:3px solid var(--rojo);
+}
+.barra-volver{
+  width:36px; height:36px; flex-shrink:0; display:grid; place-items:center;
+  border-radius:10px; color:var(--rojo); text-decoration:none;
+}
+.barra-volver:active{ background:var(--alerta-bg); }
+.barra-volver svg{ width:22px; height:22px; }
+.barra-logo{ height:30px; width:auto; flex-shrink:0; }
+.barra-txt{ flex:1; min-width:0; }
+.barra-titulo{
+  font-size:var(--t-lg); font-weight:800; letter-spacing:-.2px; line-height:1.2;
+  color:var(--tinta); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.barra-sub{
+  font-size:var(--t-sm); font-weight:500; color:var(--tinta-3); margin-top:1px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.barra-accion{
+  width:36px; height:36px; flex-shrink:0; display:grid; place-items:center;
+  border:none; background:none; border-radius:10px; cursor:pointer;
+  color:var(--tinta-3); padding:0;
+}
+.barra-accion svg{ width:22px; height:22px; }
+.barra-accion.activa{ color:var(--rojo); }
+.barra-accion.activa svg{ fill:currentColor; }
+
+/* Estado del dato: dos renglones cortos a la derecha del título.
+   ● En vivo      /  ● Guardado      /  ● No es de hoy
+     2:43 p.m.        hace 3 h            21 sep 9:12   */
+.estado{
+  flex-shrink:0; text-align:right; line-height:1.25;
+  font-size:var(--t-xs); font-weight:600; color:var(--tinta-3);
+}
+.estado b{ display:block; font-size:var(--t-sm); font-weight:800; white-space:nowrap; }
+.estado b::before{ content:'● '; }
+.estado.ok b{ color:var(--ok); }
+.estado.atencion b{ color:var(--atencion); }
+.estado.alerta b{ color:var(--alerta); }
+
+/* ---------- Cuadrito con icono 3D ---------- */
+.mosaico{
+  width:44px; height:44px; flex-shrink:0; border-radius:12px;
+  display:grid; place-items:center; background:var(--mosaico);
+}
+.mosaico img{ width:32px; height:32px; }
+
+/* ---------- Números que cuentan algo ---------- */
+.cifra{ font-size:var(--t-xl); font-weight:800; font-variant-numeric:tabular-nums; color:var(--tinta); }
+.cifra.cero{ color:#cfcfcf; }
+.cifra.atencion{ color:var(--atencion); }
+.cifra.alerta{ color:var(--alerta); }
+.cifra.ok{ color:var(--ok); }
+
+/* ---------- Botones ----------
+   Uno primario por pantalla, como mucho. El resto, secundarios: si todo
+   grita, nada se oye. */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  font-family:inherit; font-size:var(--t-md); font-weight:700; line-height:1.2;
+  padding:10px 16px; border-radius:var(--r-sm); cursor:pointer;
+  border:1.5px solid transparent; text-decoration:none;
+}
+.btn-primario{ background:var(--rojo); color:#fff; }
+.btn-secundario{ background:var(--superficie); color:var(--tinta-2); border-color:var(--linea); }
+.btn:active{ transform:scale(.98); }
+.btn:disabled{ opacity:.45; cursor:default; transform:none; }

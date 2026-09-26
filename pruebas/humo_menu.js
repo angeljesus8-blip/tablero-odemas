@@ -71,6 +71,43 @@ for (const [titulo, cfg, rol, emp, esperado] of CASOS) {
   }
 }
 
+/* Sales Arena lleva la tienda en la dirección (26-sep-2026).
+   Esa app decide QUÉ TIENDA es por la ruta, y sin ruta cae en la de origen:
+   enlazada sin el número, una tienda de esta copia entra viendo el equipo de
+   otra, con sus nombres. El menú se rehízo en cuadrícula al traerlo de la 1217
+   —donde el enlace va sin tienda porque solo hay una— y el `conTienda` tuvo que
+   ponerse a mano. Nada fallaba si se perdía; ahora sí. */
+{
+  const piezas = [
+    js.match(/const CARDS = \[[\s\S]*?\n\];/),
+    js.match(/function conTienda_\([\s\S]*?\n\}/),
+    js.match(/function renderMenuCards\([\s\S]*?\n\}/)
+  ];
+  if (piezas.some(p => !p)) {
+    fallos.push('Sales Arena: no encontré CARDS, conTienda_ o renderMenuCards en index.html');
+  } else {
+    const menu = { innerHTML:'' };
+    const ls = { odemas_store: JSON.stringify({ store_id:'9999', nombre:'Demo' }) };
+    const caja2 = {
+      console,
+      localStorage: { getItem: k => (k in ls ? ls[k] : null) },
+      document: { getElementById: () => menu }
+    };
+    vm.createContext(caja2);
+    try {
+      vm.runInContext(piezas.map(p => p[0]).join('\n') + '\nrenderMenuCards("asesor");',
+                      caja2, { filename:'index-menu.js' });
+      const a = (menu.innerHTML.match(/<a [^>]*sales-arena[^>]*>/) || [''])[0];
+      if (!a) fallos.push('Sales Arena: el menú ya no enseña su tarjeta');
+      else if (!/sales-arena-app\.vercel\.app\/9999"/.test(a)) {
+        fallos.push('Sales Arena: el enlace no lleva la tienda de la sesión -> ' + a);
+      }
+    } catch (e) {
+      fallos.push('Sales Arena: pintar el menú se cae -> ' + e.message);
+    }
+  }
+}
+
 if (fallos.length) {
   console.log('menú: ' + fallos.length + ' fallo(s)');
   fallos.forEach(f => console.log('   · ' + f));

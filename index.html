@@ -80,37 +80,70 @@
   .role-badge { font-size:10px; font-weight:800; padding:3px 8px; border-radius:20px; flex-shrink:0; }
   .role-gerente { background:#fdeaea; color:var(--rojo); }
   .role-asesor  { background:#eef3fb; color:var(--azul); }
-  .btn-logout { margin-left:auto; background:none; border:1.5px solid #eee; border-radius:8px; padding:6px 12px;
-    font-family:'Montserrat',sans-serif; font-size:11px; font-weight:700; color:#aaa; cursor:pointer; flex-shrink:0; }
-  .btn-logout:active { background:#f5f5f5; }
+
+  /* Avatar con la inicial. NO cierra sesión al tocarlo: abre el globo de abajo.
+     Un botón "Salir" del tamaño de un pulgar en la esquina se presiona solo, y
+     volver a entrar cuesta el PIN o el correo. Un tap de más lo evita. */
+  .avatar { margin-left:auto; width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    border:none; background:linear-gradient(135deg,#8a9099,#5f666e); color:#fff;
+    font-family:'Montserrat',sans-serif; font-size:16px; font-weight:800; cursor:pointer; }
+  .avatar:active { transform:scale(.94); }
+  .pop-wrap { position:relative; margin-left:auto; }
+  .pop-wrap .avatar { margin-left:0; }
+  .pop { position:absolute; right:0; top:46px; background:#fff; border:1px solid #ececec;
+    border-radius:14px; box-shadow:0 8px 26px rgba(0,0,0,.13); padding:12px; min-width:186px;
+    z-index:20; display:none; }
+  .pop.on { display:block; }
+  .pop .p-nom { font-size:13px; font-weight:800; line-height:1.3; }
+  .pop .p-rol { font-size:11px; color:#999; margin-top:2px; margin-bottom:10px; }
+  .pop .btn-logout { width:100%; background:#f7f7f8; border:1.5px solid #ececec; border-radius:10px;
+    padding:9px; font-family:'Montserrat',sans-serif; font-size:12px; font-weight:800;
+    color:var(--rojo); cursor:pointer; }
+  .pop .btn-logout:active { background:#f0f0f0; }
 
   main { padding:20px 16px 40px; max-width:560px; margin:0 auto; }
   .saludo { font-size:13px; color:#888; font-weight:600; margin:4px 4px 16px; }
 
-  .card { display:flex; align-items:center; gap:16px; background:#fff; border:1px solid #ececec;
-    border-left-width:5px; border-radius:14px; padding:18px; margin-bottom:14px;
+  /* ── Cuadrícula de herramientas ──
+     Tres columnas para que las 6 de un asesor entren sin desplazar la pantalla:
+     en piso el menú se abre de pie y con el cliente enfrente. */
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:11px; }
+  .tile { position:relative; background:#fff; border:1px solid #ececec; border-radius:18px;
+    padding:15px 7px 13px; display:flex; flex-direction:column; align-items:center; gap:9px;
     text-decoration:none; color:inherit; transition:transform .08s; }
-  .card:active { transform:scale(.985); }
-  .card .ic { width:52px; height:52px; border-radius:13px; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center; font-size:26px; }
-  .card h2 { font-size:16px; font-weight:700; }
-  .card p  { font-size:12.5px; color:#888; margin-top:3px; line-height:1.35; }
-  .card .arrow { margin-left:auto; color:#ccc; font-size:22px; flex-shrink:0; }
-  .card .ext { font-size:9px; font-weight:700; color:#bbb; text-transform:uppercase; letter-spacing:.5px; }
+  .tile:active { transform:scale(.97); }
+  .tile .ic { width:66px; height:66px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; flex-shrink:0; }
+  /* 3D del repo. El emoji de respaldo vive al lado y solo se muestra si la
+     imagen no llega: sin esto, la señal del centro comercial deja la cuadrícula
+     con seis huecos blancos y ningún indicio de qué es cada uno. */
+  .tile .ic img { width:52px; height:52px; display:block; }
+  .tile .ic .fb { display:none; font-size:30px; line-height:1; }
+  .tile .ic.sin-img img { display:none; }
+  .tile .ic.sin-img .fb { display:block; }
+  .tile span { font-size:12px; font-weight:800; text-align:center; line-height:1.25;
+    letter-spacing:-.2px; }
+  .tile .ext { position:absolute; top:9px; right:10px; font-size:11px; color:#c9c9c9;
+    font-weight:700; }
 
-  .c1 { border-left-color:var(--rojo); }      .c1 .ic { background:#fdeaea; }
-  .c2 { border-left-color:var(--azul); }       .c2 .ic { background:#eef3fb; }
-  .c3 { border-left-color:var(--naranja); }    .c3 .ic { background:#fff5ee; }
-  .c4 { border-left-color:var(--verde); }      .c4 .ic { background:#edfaf3; }
-  .c5 { border-left-color:#7c3aed; }           .c5 .ic { background:#f1ecfd; }
-  .c6 { border-left-color:#0e9594; }           .c6 .ic { background:#e6f7f7; }
-  .c-admin { border-left-color:#888; }          .c-admin .ic { background:#f5f5f5; }
+  /* El halo de color detrás del icono. Es lo que queda del código de color que
+     traían las tarjetas de lista: cada herramienta se reconoce por su tono
+     antes de leer el nombre. */
+  .c1 .ic { background:#fdeaea; }
+  .c2 .ic { background:#eef3fb; }
+  .c3 .ic { background:#fff5ee; }
+  .c4 .ic { background:#edfaf3; }
+  .c5 .ic { background:#f1ecfd; }
+  .c6 .ic { background:#e6f7f7; }
+  .c-admin .ic { background:#f2f2f3; }
 
-  footer { text-align:center; font-size:10px; color:#ccc; margin-top:18px; }
-  @media(max-width:400px){
-    .card { padding:15px 14px; gap:12px; }
-    .card .ic { width:44px; height:44px; font-size:22px; }
-    .card h2 { font-size:14px; }
+  footer { text-align:center; font-size:10px; color:#ccc; margin-top:22px; }
+  @media(max-width:370px){
+    .grid { gap:8px; }
+    .tile { padding:13px 4px 11px; border-radius:16px; }
+    .tile .ic { width:58px; height:58px; }
+    .tile .ic img { width:46px; height:46px; }
+    .tile span { font-size:11px; }
   }
 </style>
 </head>
@@ -261,11 +294,18 @@
       <p id="storeSub">---</p>
     </div>
     <span class="role-badge" id="roleBadge"></span>
-    <button class="btn-logout" onclick="doLogout()">Salir</button>
+    <div class="pop-wrap">
+      <button class="avatar" id="avatarBtn" onclick="togglePop(event)" aria-label="Tu cuenta">·</button>
+      <div class="pop" id="popCuenta">
+        <div class="p-nom" id="popNom">—</div>
+        <div class="p-rol" id="popRol">—</div>
+        <button class="btn-logout" onclick="doLogout()">Cerrar sesión</button>
+      </div>
+    </div>
   </header>
   <main>
     <p class="saludo">Elige una herramienta 👇</p>
-    <div id="menuCards"></div>
+    <div id="menuCards" class="grid"></div>
     <footer id="footerTxt">Odemás · Grupo Gigante — uso interno HES</footer>
   </main>
 </div>
@@ -287,20 +327,23 @@ const CARDS = [
   // Sin "resurtir" en la descripción: esa sección es de gerente y subgerente
   // (9-ago-2026), y anunciarla en el menú a todo el equipo sería ofrecer una
   // pantalla que la mayoría no va a encontrar al entrar.
-  { label:'Tablero / Inventario',       icon:'📊', href:'tablero.html',     cls:'c1', desc:'Existencias, precios, promos, apartados y EOL al 50%.' },
-  { label:'Comisiones y Extracoberturas', icon:'💰', href:'comisiones.html', cls:'c6', desc:'Venta por vendedor y avance de extracobertura, desde Sonar.' },
-  { label:'Captura de Series',           icon:'📷', href:'captura_series.html', cls:'c2', desc:'Escanea el N° de serie y registra la venta.' },
+  // `label` es el nombre corto que se lee bajo el icono; `desc` sigue aquí
+  // porque es el title= del enlace (se ve al dejar el dedo encima o en tablet).
+  // `img` es el 3D de ./iconos y `icon` el emoji de respaldo — ver .tile .ic.
+  { label:'Inventario',    img:'inventario.png', icon:'📊', href:'tablero.html',     cls:'c1', desc:'Existencias, precios, promos, apartados y EOL al 50%.' },
+  { label:'Comisiones',    img:'comisiones.png', icon:'💰', href:'comisiones.html', cls:'c6', desc:'Venta por vendedor y avance de extracobertura, desde Sonar.' },
+  { label:'Captura Series', img:'captura.png',   icon:'📷', href:'captura_series.html', cls:'c2', desc:'Escanea el N° de serie y registra la venta.' },
   /* Sales Arena decide QUÉ TIENDA es por la ruta de la URL, y sin ruta cae en
      la tienda de origen. Enlazado sin el número, cualquier tienda de esta copia
      entraba a practicar viendo el equipo de OTRA — con sus nombres. Por eso el
      href se arma abajo con el `store_id` de la sesión. */
-  { label:'Sales Arena',   icon:'🎯', href:'https://sales-arena-app.vercel.app', cls:'c5', desc:'Entrena tu venta por voz con un cliente IA.', ext:true, conTienda:true },
+  { label:'Sales Arena',   img:'arena.png',      icon:'🎯', href:'https://sales-arena-app.vercel.app', cls:'c5', desc:'Entrena tu venta por voz con un cliente IA.', ext:true, conTienda:true },
   // Vive también en el repo planeador-odemas (multi-tienda), pero aquí se sirve
   // una copia propia: dentro del scope de la PWA se abre sin salir de la app.
   // La copia se sincroniza desde 02_Equipo — ver la regla "copia" de verificar.py.
-  { label:'Horarios',      icon:'🗓️', href:'horarios.html', cls:'c3', desc:'Planeador semanal del equipo.' },
-  { label:'Promos Huawei', icon:'📡', href:'https://angeljesus8-blip.github.io/huawei-promos/', cls:'c4', desc:'Precios, descuentos y regalos vigentes en huawei.com/mx.', ext:true },
-  { label:'Admin', icon:'⚙️', href:'admin.html', cls:'c-admin', desc:'Actualiza catálogo, promos CEA, bundles y EOL.', soloGerente:true },
+  { label:'Horarios',      img:'horarios.png', icon:'🗓️', href:'horarios.html', cls:'c3', desc:'Planeador semanal del equipo.' },
+  { label:'Promos Huawei', img:'promos.png',   icon:'📣', href:'https://angeljesus8-blip.github.io/huawei-promos/', cls:'c4', desc:'Precios, descuentos y regalos vigentes en huawei.com/mx.', ext:true },
+  { label:'Admin', img:'admin.png', icon:'⚙️', href:'admin.html', cls:'c-admin', desc:'Actualiza catálogo, promos CEA, bundles y EOL.', soloGerente:true },
 ];
 
 /* El número de tienda pegado a una dirección de fuera. Sin él, esa app no sabe
@@ -324,10 +367,13 @@ function renderMenuCards(role) {
   const puedeAdmin = role === 'gerente' || !!(emp && emp.admin);
   const html = CARDS
     .filter(c => !c.soloGerente || puedeAdmin)
-    .map(c => `<a class="card ${c.cls}" href="${c.conTienda ? conTienda_(c.href) : c.href}"${c.ext?' target="_blank" rel="noopener"':''}>
-      <div class="ic">${c.icon}</div>
-      <div><h2>${c.label}${c.ext?'<span class="ext"> ↗ abre fuera</span>':''}</h2><p>${c.desc}</p></div>
-      <div class="arrow">›</div>
+    .map(c => `<a class="tile ${c.cls}" href="${c.conTienda ? conTienda_(c.href) : c.href}" title="${c.desc}"${c.ext?' target="_blank" rel="noopener"':''}>
+      ${c.ext?'<span class="ext">↗</span>':''}
+      <div class="ic">
+        <img src="./iconos/${c.img}" alt="" onerror="this.parentNode.classList.add('sin-img')">
+        <span class="fb">${c.icon}</span>
+      </div>
+      <span>${c.label}</span>
     </a>`).join('');
   document.getElementById('menuCards').innerHTML = html;
 }
@@ -376,6 +422,17 @@ function olvidarCachesDeOtraTienda(nuevoStoreId) {
   }
 }
 
+/* El globo de la cuenta. Se cierra al tocar fuera; si no, queda tapando la
+   primera fila de la cuadrícula y parece que la app se trabó. */
+function togglePop(ev) {
+  ev.stopPropagation();
+  document.getElementById('popCuenta').classList.toggle('on');
+}
+document.addEventListener('click', () => {
+  const p = document.getElementById('popCuenta');
+  if (p) p.classList.remove('on');
+});
+
 function applyStoreConfig(cfg, role) {
   document.getElementById('storeLabel').textContent = 'HES ' + cfg.store_id + ' · ' + cfg.nombre;
   // Si entró con su número de empleado, se le saluda por su nombre
@@ -397,6 +454,18 @@ function applyStoreConfig(cfg, role) {
   const badge = document.getElementById('roleBadge');
   badge.textContent = role === 'gerente' ? 'Gerente' : 'Asesor';
   badge.className = 'role-badge ' + (role === 'gerente' ? 'role-gerente' : 'role-asesor');
+
+  // Avatar y globo de cuenta. La inicial se normaliza antes de cortar: si el
+  // nombre llega descompuesto (A + acento suelto), charAt(0) se quedaría con la
+  // "A" pelona y el acento quedaría colgando en el siguiente carácter.
+  const nomCompleto = (emp && emp.nombre) ? emp.nombre.trim() : '';
+  const base = nomCompleto || cfg.nombre || 'HES';
+  document.getElementById('avatarBtn').textContent =
+    base.normalize('NFC').charAt(0).toUpperCase();
+  document.getElementById('popNom').textContent = nomCompleto || ('HES ' + cfg.store_id);
+  document.getElementById('popRol').textContent =
+    (role === 'gerente' ? 'Gerente' : 'Asesor') + ' · HES ' + cfg.store_id;
+
   renderMenuCards(role);
 }
 

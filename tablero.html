@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Tablero">
+<link rel="stylesheet" href="./estilo.css">
 <style>
   /* Montserrat desde el propio repo, NO del CDN de Google (8-ago-2026).
      En la tienda la señal falla, y con el CDN caído el tablero se dibujaba con
@@ -66,19 +67,7 @@
   }
   body { font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; padding-bottom:40px; }
 
-  /* ---------- Header ---------- */
-  header {
-    background:#fff; border-bottom:3px solid var(--rojo);
-    padding:14px 16px; display:flex; align-items:center; gap:12px;
-    position:sticky; top:0; z-index:30;
-  }
-  header .back { text-decoration:none; color:var(--rojo); font-size:30px; font-weight:700;
-    line-height:1; padding:0 6px 4px 0; display:flex; align-items:center; }
-  header img { height:34px; width:auto; }
-  .h-txt h1 { font-size:15px; font-weight:800; letter-spacing:-.2px; }
-  .h-txt p { font-size:11px; color:var(--gris); margin-top:1px; }
-  .updated { margin-left:auto; font-size:10px; color:#aaa; text-align:right; line-height:1.3; }
-  .updated b { color:var(--verde); display:block; font-size:11px; }
+  /* El encabezado es el común de estilo.css (.barra) desde el 22-sep-2026. */
   #liveWarning { display:none; align-items:flex-start; gap:10px; background:#fff5ee;
     border-left:4px solid var(--naranja); margin:0 16px 8px; border-radius:10px;
     padding:12px 14px; font-size:12px; line-height:1.5; }
@@ -91,7 +80,7 @@
   #liveWarning.err p { color:var(--rojo); }
 
   /* ---------- Buscador ---------- */
-  .search-wrap { position:sticky; top:64px; z-index:25; background:var(--bg); padding:12px 16px 6px; }
+  .search-wrap { position:sticky; top:63px; /* alto de .barra: 60 + 3 de la raya roja */ z-index:25; background:var(--bg); padding:12px 16px 6px; }
   .search { display:flex; align-items:center; gap:8px; background:#fff; border:1.5px solid var(--linea);
     border-radius:12px; padding:11px 14px; }
   .search:focus-within { border-color:var(--rojo); }
@@ -221,11 +210,14 @@
 
   .empty { text-align:center; color:#bbb; font-size:13px; padding:40px 20px; }
   footer { text-align:center; font-size:10px; color:#ccc; margin-top:24px; padding:0 16px; }
-  .promo-toolbar { display:flex; align-items:center; justify-content:space-between; padding:8px 16px 4px; }
-  .promo-toolbar span { font-size:12px; color:#aaa; font-weight:600; }
-  .promo-toolbar button { font-family:'Montserrat',sans-serif; font-size:12px; font-weight:700;
-    background:var(--rojo); color:#fff; border:none; border-radius:8px; padding:6px 13px; cursor:pointer; }
-  .promo-toolbar button:disabled { background:#ccc; }
+  .promo-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 16px 4px; }
+  .promo-toolbar span { font-size:var(--t-sm); color:var(--tinta-3); font-weight:600; }
+  /* Secundario (22-sep-2026): era un botón rojo sólido, lo más llamativo de
+     la pantalla, y lo que el asesor viene a ver es el precio, no recargar. */
+  .promo-toolbar button { font-family:inherit; font-size:var(--t-sm); font-weight:700; flex-shrink:0;
+    background:var(--superficie); color:var(--tinta-2); border:1.5px solid var(--linea);
+    border-radius:var(--r-sm); padding:7px 12px; cursor:pointer; }
+  .promo-toolbar button:disabled { opacity:.5; }
   @keyframes spin { to { transform:rotate(360deg); } }
   .promo-toolbar button.girando { animation:spin .7s linear infinite; }
   .btn-apartar { width:100%; margin-top:10px; border:none; border-radius:var(--r-sm);
@@ -304,16 +296,16 @@
 
   /* ---- Tarjetas de Inicio ---- */
   .ir-grid { display:flex; flex-direction:column; gap:10px; margin-bottom:4px; }
-  .ir-card { display:flex; align-items:center; gap:12px; width:100%; text-align:left;
-    background:#fff; border:1px solid var(--linea); border-radius:14px; padding:14px 15px;
-    font-family:inherit; cursor:pointer; }
-  .ir-card:active { transform:scale(.995); }
-  .ir-ico { width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
-    font-size:18px; flex-shrink:0; }
+  .ir-card { display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+    background:var(--superficie); border:1px solid var(--linea); border-radius:var(--r-md);
+    padding:12px 16px 12px 12px; font-family:inherit; cursor:pointer; box-shadow:var(--sombra); }
+  .ir-card:active { transform:scale(.99); }
+  .ir-card .mosaico { font-size:22px; }  /* el emoji de respaldo, si el PNG no carga */
   .ir-txt { flex:1; min-width:0; }
-  .ir-txt b { display:block; font-size:14px; font-weight:800; }
-  .ir-txt span { font-size:11.5px; color:#999; font-weight:600; }
-  .ir-n { font-size:20px; font-weight:800; flex-shrink:0; font-variant-numeric:tabular-nums; }
+  .ir-txt b { display:block; font-size:var(--t-lg); font-weight:800; color:var(--tinta); }
+  .ir-txt span { display:block; font-size:var(--t-sm); color:var(--tinta-3); font-weight:600; margin-top:2px; }
+  .ir-txt span.sub-alerta { color:var(--alerta); }
+  .ir-card .cifra { flex-shrink:0; }
 
   /* ---- Franja de avisos en Inicio ---- */
   .aviso-franja { background:#fff5ee; border:1.5px solid #f7c9a6; border-radius:12px;
@@ -506,15 +498,23 @@
 <body>
 <script src="./continuidad.js"></script>
 
-<header>
-  <a href="index.html" class="back" title="Menú">‹</a>
-  <img src="logo_odemas.png" alt="Odemás">
-  <div class="h-txt">
-    <h1>Tablero del Equipo</h1>
-    <p id="headerStoreSub">HES · ---</p>
+<header class="barra">
+  <a href="index.html" class="barra-volver" title="Menú" aria-label="Volver al menú">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </a>
+  <img class="barra-logo" src="logo_odemas.png" alt="Odemás">
+  <div class="barra-txt">
+    <h1 class="barra-titulo">Tablero</h1>
+    <p class="barra-sub" id="headerStoreSub">HES · ---</p>
   </div>
-  <div class="updated">Actualizado<b id="updated">—</b></div>
-  <button id="btnBell" onclick="activarNotifs()" title="Activar avisos push" style="background:none;border:none;cursor:pointer;padding:4px 4px;font-size:22px;line-height:1;color:#ddd;margin-left:2px;flex-shrink:0" aria-label="Notificaciones">🔔</button>
+  <!-- El estado del inventario. Lo escribe pintarEstado(); el texto de
+       #liveWarning le dice al asesor que espere a ver "En vivo" aquí. -->
+  <div class="estado" id="updated"><b>—</b></div>
+  <!-- Campana en SVG y no emoji: a un emoji no se le cambia el color, y
+       suscrito o no se veía igual de amarilla (22-sep-2026). -->
+  <button id="btnBell" class="barra-accion" onclick="activarNotifs()" title="Activar avisos push" aria-label="Notificaciones">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0" stroke-linecap="round"/></svg>
+  </button>
 </header>
 
 <div class="search-wrap">
@@ -702,7 +702,20 @@ function seccionVisible_(id){
   return id !== 'resurtir' || PUEDE_GESTIONAR;
 }
 
-document.getElementById('updated').innerHTML = '<span style="color:var(--naranja);font-weight:700">Sin confirmar</span>';
+/* El estado del inventario en el encabezado. Un solo lugar lo escribe: antes
+   eran cuatro, cada uno con su HTML y su color, y el de "en vivo" decía
+   "Live 02:25 p.m." partido en tres renglones. `clase` es el significado
+   (ok · atencion · alerta), no un color. */
+function pintarEstado(clase, titulo, detalle){
+  const el = document.getElementById('updated');
+  if(!el) return;
+  el.className = 'estado ' + clase;
+  // Escape propio y no esc(): esta función corre al cargar, antes de que
+  // exista `esc` (const, l. ~1013), y llamarla ahí revienta la página.
+  const x = s => String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  el.innerHTML = '<b>' + x(titulo) + '</b>' + x(detalle);
+}
+pintarEstado('atencion', 'Sin confirmar', '');
 document.getElementById('liveWarning').classList.add('visible');
 (function(){
   const el=document.getElementById('headerStoreSub'); if(el) el.textContent='HES '+TIENDA_ID+' · '+TIENDA_NOMBRE;
@@ -781,14 +794,19 @@ function tocarDia(){
    Supabase—. Nunca llegaron a aparecer en pantalla, y aun así había que
    mantener su filtro, su contador, su tarjeta y su rama del render.
    Si algún día hacen falta, se reconstruyen sabiendo de dónde salen los datos. */
+/* Un icono por sección, y es el 3D de iconos/ (22-sep-2026). Antes cada
+   tarjeta llevaba DOS emojis distintos —🔥 al lado y 💰 en el título— y un
+   color propio que no significaba nada: morado para apartados, azul para
+   resurtir. `emoji` solo aparece si el PNG no carga. El color del número lo
+   decide `cifraClase`, por lo que significa, no por la sección. */
 const FILTROS = [
-  { id:'promo',    label:'💰 Precios y promos', icono:'🔥', color:'var(--naranja)',
+  { id:'promo',    label:'Precios y promos', img:'t_promo.png', emoji:'🔥',
     sub:'Lo que se puede vender hoy y a qué precio' },
-  { id:'apartados', label:'📋 Apartados', icono:'📋', color:'#7c3aed',
+  { id:'apartados', label:'Apartados', img:'t_apartados.png', emoji:'📋',
     sub:'Pagados y pendientes de entregar' },
-  { id:'eol',      label:'🏷️ Vender al 50%', icono:'🏷️', color:'var(--verde)',
+  { id:'eol',      label:'Vender al 50%', img:'t_eol.png', emoji:'🏷️',
     sub:'Piezas de exhibición que ya se pueden rematar' },
-  { id:'resurtir', label:'🔄 Resurtir', icono:'🔄', color:'var(--azul)',
+  { id:'resurtir', label:'Resurtir', img:'t_resurtir.png', emoji:'🔄',
     sub:'Sin existencia — hay que pedir' },
 ];
 /* La pestaña se puede fijar desde fuera con #preventa. Lo usa Captura de Series
@@ -2516,20 +2534,31 @@ function render(){
        cada una dice a dónde lleva Y cuánto hay dentro, así que se ve de un
        vistazo dónde hay trabajo sin tener que entrar a mirar. */
     const cuentas = { promo:promoAct, apartados:cuenta('apartados'), eol:eolList, resurtir:resurtirN };
+    const apPendientes = APARTADOS.filter(a=>{const e=String(a.estatus||'').toLowerCase();
+                           return e!=='cancelado' && e!=='entregado';});
+    const apTarde = apPendientes.filter(a=>a.diasTarde>0).length;
     const subs = { promo:`${promoAct} con promo · ${sinPromoConPiezasN()} a precio regular`,
-                   apartados:(function(){
-                     const v=APARTADOS.filter(a=>{const e=String(a.estatus||'').toLowerCase();
-                       return e!=='cancelado' && e!=='entregado';});
-                     const t=v.filter(a=>a.diasTarde>0).length;
-                     return t ? `${v.length} por entregar · ⏰ ${t} con la fecha pasada`
-                              : `${v.length} pagados, pendientes de entregar`; })(),
+                   apartados: apTarde ? `${apPendientes.length} por entregar · ${apTarde} con la fecha pasada`
+                                      : `${apPendientes.length} pagados, pendientes de entregar`,
                    eol:'Piezas de exhibición al 50%',
                    resurtir:'Sin existencia — hay que pedir' };
+    /* El número se pinta por lo que SIGNIFICA (estilo.css, regla 1):
+       rojo si algo ya se pasó, ámbar si hay trabajo pendiente, tinta si solo
+       informa y gris si es cero. Antes cada sección tenía su color fijo, y un
+       "0 apartados" y un "3 con la fecha pasada" se veían igual de morados. */
+    const cifraClase = id => {
+      const n = cuentas[id] || 0;
+      if(!n) return 'cero';
+      if(id === 'apartados') return apTarde ? 'alerta' : '';
+      if(id === 'eol' || id === 'resurtir') return 'atencion';
+      return '';
+    };
+    const subClase = id => (id === 'apartados' && apTarde) ? ' class="sub-alerta"' : '';
     html += `<div class="ir-grid">` + FILTROS.filter(f=>seccionTieneItems(f.id) && seccionVisible_(f.id)).map(f=>`
       <button class="ir-card" onclick="irA('${f.id}')">
-        <span class="ir-ico" style="background:${f.color}1a">${f.icono}</span>
-        <span class="ir-txt"><b>${f.label}</b><span>${subs[f.id]||f.sub}</span></span>
-        <span class="ir-n" style="color:${(cuentas[f.id]||0)>0?f.color:'#ccc'}">${cuentas[f.id]||0}</span>
+        <span class="mosaico"><img src="./iconos/${f.img}" alt="" onerror="this.replaceWith(document.createTextNode('${f.emoji}'))"></span>
+        <span class="ir-txt"><b>${f.label}</b><span${subClase(f.id)}>${subs[f.id]||f.sub}</span></span>
+        <span class="cifra ${cifraClase(f.id)}">${cuentas[f.id]||0}</span>
       </button>`).join('') + `</div>`;
   }
   if(f==='eol'){
@@ -2718,24 +2747,24 @@ let _ultimaCarga = 0;      // ms de la última carga con éxito
 let _ultimoIntento = 0;    // ms del último intento (con o sin éxito)
 
 function pintarUpdated(){
-  const el = document.getElementById('updated');
-  if(!el) return;
   // Sin respuesta de la nube pero con inventario guardado: se muestra, diciendo
   // de cuándo es. Que nadie prometa una pieza creyendo que el dato es de hoy.
+  // El "confirma en sistema" lo dice el aviso naranja de abajo, que tiene
+  // espacio; aquí solo cabe la edad.
   if(!_invFecha && _invEdadHoras != null){
     const h = Math.round(_invEdadHoras);
     const txt = h < 1 ? 'hace un rato' : (h < 24 ? 'hace ' + h + ' h' : 'hace ' + Math.floor(h/24) + ' d');
-    const color = _invEdadHoras <= INV_HORAS_OK ? 'var(--naranja)' : 'var(--rojo)';
-    el.innerHTML = 'Guardado<b style="color:' + color + ';display:block;font-size:11px">● ' + txt + ' · confirma en sistema</b>';
+    pintarEstado(_invEdadHoras <= INV_HORAS_OK ? 'atencion' : 'alerta', 'Guardado', txt);
     return;
   }
   if(!_invFecha) return;
-  const t = _invFecha.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  // "2:43 p.m." y no "02:43 p.m.": el cero de adelante solo ocupa lugar.
+  const t = _invFecha.toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'});
   if(hoyISO(_invFecha) === HOY_ISO){
-    el.innerHTML = 'Live ' + t + '<b style="color:var(--verde);display:block;font-size:11px">● en vivo</b>';
+    pintarEstado('ok', 'En vivo', t);
   }else{
     const dia = _invFecha.toLocaleDateString('es-MX',{day:'numeric',month:'short'});
-    el.innerHTML = dia + ' ' + t + '<b style="color:var(--naranja);display:block;font-size:11px">● no es de hoy</b>';
+    pintarEstado('atencion', 'No es de hoy', dia + ' ' + t);
   }
 }
 
@@ -3331,7 +3360,7 @@ function actualizarCampana(){
     /* El SDK aún no terminó de cargar: se pinta como no suscrito, que es la
        lectura honesta hasta que conteste. */
   }
-  btn.style.color = suscrito ? 'var(--rojo)' : '#ddd';
+  btn.classList.toggle('activa', suscrito);
   btn.title = suscrito ? 'Avisos activados' : 'Activar avisos push';
 }
 
