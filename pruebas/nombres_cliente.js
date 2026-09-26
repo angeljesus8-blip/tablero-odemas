@@ -100,6 +100,39 @@ ok('se busca por «freebuds»', b.includes('freebuds'));
 ok('se busca por lo del catálogo («f-buds»)', b.includes('f-buds'));
 ok('se busca por el color', b.includes('verde'));
 
+/* ── Admin → 📦 Catálogo → «Nombres sin traducir» (22-sep-2026) ──
+   Se prueba la función DE admin.html (no una copia), con las reglas de
+   nombres.js y el catálogo de Captura. Lo que importa: que junte TODO lo
+   que `sinTraducir` anota —una abreviatura que se pierde aquí no se ve en
+   ningún otro sitio—, que cuente productos y no apariciones, y que sin
+   nombres.js lo diga (null) en vez de enseñar «todo traducido». */
+{
+  const admin = fs.readFileSync(path.join(__dirname, '..', 'admin.html'), 'utf8');
+  const fm = admin.match(/function sinTraducirDe\(descripciones\)\{[\s\S]*?\r?\n\}/);
+  ok('admin.html tiene sinTraducirDe', !!fm);
+  ok('admin.html carga nombres.js', /<script src="\.\/nombres\.js"><\/script>/.test(admin));
+  ok('Admin lee el catálogo de tablero_todo (la lectura pública del tablero)', /sb\.rpc\("tablero_todo"/.test(admin));
+  if(fm){
+    const vm = require('vm');
+    const con = vm.createContext({ nombreCliente });
+    vm.runInContext(fm[0], con);
+    const lista = vm.runInContext('sinTraducirDe', con)(descs.concat(descs, [null, '']));
+    const esperado = {};
+    for(const d of descs) for(const t of nombreCliente(d).sinTraducir) esperado[t] = (esperado[t] || 0) + 1;
+    const visto = Object.fromEntries(lista.map(x => [x.abrev, x.n]));
+    ok('Admin lista todas las abreviaturas sin traducir, contando productos (no repeticiones)',
+       JSON.stringify(Object.keys(esperado).sort().map(k => [k, esperado[k]])) ===
+       JSON.stringify(Object.keys(visto).sort().map(k => [k, visto[k]])),
+       JSON.stringify(visto));
+    ok('y de más productos a menos', lista.every((x, i) => !i || lista[i - 1].n >= x.n));
+    ok('cada una con un ejemplo real del catálogo', lista.every(x => descs.includes(x.ejemplos[0])));
+    const sin = vm.createContext({});
+    vm.runInContext(fm[0], sin);
+    ok('sin nombres.js dice «no sé» (null), no «todo traducido»',
+       vm.runInContext('sinTraducirDe', sin)(descs) === null);
+  }
+}
+
 if(fallos.length){
   console.log('nombres: ' + fallos.length + ' fallo(s)');
   fallos.slice(0, 15).forEach(f => console.log('   · ' + f));

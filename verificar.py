@@ -1015,7 +1015,7 @@ def r_precache():
 # Los topes son los de ESTA copia (26-sep-2026, al traer la regla de la 1217),
 # contados sobre sus páginas: no los de allá, que tenían Mr Fix y el concurso.
 PALETA_TOPE = {
-    'index.html': 34, 'tablero.html': 70, 'captura_series.html': 64,
+    'index.html': 34, 'tablero.html': 70, 'captura_series.html': 12,
     'admin.html': 49, 'horarios.html': 41, 'comisiones.html': 23,
     'actualizar_datos.html': 20,
     'estilo.css': 19,
@@ -1114,7 +1114,7 @@ def r_pruebas():
                'comisiones_privadas.js', 'registro_invitacion.js',
                'ventas_dia_seguro.js', 'lector_etiqueta.js',
                'venta_borrar.js', 'venta_quien.js', 'pantalla_390.js',
-               'nombres_cliente.js')
+               'nombres_cliente.js', 'captura_nombres_seguro.js')
 
     # La lista de arriba es explícita a propósito —así falta un archivo y se
     # nota—, pero eso deja el hueco contrario: una prueba escrita y no añadida

@@ -10,16 +10,11 @@
 <title>Captura de Series · Odemás</title>
 <link rel="apple-touch-icon" href="logo_odemas.png">
 <link rel="manifest" href="manifest.json">
-<style>
-  /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
-     de la tienda fallando, el CDN caído dibujaba la app con la letra del
-     sistema y todo se descuadraba sin avisar. Ver tablero.html. */
-  @font-face{
-    font-family:'Montserrat';
-    src:url('./fuentes/Montserrat.woff2') format('woff2');
-    font-weight:400 800; font-display:swap;
-  }
-</style>
+<!-- Estilo común (22-sep-2026, fase 4 del rediseño): tokens de color, letra
+     Montserrat desde el repo (nunca del CDN: sin señal dibujaba con otra
+     letra) y el encabezado `.barra`. Va ANTES del <style> de esta página para
+     que lo propio de Captura pueda afinarlo. -->
+<link rel="stylesheet" href="./estilo.css">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script type="module">
   // Decodificador potente (ZXing-WASM) que localiza el código en fotos reales, también en iPhone
@@ -30,67 +25,72 @@
 </script>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  :root{ --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e;
-    --gris:#777; --linea:#ececec; --bg:#f6f6f7; }
-  body{ font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; padding-bottom:120px; }
+  /* ── Colores propios de Captura (22-sep-2026, fase 4) ────────────────
+     Los de marca y los de significado (--ok, --atencion, --alerta, --info,
+     --tinta-*) vienen de estilo.css. Aquí solo lo que es de ESTA pantalla y
+     dice algo: el ámbar de los avisos (`--oro`, nombre heredado de la 1217,
+     donde también es el concurso) y el morado de la preventa. En la 1217 eran
+     84 colores sueltos; un tono nuevo se agrega aquí con
+     nombre, o no se agrega — `verificar.py` (regla «paleta») no deja subir. */
+  :root{
+    --apagado:#cfcfcf;          /* lo ya hecho o deshabilitado */
+    --borde:#dddddd;            /* borde de un campo que se escribe */
+    --ok-borde:#bfe7cd; --atencion-borde:#f7c9a6; --info-borde:#cfe0f3;
+    --oro:#8a6608; --oro-bg:#fdf4e0;
+    --preventa:#7c3aed; --preventa-bg:#f3effe; --preventa-tinta:#4c1d95;
+  }
+  body{ font-family:'Montserrat',sans-serif; background:var(--fondo); color:var(--tinta); padding-bottom:120px; }
 
-  header{ background:#fff; border-bottom:3px solid var(--rojo); padding:12px 16px;
-    display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:30; }
-  /* Faltaba desde siempre: esta pantalla no tenía forma de volver al menú y se
-     salía solo con el botón atrás del teléfono. Se notó el 8-ago-2026, cuando
-     `continuidad.js` empezó a devolver a la última pantalla — sin un enlace al
-     menú, no había dónde tocar para decirle «ya terminé aquí». */
-  header .back{ text-decoration:none; color:var(--rojo); font-size:30px; font-weight:700;
-    line-height:1; padding:0 6px 4px 0; display:flex; align-items:center; }
-  header img{ height:32px; width:auto; }
-  .h-txt h1{ font-size:15px; font-weight:800; letter-spacing:-.2px; }
-  .h-txt p{ font-size:11px; color:var(--gris); margin-top:1px; }
-  .count{ margin-left:auto; text-align:right; }
-  .count .n{ font-size:22px; font-weight:800; color:var(--rojo); line-height:1; }
-  .count .l{ font-size:9px; color:#aaa; text-transform:uppercase; letter-spacing:.5px; }
+  /* El encabezado es el común de estilo.css (`.barra`) desde el 22-sep-2026.
+     Aquí solo el contador de la derecha. Antes traía uno propio de 3 renglones
+     posibles; el «‹» para volver al menú (8-ago-2026: sin él solo se salía con
+     el atrás del teléfono) ahora es `.barra-volver`, igual que en el tablero. */
+  .barra-cuenta{ flex-shrink:0; text-align:right; line-height:1.1; }
+  /* En tinta y no en rojo (estilo.css, regla 1): el número solo informa. En
+     rojo parecía una alerta cada vez que alguien capturaba. */
+  .barra-cuenta .cifra{ display:block; line-height:1; }
+  .barra-cuenta span{ font-size:var(--t-xs); font-weight:700; color:var(--tinta-3);
+    text-transform:uppercase; letter-spacing:.5px; }
 
   main{ max-width:560px; margin:0 auto; padding:14px 16px 0; }
 
-  .scan-hint{ text-align:center; font-size:11px; color:var(--gris); margin:11px 0 0; }
+  .scan-hint{ text-align:center; font-size:11px; color:var(--tinta-2); margin:11px 0 0; }
   .card-captura{ padding-top:13px; }
   .cap-foto{ display:flex; gap:8px; margin-top:9px; }
 
-  /* ── Las cuatro pestañas ──────────────────────────────────────────
+  /* ── Las pestañas ─────────────────────────────────────────────────
      Con nombre y no con iconos: un icono sin etiqueta se aprende probando, y
-     con el cliente enfrente nadie prueba. El concurso enseña además los días
-     que le quedan, porque un concurso escondido no compite. */
+     con el cliente enfrente nadie prueba. */
   .tabs{ background:#fff; border-bottom:1px solid var(--linea); padding:0 12px;
-    display:flex; gap:18px; position:sticky; top:64px; z-index:22; overflow-x:auto;
+    display:flex; gap:18px; position:sticky; top:63px; z-index:22; overflow-x:auto;
     -webkit-overflow-scrolling:touch; scrollbar-width:none; }
   .tabs::-webkit-scrollbar{ display:none; }
   .tab{ background:none; border:none; font-family:inherit; font-size:13.5px; font-weight:700;
-    color:#7a7a7a; padding:13px 2px 11px; border-bottom:3px solid transparent; cursor:pointer;
+    color:var(--tinta-2); padding:13px 2px 11px; border-bottom:3px solid transparent; cursor:pointer;
     white-space:nowrap; min-height:46px; display:flex; align-items:center; gap:6px; }
   .tab.on{ color:var(--rojo); font-weight:800; border-bottom-color:var(--rojo); }
-  .tab-dias{ background:#fdf4e0; color:#8a6608; border-radius:7px; padding:2px 6px;
-    font-size:9.5px; font-weight:800; }
   /* El candado ocupa el sitio de «Ventas» cuando no hay permiso: sin esto la
      fila de pestañas cambia de ancho según quién entre, y la pestaña de al
      lado se mueve de sitio entre una sesión y otra. */
   .tab-lock{ display:none; align-items:center; font-size:13px; font-weight:700;
-    color:#bdbdbd; padding:13px 2px 11px; white-space:nowrap; }
+    color:var(--tinta-3); padding:13px 2px 11px; white-space:nowrap; }
 
   /* ── Los tres pasos ── */
   .pasos{ margin-bottom:14px; }
   .pasos-barra{ display:flex; gap:7px; }
   .pb{ flex:1; height:5px; border-radius:3px; background:var(--linea); transition:.2s; }
   .pb.on{ background:var(--rojo); }
-  .pb.hecho{ background:#178046; }
+  .pb.hecho{ background:var(--ok); }
   .pasos-lbl{ display:flex; justify-content:space-between; margin-top:6px; }
-  .pasos-lbl span{ font-size:10.5px; font-weight:700; color:#9a9a9a; letter-spacing:.4px; }
+  .pasos-lbl span{ font-size:10.5px; font-weight:700; color:var(--tinta-3); letter-spacing:.4px; }
   .pasos-lbl span.on{ color:var(--rojo); font-weight:800; }
-  .pasos-lbl span.hecho{ color:#178046; }
+  .pasos-lbl span.hecho{ color:var(--ok); }
 
   .paso-t{ font-size:22px; font-weight:800; letter-spacing:-.6px; line-height:1.2; margin:0; }
-  .paso-s{ font-size:13px; color:#5f5f5f; line-height:1.5; margin:8px 0 0; }
+  .paso-s{ font-size:13px; color:var(--tinta-2); line-height:1.5; margin:8px 0 0; }
   .paso2-cab{ display:flex; align-items:center; gap:8px; margin-bottom:14px; }
-  .volver{ background:#f2f2f4; border:none; border-radius:11px; width:38px; height:38px;
-    font-size:22px; font-weight:700; color:#555; cursor:pointer; line-height:1; flex-shrink:0; }
+  .volver{ background:var(--linea); border:none; border-radius:11px; width:38px; height:38px;
+    font-size:22px; font-weight:700; color:var(--tinta-2); cursor:pointer; line-height:1; flex-shrink:0; }
 
   /* La foto es la acción del paso 1 y aquí SÍ es sólida: es lo único que se
      puede hacer en esta pantalla. En el paso 2 el sólido es «Agregar».
@@ -100,7 +100,7 @@
      día: 230 px enseñando algo que no pasa, y con ellos la lista del día
      cabe sin desplazar la pantalla.) */
   .btn-foto{ background:var(--rojo); color:#fff; margin-top:18px; font-size:16.5px; padding:18px; }
-  .vend-seguros{ margin-left:10px; font-size:11.5px; font-weight:700; color:#178046; }
+  .vend-seguros{ margin-left:10px; font-size:11.5px; font-weight:700; color:var(--ok); }
 
   .btn{ width:100%; border:none; font-family:inherit; font-weight:700; font-size:15px;
     padding:14px; border-radius:12px; cursor:pointer; transition:.12s; display:flex;
@@ -121,122 +121,128 @@
      Y `Agregar` sigue VERDE, no rojo de marca: lleva meses en piso siendo
      verde, y en un botón el rojo también se lee como «cuidado». Cambiárselo
      al asesor no arreglaba nada que estuviera roto. */
-  .btn-cam{ background:#fdeaea; color:var(--rojo); }
-  /* Un punto más oscuro que `--verde` y sólo aquí: el blanco sobre el verde de
-     la variable daba 4.28:1 y ahora da 4.99:1. La variable no se toca porque
-     la usan los textos y las insignias de toda la pantalla, donde el verde va
-     sobre blanco y ahí el problema no existe. */
-  .btn-add{ background:#178046; color:#fff; }
-  .btn-ghost{ background:#fff; color:#555; border:1.5px solid var(--linea); }
+  .btn-cam{ background:var(--alerta-bg); color:var(--rojo); }
+  /* Blanco sobre `--ok` de estilo.css: 5.39:1 (medido el 22-sep-2026). El
+     verde viejo de esta página daba 4.28 y por eso el botón llevó un tono
+     propio (4.99); con el token común ya no hace falta. */
+  .btn-add{ background:var(--ok); color:#fff; }
+  .btn-ghost{ background:#fff; color:var(--tinta-2); border:1.5px solid var(--linea); }
 
   .card{ background:#fff; border:1px solid var(--linea); border-radius:14px; padding:15px; margin-top:12px; }
   .field{ margin-bottom:11px; }
   .field:last-child{ margin-bottom:0; }
-  .field label{ font-size:11px; font-weight:700; color:#888; text-transform:uppercase;
+  .field label{ font-size:11px; font-weight:700; color:var(--tinta-2); text-transform:uppercase;
     letter-spacing:.5px; display:block; margin-bottom:5px; }
   .field input{ width:100%; font-family:inherit; font-size:15px; padding:11px 13px;
-    border:1.5px solid var(--linea); border-radius:10px; outline:none; background:#fafafa; }
+    border:1.5px solid var(--linea); border-radius:10px; outline:none; background:var(--fondo); }
   .field input:focus{ border-color:var(--rojo); background:#fff; }
   .field select{ width:100%; font-family:inherit; font-size:15px; padding:11px 38px 11px 13px;
-    border:1.5px solid var(--linea); border-radius:10px; outline:none; background-color:#fafafa; color:#1a1a1a;
+    border:1.5px solid var(--linea); border-radius:10px; outline:none; background-color:var(--fondo); color:var(--tinta);
     -webkit-appearance:none; appearance:none;
     background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23777' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
     background-repeat:no-repeat; background-position:right 13px center; }
   .field select:focus{ border-color:var(--rojo); background-color:#fff; }
-  .field select.unset{ color:#aaa; }
+  .field select.unset{ color:var(--tinta-3); }
   .field.serie input{ font-weight:700; font-size:17px; letter-spacing:.5px; color:var(--rojo); }
-  .field.serie input::placeholder{ color:#ddd; font-weight:400; letter-spacing:0; }
+  .field.serie input::placeholder{ color:var(--borde); font-weight:400; letter-spacing:0; }
   .row2{ display:flex; gap:10px; }
   .row2 .field{ flex:1; }
 
   .lista-head{ display:flex; align-items:center; justify-content:space-between; margin:22px 4px 8px; }
-  .lista-head h2{ font-size:12px; font-weight:800; color:#999; text-transform:uppercase; letter-spacing:1px; }
+  .lista-head h2{ font-size:12px; font-weight:800; color:var(--tinta-3); text-transform:uppercase; letter-spacing:1px; }
   .lista-head button{ background:none; border:none; font-family:inherit; font-size:11px;
     font-weight:700; color:var(--rojo); cursor:pointer; }
 
-  .item{ background:#fff; border:1px solid var(--linea); border-left:4px solid var(--verde);
+  .item{ background:#fff; border:1px solid var(--linea); border-left:4px solid var(--ok);
     border-radius:11px; padding:11px 13px; margin-bottom:8px; display:flex; align-items:center; gap:10px; }
-  .item.dup{ border-left-color:var(--naranja); background:#fffaf4; }
+  .item.dup{ border-left-color:var(--naranja); background:var(--atencion-bg); }
   .item-info{ flex:1; min-width:0; }
   .item-info .serie{ font-size:14px; font-weight:800; letter-spacing:.3px; word-break:break-all; }
-  .item-info .sub{ font-size:11px; color:#999; margin-top:2px; }
+  .item-info .sub{ font-size:11px; color:var(--tinta-3); margin-top:2px; }
   .item-info .sub b{ color:var(--azul); font-weight:700; }
-  .item-del{ background:#fdeaea; color:var(--rojo); border:none; width:32px; height:32px;
+  .item-del{ background:var(--alerta-bg); color:var(--rojo); border:none; width:32px; height:32px;
     border-radius:8px; font-size:18px; font-weight:700; cursor:pointer; flex-shrink:0; line-height:1; }
-  .dup-tag{ font-size:9px; font-weight:800; color:var(--naranja); background:#fff5ee;
+  .dup-tag{ font-size:9px; font-weight:800; color:var(--naranja); background:var(--atencion-bg);
     padding:2px 6px; border-radius:5px; margin-left:6px; }
 
   /* Venta abierta (20-ago-2026) */
   .venta-abierta{ display:none; align-items:center; gap:10px; margin-top:10px;
-    padding:10px 12px; border-radius:10px; background:#eaf7ee;
-    border:1.5px solid var(--verde); font-size:13px; color:#1c6b34; font-weight:700; }
+    padding:10px 12px; border-radius:10px; background:var(--ok-bg);
+    border:1.5px solid var(--ok); font-size:13px; color:var(--ok); font-weight:700; }
   .venta-abierta.show{ display:flex; }
   .venta-abierta span{ flex:1; }
-  .venta-abierta button{ background:var(--verde); color:#fff; border:none;
+  .venta-abierta button{ background:var(--ok); color:#fff; border:none;
     border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:800;
     font-family:inherit; cursor:pointer; white-space:nowrap; }
-  .recon-warn{ display:none; background:#fff5ee; color:#a8480f; border:1.5px solid #f7c9a6;
+  .recon-warn{ display:none; background:var(--atencion-bg); color:var(--atencion); border:1.5px solid var(--atencion-borde);
     border-radius:10px; padding:9px 12px; font-size:12.5px; font-weight:600; margin:2px 0 10px; line-height:1.4; }
   .recon-warn.show{ display:block; }
-  .field.bad input{ border-color:var(--naranja); background:#fff8f3; }
-  .promo-badge{ display:none; margin:-4px 0 10px; background:#eafaf1; color:#13703c; border:1.5px solid #bfe7cd;
+  .field.bad input{ border-color:var(--naranja); background:var(--atencion-bg); }
+  .promo-badge{ display:none; margin:-4px 0 10px; background:var(--ok-bg); color:var(--ok); border:1.5px solid var(--ok-borde);
     border-radius:9px; padding:7px 11px; font-size:12.5px; font-weight:800; }
   .promo-badge.show{ display:block; }
-  .promo-badge s{ color:#999; font-weight:600; }
+  /* El nombre para el cliente, debajo de la descripción del sistema. */
+  .desc-cliente{ font-size:var(--t-md); font-weight:700; color:var(--tinta); margin-top:6px; line-height:1.35; }
+  .desc-cliente:empty{ display:none; }
+  .item-info .item-nom{ font-size:12.5px; font-weight:700; color:var(--tinta); margin-top:2px; line-height:1.35; }
+  .vd-nom{ font-size:12.5px; font-weight:700; color:var(--tinta); margin-top:3px; line-height:1.35; }
+  .vd-fila.hecha .vd-nom{ color:var(--apagado); }
+  .vd-det .vd-sis{ font-family:ui-monospace,monospace; font-size:10.5px; }
+  .promo-badge s{ color:var(--tinta-3); font-weight:600; }
 
   /* ---- Ver la foto de una captura ---- */
   /* La pieza de exhibición de un EOL (17-ago-2026). Naranja y no verde: es una
      excepción que el asesor declara, no un estado normal de la venta. */
   .exh-check{ display:none; align-items:center; gap:10px; margin-top:10px;
     padding:11px 12px; border-radius:10px; border:1.5px solid var(--naranja);
-    background:#fff6ee; font-size:13.5px; color:#8a4b1f; cursor:pointer; }
+    background:var(--atencion-bg); font-size:13.5px; color:var(--atencion); cursor:pointer; }
   .exh-check.show{ display:flex; }
   .exh-check input{ width:20px; height:20px; flex:none; accent-color:var(--naranja); }
   .vd-lupa{ background:none; border:none; font-size:17px; padding:0 8px; cursor:pointer;
     line-height:1; flex-shrink:0; }
   /* Corregir una venta (17-ago-2026) */
-  .ed-l{ display:block; font-size:12px; font-weight:700; color:var(--gris);
+  .ed-l{ display:block; font-size:12px; font-weight:700; color:var(--tinta-2);
     margin:12px 0 4px; text-transform:uppercase; letter-spacing:.03em; }
-  .ed-i{ width:100%; padding:11px 12px; border:1.5px solid #ddd; border-radius:9px;
-    font-size:15px; font-family:inherit; background:#fff; color:#222; }
+  .ed-i{ width:100%; padding:11px 12px; border:1.5px solid var(--borde); border-radius:9px;
+    font-size:15px; font-family:inherit; background:#fff; color:var(--tinta); }
   .ed-i:focus{ outline:none; border-color:var(--azul); }
-  .ed-n{ font-size:11.5px; color:var(--gris); line-height:1.45; margin:5px 0 0; }
+  .ed-n{ font-size:11.5px; color:var(--tinta-2); line-height:1.45; margin:5px 0 0; }
   .ed-seg{ display:flex; gap:8px; }
   .ed-seg button{ flex:1; padding:11px 8px; border-radius:9px; font-size:14px;
-    font-weight:700; font-family:inherit; cursor:pointer; border:1.5px solid #ddd;
-    background:#fff; color:#777; }
-  .ed-seg button.on{ border-color:var(--verde); background:#eaf7ee; color:#1c6b34; }
-  .ed-seg button.on.no{ border-color:var(--gris); background:#f0f0f0; color:#555; }
+    font-weight:700; font-family:inherit; cursor:pointer; border:1.5px solid var(--borde);
+    background:#fff; color:var(--tinta-2); }
+  .ed-seg button.on{ border-color:var(--ok); background:var(--ok-bg); color:var(--ok); }
+  .ed-seg button.on.no{ border-color:var(--tinta-2); background:var(--linea); color:var(--tinta-2); }
   /* Botón discreto para abrir el ticket desde una lista, sin robarle peso a la
      fila. Mismo aspecto que el de la pantalla del técnico de Mr Fix, que hace
      lo mismo sobre los mismos datos. */
-  .lupa{ background:none; border:1.5px solid #ddd; border-radius:7px; cursor:pointer;
-    font-size:11px; padding:3px 8px; color:var(--gris); white-space:nowrap;
+  .lupa{ background:none; border:1.5px solid var(--borde); border-radius:7px; cursor:pointer;
+    font-size:11px; padding:3px 8px; color:var(--tinta-2); white-space:nowrap;
     font-family:inherit; }
   .foto-modal{ position:fixed; inset:0; z-index:300; background:rgba(0,0,0,.72);
     display:flex; align-items:center; justify-content:center; padding:16px; }
   .foto-box{ background:#fff; border-radius:14px; max-width:560px; width:100%;
     max-height:88vh; display:flex; flex-direction:column; overflow:hidden; }
   .foto-head{ display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:12px 14px; border-bottom:1px solid #eee; }
+    padding:12px 14px; border-bottom:1px solid var(--linea); }
   .foto-head b{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px; letter-spacing:.3px; }
-  .foto-head button{ background:none; border:none; font-size:19px; color:#aaa; cursor:pointer; line-height:1; }
-  .foto-cuerpo{ padding:12px; overflow:auto; text-align:center; font-size:13px; color:#777; }
+  .foto-head button{ background:none; border:none; font-size:19px; color:var(--tinta-3); cursor:pointer; line-height:1; }
+  .foto-cuerpo{ padding:12px; overflow:auto; text-align:center; font-size:13px; color:var(--tinta-2); }
   /* La foto se mira para leer una serie: tiene que poder ampliarse, no caber
      bonito. Por eso el contenedor hace scroll en vez de encogerla. */
   .foto-cuerpo img{ max-width:100%; height:auto; border-radius:8px; display:block; margin:0 auto; }
 
   /* ---- Modo preventa (llega desde el tablero con ?apartado=) ---- */
-  .ap-modo{ border:2px solid #7c3aed; }
-  .ap-modo-t{ font-size:15px; font-weight:800; color:#7c3aed; line-height:1.3; }
-  .ap-modo-s{ font-size:12.5px; color:#666; font-weight:600; margin-top:4px; line-height:1.45; }
+  .ap-modo{ border:2px solid var(--preventa); }
+  .ap-modo-t{ font-size:15px; font-weight:800; color:var(--preventa); line-height:1.3; }
+  .ap-modo-s{ font-size:12.5px; color:var(--tinta-2); font-weight:600; margin-top:4px; line-height:1.45; }
   /* La serie asignada, monoespaciada: se compara dígito a dígito contra la
      etiqueta de la caja, y en proporcional el 0/O y el 1/I se confunden. */
   .ap-modo-serie{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; font-weight:700;
-    background:#f3effe; color:#4c1d95; border-radius:8px; padding:8px 11px; margin-top:10px; letter-spacing:.4px; }
+    background:var(--preventa-bg); color:var(--preventa-tinta); border-radius:8px; padding:8px 11px; margin-top:10px; letter-spacing:.4px; }
 
-  .empty{ text-align:center; color:#bbb; font-size:13px; padding:30px 20px; }
-  .hist-note{ text-align:center; font-size:11px; color:#aaa; margin:10px 4px 0; line-height:1.5; }
+  .empty{ text-align:center; color:var(--tinta-3); font-size:13px; padding:30px 20px; }
+  .hist-note{ text-align:center; font-size:11px; color:var(--tinta-3); margin:10px 4px 0; line-height:1.5; }
   .hist-note b{ color:var(--azul); }
 
   .footbar{ position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--linea);
@@ -251,50 +257,42 @@
   /* En tinte desde el 21-sep-2026: la barra de abajo son HERRAMIENTAS, no
      acciones de esta pantalla — se va a ellas, no se hace algo aquí. El único
      botón sólido es el de agregar la venta. */
-  .btn-csv{ background:#eef3fa; color:var(--azul); flex:1; }
-  .lock-msg{ flex:1; text-align:center; font-size:12.5px; color:var(--gris); font-weight:600;
-    padding:13px; background:#f6f6f7; border-radius:12px; }
+  .btn-csv{ background:var(--info-bg); color:var(--azul); flex:1; }
+  .lock-msg{ flex:1; text-align:center; font-size:12.5px; color:var(--tinta-2); font-weight:600;
+    padding:13px; background:var(--fondo); border-radius:12px; }
   .lock-msg b{ color:var(--rojo); }
 
   .toast{ position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(20px);
-    background:#222; color:#fff; font-size:13px; font-weight:600; padding:11px 18px; border-radius:24px;
+    background:var(--tinta); color:#fff; font-size:13px; font-weight:600; padding:11px 18px; border-radius:24px;
     opacity:0; transition:.25s; z-index:50; pointer-events:none; white-space:nowrap; }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-  .toast.ok{ background:var(--verde); }
+  .toast.ok{ background:var(--ok); }
   .toast.warn{ background:var(--naranja); }
 
-  footer{ text-align:center; font-size:10px; color:#ccc; margin-top:20px; }
+  footer{ text-align:center; font-size:10px; color:var(--apagado); margin-top:20px; }
 
   /* ---------- Pantalla de inicio (selección de vendedor) ---------- */
-  #gate{ position:fixed; inset:0; z-index:100; background:#fff; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; padding:24px 22px calc(24px + env(safe-area-inset-bottom));
-    text-align:center; }
+  /* El gate tapa la pantalla entera (z-index 100), así que lleva SU PROPIO
+     encabezado `.barra` con el «‹»: sin él, quien entra por equivocación se
+     queda sin salida hasta elegir un nombre. */
+  #gate{ position:fixed; inset:0; z-index:100; background:var(--superficie); overflow-y:auto; }
   #gate.hide{ display:none; }
-  /* El gate tapa la cabecera entera (z-index 100), así que el «‹» del header no
-     se ve y quien entra por equivocación se queda sin salida hasta elegir un
-     nombre. Va aquí su propio enlace, arriba a la izquierda y en el mismo sitio
-     donde está en las demás pantallas. */
-  .gate-back{ position:absolute; top:calc(10px + env(safe-area-inset-top)); left:12px;
-    text-decoration:none; color:var(--rojo); font-size:30px; font-weight:700; line-height:1;
-    padding:4px 12px 8px; display:flex; align-items:center; }
-  .gate-logo{ height:46px; width:auto; margin-bottom:18px; }
-  .gate-title{ font-size:24px; font-weight:800; letter-spacing:-.4px; }
-  .gate-title::first-line{ }
-  .gate-sub{ font-size:12px; color:var(--gris); font-weight:600; letter-spacing:.5px; margin-top:4px; }
-  .gate-q{ font-size:14px; font-weight:700; color:#444; margin:28px 0 14px; }
+  .gate-cuerpo{ display:flex; flex-direction:column; align-items:center; text-align:center;
+    padding:32px 22px calc(24px + env(safe-area-inset-bottom)); }
+  .gate-q{ font-size:var(--t-xl); font-weight:800; letter-spacing:-.3px; color:var(--tinta); margin:0 0 18px; }
   .gate-names{ width:100%; max-width:360px; display:flex; flex-direction:column; gap:10px; }
-  .gate-name{ width:100%; font-family:inherit; font-size:17px; font-weight:700; color:#1a1a1a;
+  .gate-name{ width:100%; font-family:inherit; font-size:17px; font-weight:700; color:var(--tinta);
     background:#fff; border:1.5px solid var(--linea); border-radius:13px; padding:15px; cursor:pointer;
     transition:.12s; }
   .gate-name:active{ transform:scale(.985); }
   .gate-name.saved{ border-color:var(--rojo); color:var(--rojo); box-shadow:0 2px 10px rgba(209,32,38,.08); }
-  .gate-name .yo{ font-size:11px; font-weight:700; color:#aaa; margin-left:6px; }
+  .gate-name .yo{ font-size:11px; font-weight:700; color:var(--tinta-3); margin-left:6px; }
 
   /* Barra de vendedor en la pantalla de captura */
-  .vendbar{ position:sticky; top:64px; z-index:20; display:flex; align-items:center; justify-content:space-between;
-    background:#fff; border-bottom:1px solid var(--linea); padding:8px 16px; font-size:13px; color:#555; }
-  .vendbar b{ color:#1a1a1a; font-weight:700; }
-  .vendbar button{ background:#fdeaea; color:var(--rojo); border:none; font-family:inherit; font-size:12px;
+  .vendbar{ position:sticky; top:63px; z-index:20; display:flex; align-items:center; justify-content:space-between;
+    background:#fff; border-bottom:1px solid var(--linea); padding:8px 16px; font-size:13px; color:var(--tinta-2); }
+  .vendbar b{ color:var(--tinta); font-weight:700; }
+  .vendbar button{ background:var(--alerta-bg); color:var(--rojo); border:none; font-family:inherit; font-size:12px;
     font-weight:700; padding:6px 12px; border-radius:8px; cursor:pointer; }
 
   /* ---- Modal seguro Assurant ---- */
@@ -316,17 +314,17 @@
   .vd-top{ padding:16px 18px 12px; border-bottom:1px solid var(--linea);
     display:flex; align-items:center; gap:10px; }
   .vd-top h2{ font-size:16px; font-weight:800; flex:1; }
-  .vd-top .n{ font-size:12px; color:var(--gris); font-weight:700; }
-  .vd-cerrar{ background:none; border:none; font-size:26px; color:#bbb;
+  .vd-top .n{ font-size:12px; color:var(--tinta-2); font-weight:700; }
+  .vd-cerrar{ background:none; border:none; font-size:26px; color:var(--tinta-3);
     cursor:pointer; line-height:1; padding:0 4px; }
   /* Barra de días: las series no siempre se suben el mismo día que se venden,
      así que tiene que poder regresarse. Adelante de hoy no hay nada que ver. */
   .vd-nav{ display:flex; align-items:center; gap:8px; padding:9px 12px;
-    border-bottom:1px solid var(--linea); background:#fafafa; }
+    border-bottom:1px solid var(--linea); background:var(--fondo); }
   .vd-nav > button{ background:#fff; border:1px solid var(--linea); border-radius:9px;
     width:38px; height:34px; font-size:19px; line-height:1; color:var(--azul);
     cursor:pointer; flex:none; }
-  .vd-nav > button:disabled{ color:#dadada; cursor:default; background:#f7f7f8; }
+  .vd-nav > button:disabled{ color:var(--apagado); cursor:default; background:var(--fondo); }
   .vd-dia{ flex:1; text-align:center; display:flex; flex-direction:column;
     align-items:center; gap:1px; min-width:0; }
   .vd-dia > span{ font-size:13.5px; font-weight:700; text-transform:capitalize;
@@ -334,109 +332,176 @@
   #vdHoy{ background:none; border:none; color:var(--azul); font-size:11px;
     font-weight:700; cursor:pointer; padding:0; font-family:inherit; }
   .vd-lista{ overflow-y:auto; padding:6px 0; flex:1; }
-  .vd-fila{ padding:12px 18px; border-bottom:1px solid #f4f4f4; cursor:pointer;
+  .vd-fila{ padding:12px 18px; border-bottom:1px solid var(--linea); cursor:pointer;
     display:flex; align-items:center; gap:12px; -webkit-tap-highlight-color:transparent; }
-  .vd-fila:active{ background:#f7f7f8; }
+  .vd-fila:active{ background:var(--fondo); }
   .vd-fila .txt{ flex:1; min-width:0; }
   /* Ya copiada: se marca para no perder el hilo cuando son muchas y se suben
      de una en una a la otra plataforma. */
-  .vd-fila.hecha .vd-serie{ color:#b9b9b9; text-decoration:line-through; }
-  .vd-fila.hecha .vd-det{ color:#cfcfcf; }
+  .vd-fila.hecha .vd-serie{ color:var(--apagado); text-decoration:line-through; }
+  .vd-fila.hecha .vd-det{ color:var(--apagado); }
   .vd-check{ width:26px; height:26px; border-radius:50%; flex:none; display:flex;
     align-items:center; justify-content:center; font-size:14px; font-weight:800;
     border:2px solid var(--linea); color:transparent; }
-  .vd-fila.hecha .vd-check{ background:var(--verde); border-color:var(--verde); color:#fff; }
+  .vd-fila.hecha .vd-check{ background:var(--ok); border-color:var(--ok); color:#fff; }
   .vd-serie{ font-size:14px; font-weight:800; font-family:ui-monospace,monospace;
     letter-spacing:.3px; word-break:break-all; }
-  .vd-det{ font-size:11.5px; color:var(--gris); margin-top:3px;
+  .vd-det{ font-size:11.5px; color:var(--tinta-2); margin-top:3px;
     display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; }
-  .vd-det .precio{ font-weight:800; color:var(--verde); }
+  .vd-det .precio{ font-weight:800; color:var(--ok); }
   /* El SKU, siempre a la vista (17-ago-2026). Antes solo salía cuando faltaba
      la descripción, que es justo cuando menos sirve: para cotejar contra el POS
      o para ver si una captura lleva el SKU equivocado hace falta el número. */
-  .vd-det .sku{ font-family:ui-monospace,monospace; font-weight:700; color:#555;
-    background:#f1f1f1; border-radius:5px; padding:1px 5px; letter-spacing:.2px; }
-  .vd-fila.hecha .vd-det .sku{ background:#f7f7f7; color:#cfcfcf; }
+  .vd-det .sku{ font-family:ui-monospace,monospace; font-weight:700; color:var(--tinta-2);
+    background:var(--linea); border-radius:5px; padding:1px 5px; letter-spacing:.2px; }
+  .vd-fila.hecha .vd-det .sku{ background:var(--fondo); color:var(--apagado); }
   /* Si el artículo se fue con Assurant (6-sep-2026). Va en `.vd-det`, junto al
      precio, y no arriba con la serie: ahí ya vive la pastilla de entrega/cobro
      y en un celular las dos juntas empujan la serie a dos renglones. Mismos
      colores que la insignia de la lista de capturas, que es la que el equipo ya
      conoce — dos verdes distintos para lo mismo se leen como dos cosas. */
   .vd-det .vd-seg{ font-family:Montserrat,sans-serif; font-size:10px; font-weight:800;
-    background:#eafaf1; color:var(--verde); border-radius:5px; padding:1px 6px;
+    background:var(--ok-bg); color:var(--ok); border-radius:5px; padding:1px 6px;
     white-space:nowrap; }
   /* «Sin seguro» se dice, no se calla: un hueco no distingue el que no llevó
      seguro del que se capturó antes de que existiera el dato. */
-  .vd-det .vd-seg.no{ background:#f5f5f5; color:#aaa; }
-  .vd-fila.hecha .vd-det .vd-seg{ background:#f7f7f7; color:#cfcfcf; }
+  .vd-det .vd-seg.no{ background:var(--fondo); color:var(--tinta-3); }
+  .vd-fila.hecha .vd-det .vd-seg{ background:var(--fondo); color:var(--apagado); }
   /* Entregas de preventa y traspaso (17-ago-2026). Se cobraron semanas antes,
      así que al cuadrar contra el POS no aparecen en el ticket de hoy. Azul y no
      rojo: no es un problema, es un renglón que se explica solo. */
   .vd-ent{ display:inline-block; margin-left:8px; font-family:Montserrat,sans-serif;
     font-size:10px; font-weight:800; letter-spacing:.02em; vertical-align:middle;
-    color:var(--azul); background:#eaf1fa; border-radius:5px; padding:2px 7px;
+    color:var(--azul); background:var(--info-bg); border-radius:5px; padding:2px 7px;
     white-space:nowrap; }
-  .vd-fila.entrega{ background:#fbfdff; }
+  .vd-fila.entrega{ background:var(--info-bg); }
   /* Un cobro es dinero que entró HOY: verde, como el precio. La entrega es azul
      porque es mercancía que sale de una venta vieja. Son cosas distintas y en
      esta lista conviven. */
-  .vd-ent.vd-cobro{ color:#1c6b34; background:#eaf7ee; }
-  .vd-fila.cobro{ background:#fbfffc; }
+  .vd-ent.vd-cobro{ color:var(--ok); background:var(--ok-bg); }
+  .vd-fila.cobro{ background:var(--ok-bg); }
   /* Venta con varios artículos: cabecera y un filete a la izquierda que los ata
      visualmente. Las de un solo artículo no llevan cabecera — seria ruido en la
      mayoria de las filas. */
   .vd-cab{ display:flex; gap:8px; font-size:11.5px; font-weight:800; color:var(--azul);
-    background:#eef4fb; padding:5px 12px; margin-top:6px; border-radius:8px 8px 0 0; }
+    background:var(--info-bg); padding:5px 12px; margin-top:6px; border-radius:8px 8px 0 0; }
   .vd-cab b{ margin-left:auto; }
-  .vd-fila.engrupo{ border-left:3px solid #cfe0f3; padding-left:9px; }
-  .vd-sinserie{ color:#bbb; font-style:italic; font-weight:600;
+  .vd-fila.engrupo{ border-left:3px solid var(--info-borde); padding-left:9px; }
+  .vd-sinserie{ color:var(--tinta-3); font-style:italic; font-weight:600;
     font-family:Montserrat,sans-serif; letter-spacing:0; }
-  .vd-fila.hecha .vd-ent{ color:#cfcfcf; background:#f7f7f7; }
+  .vd-fila.hecha .vd-ent{ color:var(--apagado); background:var(--fondo); }
   .vd-pie{ padding:12px 18px 16px; border-top:1px solid var(--linea); }
-  .vd-vacio{ padding:28px 18px; text-align:center; color:#aaa; font-size:13px; }
+  .vd-vacio{ padding:28px 18px; text-align:center; color:var(--tinta-3); font-size:13px; }
 
   .modal-seg{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.65);
     z-index:200; align-items:center; justify-content:center; padding:20px; }
   .modal-seg.show{ display:flex; }
   .modal-seg-box{ background:#fff; border-radius:22px; padding:32px 24px 28px;
     width:100%; max-width:340px; text-align:center; }
-  .modal-seg-q{ font-size:15px; color:#888; margin-bottom:2px; font-weight:500; }
-  .modal-seg-h{ font-size:23px; font-weight:800; color:#1a1a1a; margin-bottom:8px; }
-  .modal-seg-kpi{ font-size:11px; color:var(--naranja); font-weight:700;
-    background:#fff5ee; padding:4px 12px; border-radius:8px; display:inline-block; margin-bottom:26px; }
-  .modal-seg-btns{ display:flex; flex-direction:column; gap:12px; }
-  .modal-seg-btns button{ border:none; border-radius:14px; padding:19px;
-    font-family:inherit; font-size:17px; font-weight:700; cursor:pointer;
+  .modal-seg-q{ font-size:15px; color:var(--tinta-2); margin-bottom:2px; font-weight:500; }
+  .modal-seg-h{ font-size:23px; font-weight:800; color:var(--tinta); margin-bottom:8px; }
+  /* `--atencion` y no el naranja de marca: naranja sobre su tinte daba 2.9:1. */
+  .modal-seg-kpi{ font-size:11px; color:var(--atencion); font-weight:700;
+    background:var(--atencion-bg); padding:4px 12px; border-radius:8px; display:inline-block; margin-bottom:22px; }
+  .modal-seg-btns{ display:flex; flex-direction:column; gap:10px; }
+  .modal-seg-btns button{ border:none; border-radius:14px; padding:15px;
+    font-family:inherit; font-size:15px; font-weight:700; cursor:pointer;
     -webkit-tap-highlight-color:transparent; }
-  .btn-con-seg{ background:var(--verde); color:#fff; }
-  .btn-sin-seg{ background:#f0f0f0; color:#777; font-size:15px !important; }
-  .seg-badge{ display:inline-block; font-size:10px; font-weight:700; background:#eafaf1;
-    color:var(--verde); padding:2px 7px; border-radius:6px; margin-left:4px; }
+  /* «1 año» destacado: el único sólido, el más alto y con «Recomendado».
+     Destacar NO es marcar — ver el comentario del marcado. */
+  .modal-seg-btns .btn-con-seg{ background:var(--ok); color:#fff; padding:14px 15px 15px;
+    display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .seg-reco{ font-size:var(--t-xs); font-weight:800; letter-spacing:.5px; text-transform:uppercase;
+    background:rgba(255,255,255,.2); border-radius:var(--r-pill); padding:2px 9px; }
+  .seg-lbl{ font-size:19px; font-weight:800; }
+  .seg-det{ font-size:var(--t-sm); font-weight:600; opacity:.92; }
+  .btn-con-seg2{ background:var(--ok-bg); color:var(--ok); }
+  .btn-sin-seg{ background:var(--linea); color:var(--tinta-2); }
+  .seg-badge{ display:inline-block; font-size:10px; font-weight:700; background:var(--ok-bg);
+    color:var(--ok); padding:2px 7px; border-radius:6px; margin-left:4px; }
+  .seg-badge.no{ background:var(--fondo); color:var(--tinta-3); }
+
+  /* ── Piezas que antes se repetían como style="…" (22-sep-2026) ──────────
+     Eran 168 estilos escritos a mano en el marcado y en el JS: el mismo
+     botón gris con tres tonos de gris según quién lo escribió. Van AL FINAL a
+     propósito: tienen que ganarle a `.vd-pie`, `.vd-lista` y `.btn`, que
+     tienen la misma especificidad y están arriba.
+     Lo que sigue inline es estado (`display:none` que el JS prende) o un
+     color calculado en el momento. */
+  .f1{ flex:1; } .f2{ flex:2; } .min0{ min-width:0; } .ancho{ width:100%; }
+  .fila{ display:flex; gap:8px; } .fila.fila-10{ gap:10px; }
+  .m0{ margin:0; } .mb2{ margin-bottom:2px; } .mb10{ margin-bottom:10px; } .mb12{ margin-bottom:12px; }
+  .mt6{ margin-top:6px; } .mt8{ margin-top:8px; } .mt10{ margin-top:10px; }
+  .mt12{ margin-top:12px; } .mt14{ margin-top:14px; } .py16{ padding:16px 0; } .p0{ padding:0; }
+  .centro{ text-align:center; } .negrita{ font-weight:800; } .clic{ cursor:pointer; } .sin-clic{ cursor:default; }
+  .w88{ width:88px; }
+  .lector-oculto{ position:absolute; width:0; height:0; overflow:hidden; }
+
+  /* Letra: los tamaños de estilo.css, con el gris que acompaña. */
+  .t-sm{ font-size:var(--t-sm); } .t-md{ font-size:var(--t-md); }
+  .t-nota{ font-size:12.5px; color:var(--tinta-2); line-height:1.5; }
+  .t-chica{ font-size:var(--t-sm); color:var(--tinta-2); }
+  .t-chica.suave{ color:var(--tinta-3); }
+  .t-gris{ font-size:12px; color:var(--tinta-2); } .t-gris2{ color:var(--tinta-2); }
+  .t-fila{ font-weight:700; font-size:12.5px; }
+  .t-fila.corta{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .t-ok{ color:var(--ok); } .t-rojo{ color:var(--rojo); }
+
+  /* Botones de los paneles: el color dice a qué flujo va (morado la
+     preventa), gris lo que no es acción. */
+  .btn-sec{ background:var(--linea); color:var(--tinta-2); }
+  .btn-bajo{ font-size:12.5px; padding:11px; }
+  .btn-preventa{ background:var(--preventa); color:#fff; }
+  .btn.ancho{ width:100%; }
+
+  /* Paneles (hojas que suben desde abajo): cuál tapa a cuál. */
+  .vd-box.alto{ max-height:94vh; } .vd-box.alto-92{ max-height:92vh; }
+  .vd-lista.panel-cuerpo{ padding:14px 16px; } .vd-lista.p0{ padding:0; }
+  .vd-pie.panel-pie, .vd-pie.pie-btns{ padding:12px 16px; }
+  .vd.z75{ z-index:75; } .vd.z76{ z-index:76; } .vd.z77{ z-index:77; } .vd.z78{ z-index:78; }
+  .vd.z79{ z-index:79; } .vd.z80{ z-index:80; } .vd.z81{ z-index:81; }
+
+  .gate-diag{ font-size:11px; color:var(--tinta-3); line-height:1.5; margin-top:-4px; }
 </style>
 </head>
 <body>
 <script src="./continuidad.js"></script>
 <script src="./lector_etiqueta.js"></script>
+<!-- Nombres en lenguaje de cliente (22-sep-2026). Solo pantalla: ver nomLineaCS. -->
+<script src="./nombres.js"></script>
 
 
 <!-- Pantalla de inicio: selección de vendedor -->
 <div id="gate">
-  <a href="index.html" class="gate-back" title="Menú">‹</a>
-  <img class="gate-logo" src="logo_odemas.png" alt="Odemás">
-  <h1 class="gate-title">Captura de Series</h1>
-  <p class="gate-sub" id="gateTienda"></p>
-  <p class="gate-q">¿Quién eres?</p>
-  <div class="gate-names" id="gateNames"></div>
+  <!-- El mismo encabezado que la pantalla de captura (22-sep-2026, traído de la
+       1217): era un logo grande centrado con su propio «‹», y la app parecía
+       otra hasta elegir nombre. La tienda la escribe `_pintarTienda`. -->
+  <header class="barra">
+    <a href="index.html" class="barra-volver" title="Menú" aria-label="Volver al menú">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
+    <img class="barra-logo" src="logo_odemas.png" alt="Odemás">
+    <div class="barra-txt">
+      <h1 class="barra-titulo">Captura de Series</h1>
+      <p class="barra-sub" id="gateTienda"></p>
+    </div>
+  </header>
+  <div class="gate-cuerpo">
+    <p class="gate-q">¿Quién eres?</p>
+    <div class="gate-names" id="gateNames"></div>
+  </div>
 </div>
 
-<header>
-  <a href="index.html" class="back" title="Menú">‹</a>
-  <img src="logo_odemas.png" alt="Odemás">
-  <div class="h-txt">
-    <h1>Captura de Series</h1>
-    <p>Reporte de ventas</p>
+<header class="barra">
+  <a href="index.html" class="barra-volver" title="Menú" aria-label="Volver al menú">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </a>
+  <img class="barra-logo" src="logo_odemas.png" alt="Odemás">
+  <div class="barra-txt">
+    <h1 class="barra-titulo">Captura de Series</h1>
+    <p class="barra-sub" id="barraSubCS">Reporte de ventas</p>
   </div>
-  <div class="count"><div class="n" id="count">0</div><div class="l">capturadas</div></div>
+  <div class="barra-cuenta"><b class="cifra" id="count">0</b><span>hoy</span></div>
 </header>
 
 <!-- ── LAS PESTAÑAS (21-sep-2026, traídas de la 1217) ─────────────
@@ -463,7 +528,7 @@
 <main>
   <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
   <input type="file" id="fileGal" accept="image/*" hidden>
-  <div id="reader-file" style="position:absolute;width:0;height:0;overflow:hidden;"></div>
+  <div class="lector-oculto" id="reader-file"></div>
 
   <!-- ── UNA COSA A LA VEZ: ESCANEA → REVISA → GUARDA (21-sep-2026) ──
        Antes era un formulario de arriba abajo donde todo pesaba igual. Ahora
@@ -498,8 +563,8 @@
 
     <button class="btn btn-foto" id="btnPhoto">📸 Tomar foto</button>
     <div class="cap-foto">
-      <button class="btn btn-ghost" id="btnGal" style="flex:1;">🖼️ Galería</button>
-      <button class="btn btn-ghost" id="btnMano" style="flex:1;">✏️ Escribir a mano</button>
+      <button class="btn btn-ghost f1" id="btnGal">🖼️ Galería</button>
+      <button class="btn btn-ghost f1" id="btnMano">✏️ Escribir a mano</button>
     </div>
     <p class="scan-hint" id="hint">Que el código llene la foto · con buena luz</p>
   </div>
@@ -508,7 +573,7 @@
   <div class="card card-captura" id="paso2" style="display:none">
     <div class="paso2-cab">
       <button class="volver" id="btnVolver1" aria-label="Volver a tomar la foto">‹</button>
-      <h2 class="paso-t" style="margin:0">¿Es esto lo que vendiste?</h2>
+      <h2 class="paso-t m0">¿Es esto lo que vendiste?</h2>
     </div>
 
     <div class="field serie">
@@ -529,6 +594,8 @@
     <div class="field">
       <label>Descripción</label>
       <input type="text" id="desc" placeholder="Descripción del artículo" autocomplete="off">
+      <!-- Cómo se llama para el cliente. El campo de arriba es lo que se guarda. -->
+      <div class="desc-cliente" id="descCliente" aria-live="polite"></div>
     </div>
     <!-- Solo aparece si ESTE SKU es EOL y le queda pieza de piso teniendo
          además cajas nuevas. Ver `EOL_EXHIB`. -->
@@ -537,7 +604,7 @@
       <span>Es la pieza de <b>exhibición</b> — se cobra al 50 %</span>
     </label>
     <div class="recon-warn" id="reconWarn">⚠ Producto NO reconocido — pudo ser mala lectura. Revisa o re-toma la foto.</div>
-    <button class="btn btn-add" id="btnAdd" style="margin-top:6px;">＋ Agregar al reporte</button>
+    <button class="btn btn-add mt6" id="btnAdd">＋ Agregar al reporte</button>
 
     <!-- Venta abierta: se ve SIEMPRE mientras lo esté. Olvidarse de cerrar es
          el único fallo de este diseño y no da error — pega la compra del
@@ -553,8 +620,8 @@
     <div class="ap-modo-t" id="apModoT">Preventa</div>
     <div class="ap-modo-s" id="apModoS"></div>
     <div class="ap-modo-serie" id="apModoSerie" style="display:none"></div>
-    <button class="btn" id="apModoBtn" style="margin-top:12px;background:#7c3aed;color:#fff">Ligar serie</button>
-    <button class="btn" id="apModoCancel" style="margin-top:8px;background:#f2f2f4;color:#666">Cancelar y volver</button>
+    <button class="btn mt12 btn-preventa" id="apModoBtn">Ligar serie</button>
+    <button class="btn mt8 btn-sec" id="apModoCancel">Cancelar y volver</button>
   </div>
 
   <div class="lista-head">
@@ -594,7 +661,7 @@ const _cfgCS = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_
   function _pintar(){
     var b = document.createElement('div');
     b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
-      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
+      + 'background:var(--oro-bg);border-bottom:2px solid var(--naranja);color:var(--oro);'
       + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
     b.innerHTML = '⚠ Tu tienda no tiene clave de escritura: lo que captures aquí '
       + 'NO se va a guardar. Pídele a tu gerente que la configure antes de vender.';
@@ -614,9 +681,11 @@ const GAS_TOKEN = (_cfgCS && _cfgCS.gas_token) || '';
     var id = (_cfgCS && _cfgCS.store_id) || '';
     var nom = (_cfgCS && _cfgCS.nombre) || '';
     var g = document.getElementById('gateTienda');
+    var h = document.getElementById('barraSubCS');
     var f = document.getElementById('pieCS');
     var txt = id ? ('HES ' + id + (nom ? ' · ' + nom : '')) : '';
     if(g) g.textContent = txt;
+    if(h) h.textContent = id ? ('HES ' + id + ' · Reporte de ventas') : 'Reporte de ventas';
     // Sin sesion el pie se queda solo con la marca, que es lo unico cierto.
     if(f) f.textContent = 'Odemás · Grupo Gigante' + (txt ? ' · ' + txt : '');
   }
@@ -667,7 +736,7 @@ function avisoPendientes(msg){
     el = document.createElement('div');
     el.id = 'avisoPend';
     el.style.cssText = 'position:fixed;left:10px;right:10px;bottom:10px;z-index:60;'
-      + 'background:#fdf3dc;border-left:4px solid #F37021;color:#7a5200;'
+      + 'background:var(--oro-bg);border-left:4px solid var(--naranja);color:var(--oro);'
       + 'padding:11px 13px;border-radius:10px;font-size:13px;font-weight:700;'
       + 'line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,.16)';
     document.body.appendChild(el);
@@ -1091,14 +1160,20 @@ function render(){
   $('lista').innerHTML = today.map((i)=>{
     const idx = items.indexOf(i);   // índice real en el histórico
     const dup = seen[i.serie] > 1;
-    const sub = [i.sku && ('SKU '+i.sku), i.desc, i.precio && ('$'+i.precio), i.vend]
+    /* El nombre va en su renglón y en lenguaje de cliente; la descripción del
+       sistema ya no se repite aquí: el SKU identifica el producto y el cotejo
+       contra el POS se hace en «Ventas», que sí la enseña. Un renglón más por
+       captura habría sacado la lista del día de la pantalla. */
+    const nom = nomLineaCS(i.desc);
+    const sub = [i.sku && ('SKU '+i.sku), i.precio && ('$'+i.precio), i.vend]
                 .filter(Boolean).join(' · ');
     const segBadge = i.seguro === true  ? '<span class="seg-badge">🛡️ Assurant</span>'
-                   : i.seguro === false ? '<span class="seg-badge" style="background:#f5f5f5;color:#aaa">sin seguro</span>'
+                   : i.seguro === false ? '<span class="seg-badge no">sin seguro</span>'
                    : '';
     return `<div class="item ${dup?'dup':''}">
       <div class="item-info">
         <div class="serie">${esc(i.serie)}${dup?'<span class="dup-tag">REPETIDO</span>':''}${segBadge}</div>
+        ${nom?`<div class="item-nom">${esc(nom)}</div>`:''}
         ${sub?`<div class="sub">${esc(sub)}</div>`:''}
       </div>
       <button class="item-del" onclick="del(${idx})">×</button>
@@ -1106,6 +1181,31 @@ function render(){
   }).join('');
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---- Nombre del producto en lenguaje de cliente (22-sep-2026, nombres.js) ----
+   «AUDIF IN EAR HW F-BUDS PRO 4 VD» → «Audífonos Huawei FreeBuds Pro 4 · Verde».
+   SOLO PANTALLA. Lo que se guarda en la venta (`desc` → `p_desc`), lo que se
+   corrige en el editor y lo que autollena el catálogo sigue siendo la
+   descripción del sistema tal cual: la usan el reporte regional, el POS y la
+   etiqueta. Traducirla ahí rompería el empate con todo eso.
+   Si nombres.js no llegara, sale la descripción cruda: se ve como antes, no
+   se rompe. Memo en la propia función (no un `const` suelto): `render()` corre
+   al cargar, y un `const` declarado más abajo aún no existiría. */
+function nomLineaCS(desc){
+  const d = String(desc == null ? '' : desc).trim();
+  if(!d) return '';
+  const m = nomLineaCS._m || (nomLineaCS._m = new Map());
+  if(!m.has(d)) m.set(d, (typeof nombreLinea === 'function' && nombreLinea(d)) || d);
+  return m.get(d);
+}
+/* Debajo del campo Descripción del paso 2: cómo se llama para el cliente. El
+   campo sigue mostrando —y guardando— lo del sistema. */
+function pintarNombreCS(){
+  const caja = document.getElementById('descCliente');
+  if(!caja) return;
+  const d = $('desc').value.trim(), n = nomLineaCS(d);
+  caja.textContent = (n && n !== d) ? n : '';
+}
 
 function eliminarDeNube(id){
   // Cancela la subida si aún está en cola. Se identifica por p_captura_id, no
@@ -1204,6 +1304,10 @@ window.cerrarVentaGrupo = function(){
 let _pendingVenta = null;
 
 $('btnAdd').onclick = () => {
+  /* Con el modal del seguro abierto, un segundo «Agregar» (Enter otra vez en
+     el campo de serie, o doble toque) pisaba `_pendingVenta` y tiraba la foto
+     de la primera (22-sep-2026). La venta ya está esperando su respuesta. */
+  if($('modalSeguro').classList.contains('show')) return;
   const serie = $('serie').value.trim();
   if(!serie){ toast('Falta el número de serie', 'warn'); $('serie').focus(); return; }
   if(!currentVend){ toast('Selecciona tu nombre', 'warn'); showGate(); return; }
@@ -1223,6 +1327,10 @@ $('btnAdd').onclick = () => {
     _foto: lastPhoto
   };
   lastPhoto = null;
+  /* Nadie con foco al abrir: con el foco en el campo de serie (o en un botón
+     del modal) un Enter elegiría por el asesor. El seguro se registra solo con
+     un toque sobre la respuesta. */
+  try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){ /* sin foco que quitar: da igual, el modal abre igual */ }
   $('modalSeguro').classList.add('show');
 };
 
@@ -1260,6 +1368,7 @@ window.finalizarVenta = function(conSeguro){
   sbPend.push(_sbCuerpo(pend)); saveSbPend(); flushSupabase();
   render();
   ['serie','sku','precio','desc'].forEach(f=> $(f).value='');
+  pintarNombreCS();
   tirarBorrador();   // ya está en el reporte: el borrador dejó de servir
   setRecon(true); setPromo(false);
   /* El interruptor de exhibición se apaga con los campos. Dejarlo encendido
@@ -1326,7 +1435,7 @@ async function apCargar(){
     $('apModoS').innerHTML = esc(qué) + '<br>Escanea la serie del equipo que le vas a dar. ' +
       'Tiene que ser <b>la que ya tiene asignada</b>.';
     $('apModoBtn').textContent = '✅ Confirmar entrega';
-    $('apModoBtn').style.background = '#13703c';
+    $('apModoBtn').style.background = 'var(--ok)';
   } else {
     $('apModoT').textContent = '📦 Ligar equipo a ' + quien;
     $('apModoS').innerHTML = esc(qué) + '<br>Escanea el número de serie de la caja que le vas a apartar.';
@@ -1478,6 +1587,7 @@ window.marcarExhibicion = function(){
 function aplicarProducto(hit){
   $('sku').value  = hit.s || '';
   $('desc').value = hit.d || '';
+  pintarNombreCS();   // se escribió por código: no dispara «input»
   refrescarExhibicion(hit.s);
   const px = precioDeCatalogo_(hit);
   if(px.precio) $('precio').value = px.precio;                          // editable
@@ -1923,13 +2033,16 @@ function pintarVentasDia(){
               v.clase === 'cobro' ? ' cobro' : (v.entrega ? ' entrega' : '')}${
               varios ? ' engrupo' : ''}" id="vdf${i}" onclick="copiarSerie(${i})">
             <div class="txt">
-              <div class="vd-serie">${v.serie || '<span class="vd-sinserie">sin equipo todavía</span>'}${etiquetaVenta_(v)}</div>
+              <div class="vd-serie">${v.serie ? esc(v.serie) : '<span class="vd-sinserie">sin equipo todavía</span>'}${etiquetaVenta_(v)}</div>
+              ${v.desc ? `<div class="vd-nom">${esc(nomLineaCS(v.desc))}</div>` : ''}
               <div class="vd-det">
-                <span class="sku">${v.sku || '—'}</span>
-                <span>${v.desc || 'sin descripción'}</span>
+                <span class="sku">${esc(v.sku || '—')}</span>
+                ${/* La del sistema, chica: con ella se coteja contra el POS.
+                     Escapada desde el 22-sep-2026 — iba cruda al innerHTML. */
+                  v.desc ? `<span class="vd-sis">${esc(v.desc)}</span>` : '<span>sin descripción</span>'}
                 <span class="precio">$${Number(String(v.precio).replace(/[^0-9.]/g,'')||0).toLocaleString('es-MX')}</span>
                 ${insigniaSeguro_(v)}
-                ${v.vend ? '<span>· ' + v.vend + '</span>' : ''}
+                ${v.vend ? '<span>· ' + esc(v.vend) + '</span>' : ''}
               </div>
             </div>
             ${v.foto ? `<button class="vd-lupa" title="Ver la foto de esta captura"
@@ -2252,7 +2365,7 @@ function vdContar(){
        explica — que es el descuadre que esto viene a cerrar. */
     + (cobros ? nota(`${cobros} apartado${cobros===1?'':'s'} cobrado${cobros===1?'':'s'} hoy · `
                    + `sí cuenta${cobros===1?'':'n'} para el Assurant, el equipo se entrega después`,
-                   'var(--verde)') : '')
+                   'var(--ok)') : '')
     + notaAttach_();
 }
 
@@ -2274,7 +2387,7 @@ function notaAttach_(){
   const con = cuentan.filter(v => v.seguro).length;
   const pct = Math.round(con * 100 / cuentan.length);
   // El semáforo de la tienda: meta 25%, ámbar entre 15 y 25.
-  const color = pct >= 25 ? 'var(--verde)' : pct >= 15 ? 'var(--naranja)' : 'var(--rojo)';
+  const color = pct >= 25 ? 'var(--ok)' : pct >= 15 ? 'var(--naranja)' : 'var(--rojo)';
   return `<div style="margin-top:6px;font-size:11.5px;color:${color};line-height:1.4">`
        + `🛡️ Assurant del día · <b>${con} de ${cuentan.length}</b> con seguro (${pct}%)`
        + `</div>`;
@@ -2363,9 +2476,11 @@ function tirarBorrador(){
   // serie del anterior es peor que dejarlo en blanco: se guardaría mal.
   if(Date.now() - d.ts > 2*60*60*1000){ tirarBorrador(); return; }
   BCAMPOS.forEach(f => { if(d[f]) $(f).value = d[f]; });
+  pintarNombreCS();
   if(d.serie || d.sku) toast('Se recuperó lo que estabas capturando', 'ok');
 })();
 BCAMPOS.forEach(f => $(f).addEventListener('input', guardarBorrador));
+$('desc').addEventListener('input', pintarNombreCS);
 // Y al irse a otra app, por si el cambio vino de un escaneo y no de teclear.
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'hidden') guardarBorrador();
@@ -2456,9 +2571,9 @@ function buildGate(){
       }catch(e){}   // sin versión el diagnóstico sirve igual, solo es un dato menos
     }
     $('gateNames').innerHTML =
-      '<p style="font-size:13px;color:#888;line-height:1.5">Tu sesión no trae la lista del equipo.' +
+      '<p class="t-nota">Tu sesión no trae la lista del equipo.' +
       '<br><br>Sal al menú y vuelve a entrar con tu número de empleado: así se descarga.</p>' +
-      '<p id="gateDiag" style="font-size:11px;color:#b9b3b0;line-height:1.5;margin-top:-4px">' +
+      '<p class="gate-diag" id="gateDiag">' +
       _diag.join(' · ') + '</p>' +
       '<a href="index.html" style="text-decoration:none;border-radius:12px;padding:12px 20px;' +
       'background:var(--rojo);color:#fff;font-size:13px;font-weight:700;display:inline-block;margin-top:6px">' +
@@ -2673,7 +2788,7 @@ refreshEolVenta(); // trae los EOL con 50% activo (solo exhibición)
     </div>
     <div class="vd-lista" id="vdLista"></div>
     <div class="vd-pie">
-      <div id="vdAyuda" style="font-size:12.5px;color:var(--gris);text-align:center;line-height:1.45">
+      <div class="t-nota centro" id="vdAyuda">
         Haz clic en una serie para copiarla
       </div>
     </div>
@@ -2683,13 +2798,13 @@ refreshEolVenta(); // trae los EOL con 50% activo (solo exhibición)
 <!-- Corregir una venta. Lo último que se hacía en la hoja (17-ago-2026). -->
 <!-- z-index por encima del panel de Ventas del día (.vd = 70): este modal se
      abre ENCIMA de esa lista, no debajo. -->
-<div id="modalEdit" class="vd" style="z-index:80">
-  <div class="vd-box" style="max-height:92vh">
+<div id="modalEdit" class="vd z80">
+  <div class="vd-box alto-92">
     <div class="vd-top">
       <h2>Corregir venta</h2>
       <button class="vd-cerrar" onclick="cerrarEditarVenta()" aria-label="Cerrar">×</button>
     </div>
-    <div class="vd-lista" style="padding:14px 16px">
+    <div class="vd-lista panel-cuerpo">
       <label class="ed-l">Número de serie</label>
       <input id="edSerie" class="ed-i" autocapitalize="characters" autocomplete="off">
       <label class="ed-l">SKU</label>
@@ -2709,19 +2824,19 @@ refreshEolVenta(); // trae los EOL con 50% activo (solo exhibición)
       </div>
       <!-- Solo aparece si se toca el SKU: es el único campo que mueve stock. -->
       <div id="edAvisoSku" style="display:none;margin-top:12px;padding:10px 12px;
-           border-radius:9px;border-left:4px solid var(--naranja);background:#fff6ee;
-           font-size:12.5px;line-height:1.45;color:#8a4b1f">
+           border-radius:9px;border-left:4px solid var(--naranja);background:var(--atencion-bg);
+           font-size:12.5px;line-height:1.45;color:var(--atencion)">
         Al cambiar el SKU se corrige también el inventario de los <b>dos</b>
         productos. Comprueba el stock de ambos después.
       </div>
-      <div id="edQuien" style="display:none;margin-top:10px;font-size:11px;color:#777;"></div>
+      <div class="mt10 t-chica" id="edQuien" style="display:none"></div>
       <div id="edError" style="display:none;margin-top:12px;padding:10px 12px;
-           border-radius:9px;border-left:4px solid var(--rojo);background:#fdeaea;
-           font-size:12.5px;line-height:1.45;color:#8a1f1f"></div>
+           border-radius:9px;border-left:4px solid var(--rojo);background:var(--alerta-bg);
+           font-size:12.5px;line-height:1.45;color:var(--alerta)"></div>
     </div>
-    <div class="vd-pie" style="display:flex;gap:10px;padding:12px 16px">
-      <button class="btn" style="flex:1;background:#eee;color:#444" onclick="cerrarEditarVenta()">Cancelar</button>
-      <button class="btn" style="flex:2" id="edGuardar" onclick="guardarEdicionVenta()">Guardar cambios</button>
+    <div class="vd-pie fila fila-10 pie-btns">
+      <button class="btn f1 btn-sec" onclick="cerrarEditarVenta()">Cancelar</button>
+      <button class="btn f2" id="edGuardar" onclick="guardarEdicionVenta()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -2731,9 +2846,24 @@ refreshEolVenta(); // trae los EOL con 50% activo (solo exhibición)
     <p class="modal-seg-q">¿El equipo va</p>
     <h2 class="modal-seg-h">con seguro Assurant?</h2>
     <p class="modal-seg-kpi">KPI crítico · meta &gt;25%</p>
+    <!-- «1 año» DESTACADO, NO MARCADO (22-sep-2026, decisión de Ángel).
+         En el tablero «1 año» sale marcado porque ahí solo se cotiza. Aquí el
+         toque ES el registro: lo que se elija va a la venta y al Assurant
+         attach. Por eso ninguno de los tres botones lleva foco, ni `autofocus`,
+         ni se elige con Enter o tocando fuera — el attach tiene que contar
+         seguros que alguien vendió, no el botón que quedó encendido.
+         `pruebas/pantalla_390.js` lo comprueba en un navegador de verdad.
+         1 y 2 años registran lo mismo (`seguro: true`): la base no guarda los
+         años. «2 años» está para que quien lo vendió no tenga que tocar un
+         botón que dice otra cosa. -->
     <div class="modal-seg-btns">
-      <button class="btn-con-seg" onclick="finalizarVenta(true)">🛡️ Sí, con seguro</button>
-      <button class="btn-sin-seg" onclick="finalizarVenta(false)">Sin seguro</button>
+      <button type="button" class="btn-con-seg" id="segSi1" onclick="finalizarVenta(true)">
+        <span class="seg-reco">Recomendado</span>
+        <span class="seg-lbl">🛡️ Sí · 1 año</span>
+        <span class="seg-det">protege 2 años con el de fábrica</span>
+      </button>
+      <button type="button" class="btn-con-seg2" id="segSi2" onclick="finalizarVenta(true)">🛡️ Sí · 2 años</button>
+      <button type="button" class="btn-sin-seg" id="segNo" onclick="finalizarVenta(false)">Sin seguro</button>
     </div>
   </div>
 </div>

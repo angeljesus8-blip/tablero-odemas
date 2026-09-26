@@ -80,6 +80,14 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 .filebox:focus { outline:none;border-color:var(--rojo);background:#fffafa; }
 .filebox .ph { font-size:13px;color:#999;line-height:1.4; }
 
+/* Nombres sin traducir (22-sep-2026) */
+.sin-trad { width:100%;border-collapse:collapse;margin-top:12px;font-size:13px; }
+.sin-trad th { text-align:left;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;padding:4px 6px; }
+.sin-trad td { padding:8px 6px;border-top:1px solid #ececec;vertical-align:top; }
+.sin-trad td:first-child { font-weight:800;font-family:ui-monospace,monospace;white-space:nowrap; }
+.sin-trad td:nth-child(2) { text-align:right;font-weight:700; }
+.sin-trad .ej { font-family:ui-monospace,monospace;font-size:11px;color:#888;word-break:break-word; }
+
 /* RESULT */
 .result { font-size:13px;line-height:1.5;border-radius:10px;padding:12px 14px;margin-top:12px;display:none; }
 .result.show { display:block; }
@@ -168,6 +176,9 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 </head>
 <body>
 <script src="./continuidad.js"></script>
+<!-- Las mismas reglas que traducen los nombres en el tablero y en Captura: la
+     lista de «sin traducir» sale de ESTE archivo, no de una copia. -->
+<script src="./nombres.js"></script>
 
 
 <!-- PIN -->
@@ -242,6 +253,16 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="result" id="resCatRef"></div>
     </div>
 
+    <!-- Nombres sin traducir (22-sep-2026). El tablero y Captura enseñan
+         «Audífonos Huawei FreeBuds Pro 4» en vez de «AUDIF IN EAR HW F-BUDS
+         PRO 4 VD» con las reglas de nombres.js. Lo que esas reglas no conocen
+         sale tal cual y aquí se ve, para agregarlo. Solo lectura. -->
+    <div class="card" style="margin-top:14px">
+      <h2>🔤 Nombres sin traducir</h2>
+      <p class="note">Abreviaturas del catálogo que la app todavía <b>no sabe traducir</b>: salen tal cual en el tablero y en Captura. Para agregar una, di qué significa (ej. «PK = Pack») y se suma a <b>nombres.js</b>. Lo que se guarda en las ventas no cambia.</p>
+      <button class="btn-pri" id="btnSinTrad" onclick="cargarSinTraducir()">Revisar el catálogo</button>
+      <div id="sinTrad"></div>
+    </div>
   </div>
 
   <!-- PROMOS CEA -->
@@ -1050,6 +1071,63 @@ async function subirExhibicion(){
   btn.textContent='Actualizar exhibición'; btn.disabled=false;
 }
 
+/* ── Nombres sin traducir (22-sep-2026) ──────────────────────────────────
+   El tablero y Captura traducen «AUDIF IN EAR HW F-BUDS PRO 4 VD» con las
+   reglas de nombres.js; lo que no conocen sale tal cual y queda en
+   `sinTraducir`. Aquí se junta, abreviatura por abreviatura, sobre las
+   descripciones que la tienda tiene HOY (inventario y promos de
+   `tablero_todo`, la misma lectura pública del tablero: sin SQL nuevo).
+   Pura y aparte de la llamada para poder probarla sin red. */
+function sinTraducirDe(descripciones){
+  if(typeof nombreCliente !== "function") return null;   // nombres.js no llegó
+  const vistas = new Set(), por = {};
+  (descripciones || []).forEach(function(d){
+    d = String(d == null ? "" : d).trim();
+    if(!d || vistas.has(d)) return;
+    vistas.add(d);
+    (nombreCliente(d).sinTraducir || []).forEach(function(t){
+      (por[t] = por[t] || []).push(d);
+    });
+  });
+  return Object.keys(por).map(function(t){ return { abrev:t, n:por[t].length, ejemplos:por[t] }; })
+    .sort(function(x, y){ return y.n - x.n || x.abrev.localeCompare(y.abrev); });
+}
+async function cargarSinTraducir(){
+  const caja = document.getElementById("sinTrad"), btn = document.getElementById("btnSinTrad");
+  btn.disabled = true; caja.innerHTML = "<p class=\"note\" style=\"margin-top:12px\">Revisando…</p>";
+  let d = null;
+  try{
+    if(sb || initSB()){
+      const r = await sb.rpc("tablero_todo", { p_store: String((_cfg && _cfg.store_id) || "") });
+      if(!r.error) d = r.data;
+    }
+  }catch(e){ d = null; }
+  btn.disabled = false;
+  /* «No pude preguntar» y «no hay nada que traducir» no son lo mismo: con la
+     red caída la lista vacía diría que todo está bien. */
+  if(!d || !Array.isArray(d.inventario)){
+    caja.innerHTML = "<div class=\"result bad show\">No se pudo leer el catálogo (¿sin señal?). Vuelve a intentar.</div>";
+    return;
+  }
+  const descs = d.inventario.map(function(x){ return x.descripcion; })
+    .concat((d.promos || []).map(function(p){ return p.producto; }));
+  const lista = sinTraducirDe(descs);
+  if(lista === null){
+    caja.innerHTML = "<div class=\"result bad show\">No cargó nombres.js: recarga la página.</div>";
+    return;
+  }
+  const total = new Set(descs.filter(Boolean)).size;
+  if(!lista.length){
+    caja.innerHTML = "<div class=\"result ok show\">✅ Las " + total + " descripciones se traducen completas.</div>";
+    return;
+  }
+  caja.innerHTML = "<p class=\"note\" style=\"margin:12px 0 0\">" + lista.length + " abreviatura(s) sin traducir en " + total + " descripciones.</p>"
+    + "<table class=\"sin-trad\"><tr><th>Abrev.</th><th>Productos</th><th>Ejemplo</th></tr>"
+    + lista.map(function(x){
+        return "<tr><td>" + escHtml(x.abrev) + "</td><td>" + x.n + "</td><td class=\"ej\">"
+             + escHtml(x.ejemplos[0]) + (x.n > 1 ? " <b>+" + (x.n - 1) + "</b>" : "") + "</td></tr>";
+      }).join("") + "</table>";
+}
 
 
 /* ================================================================

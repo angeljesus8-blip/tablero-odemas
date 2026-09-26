@@ -1,5 +1,5 @@
 /* ============================================================
-   El tablero cabe en un teléfono — medido en un navegador de verdad
+   El tablero y Captura caben en un teléfono — medido en un navegador de verdad
    ============================================================
    Corre en cada commit desde `verificar.py`.
 
@@ -23,6 +23,17 @@
    el punto 1 lo cace. Una prueba de desborde que no ve un desborde puesto a
    propósito no vigila nada.
 
+   CAPTURA DE SERIES (22-sep-2026, fase 4): lo mismo en sus cinco momentos
+   —¿quién eres?, paso 1, paso 2, el modal del seguro y la lista con una
+   venta—, y además lo único que solo se puede probar con un teclado y un
+   dedo de verdad: que el seguro NO SE ELIGE SOLO. En Captura el toque es el
+   registro (va al Assurant attach), así que con el modal abierto:
+     4. nada tiene el foco (un Enter elegiría por el asesor);
+     5. Enter no registra nada, ni desde el cuerpo ni desde el campo de serie;
+     6. tocar fuera del modal no registra nada;
+     7. y un toque real sobre «1 año» SÍ registra la venta con seguro — si
+        esto fallara, las tres de arriba pasarían por no funcionar nada.
+
    Sin dependencias: Edge viene con Windows y Node 22+ trae WebSocket. Si no
    hay Edge (otra máquina), avisa y no bloquea — igual que `node` en
    verificar.py.
@@ -39,6 +50,13 @@ const RAIZ = path.join(__dirname, '..');
 const FOTOS = (i => i > 0 ? process.argv[i + 1] : null)(process.argv.indexOf('--fotos'));
 const ANCHOS = [390, 360];
 const SECCIONES = ['inicio', 'promo', 'apartados', 'eol', 'resurtir'];
+// Los momentos de Captura, con lo que hay que hacer para llegar a cada uno.
+const CAPTURA = [
+  ['quien',  'showGate()'],
+  ['paso1',  'hideGate(); irPaso(1)'],
+  ['paso2',  "irPaso(2); aplicarProducto({ s:'100245689', d:'AUDIF IN EAR HW F-BUDS PRO 4 VD' }); $('serie').value = 'ABCDE12345678901'"],
+  ['seguro', "$('btnAdd').click()"],
+];
 const ALTO_ENCABEZADO = 76;
 
 const EDGE = [
@@ -99,7 +117,10 @@ const dormir = ms => new Promise(r => setTimeout(r, ms));
 // de gerente inventada, sin red (el tablero cae a lo que se le dé a mano) y
 // sin service worker (guardaría esta versión en caché de Edge).
 const PREPARAR = `
+  // Captura arranca en blanco en cada carga: sin las ventas de la corrida anterior.
+  localStorage.removeItem('odemas_series_v1'); localStorage.removeItem('odemas_captura_borrador');
   localStorage.setItem('odemas_store', JSON.stringify({store_id:'9999', nombre:'Tienda Prueba',
+    vendedores:['Prueba Uno', 'Prueba Dos'],
     ciudad:'Prueba', gas_token:'prueba'}));
   localStorage.setItem('odemas_empleado', JSON.stringify({empno:'1', nombre:'Prueba Uno',
     puesto:'Gerente de Tienda'}));
@@ -126,7 +147,8 @@ const MEDIR = `(() => {
         ? '.' + el.className.trim().split(/\\s+/)[0] : '')) + ' (' + Math.round(r.right - W) + ' px)');
     }
   }
-  const h = document.querySelector('header');
+  // El encabezado VISIBLE: Captura trae dos (el de «¿quién eres?» y el suyo).
+  const h = [...document.querySelectorAll('header')].find(x => x.getBoundingClientRect().height);
   return { ancho: document.documentElement.scrollWidth, W, fuera: fuera.slice(0, 5), nFuera: fuera.length,
            encabezado: h ? Math.round(h.getBoundingClientRect().height) : null };
 })()`;
@@ -200,6 +222,92 @@ async function main(){
         document.getElementById('app').appendChild(d); const m = ${MEDIR}; d.remove(); return m.nFuera; })()`);
       if(!cebo) falla(`a ${W}px: se metió un bloque de 520 px y la prueba no lo vio — está ciega`);
     }
+
+    // ── Captura de Series ──
+    const foto = async (nombre, W) => {
+      if(!FOTOS) return;
+      fs.mkdirSync(FOTOS, { recursive: true });
+      const { data } = await b.enviar('Page.captureScreenshot', { format: 'png' }, s);
+      fs.writeFileSync(path.join(FOTOS, `captura_${nombre}_${W}.png`), Buffer.from(data, 'base64'));
+    };
+    const tecla = async (key, code, texto) => {
+      for(const type of ['keyDown', 'keyUp'])
+        await b.enviar('Input.dispatchKeyEvent', { type, key, code, windowsVirtualKeyCode: 13,
+          text: type === 'keyDown' ? texto : undefined }, s);
+      await dormir(150);
+    };
+    const toque = async (x, y) => {
+      for(const type of ['mousePressed', 'mouseReleased'])
+        await b.enviar('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }, s);
+      await dormir(200);
+    };
+    for(const W of ANCHOS){
+      await b.enviar('Emulation.setDeviceMetricsOverride',
+        { width: W, height: 844, deviceScaleFactor: 2, mobile: true }, s);
+      await b.enviar('Page.navigate', { url: `http://127.0.0.1:${puerto}/captura_series.html` }, s);
+      for(let i = 0; i < 50; i++){
+        await dormir(100);
+        if(await ev(`document.readyState === 'complete' && typeof irPaso === 'function'`).catch(() => false)) break;
+      }
+      await ev(`document.fonts.ready.then(() => true)`);
+
+      for(const [momento, llegar] of CAPTURA){
+        await ev(`${llegar}; scrollTo(0,0); true`);
+        await dormir(250);
+        const m = await ev(MEDIR);
+        const donde = `captura ${momento} a ${W}px`;
+        if(m.ancho > m.W + 1) falla(`${donde}: la página mide ${m.ancho} px de ancho en una pantalla de ${m.W}`);
+        if(m.nFuera) falla(`${donde}: ${m.nFuera} elemento(s) se salen de la pantalla — ${m.fuera.join(', ')}`);
+        if(m.encabezado == null) falla(`${donde}: no hay encabezado visible`);
+        else if(m.encabezado > ALTO_ENCABEZADO)
+          falla(`${donde}: el encabezado mide ${m.encabezado} px (tope ${ALTO_ENCABEZADO}); se parte en renglones`);
+        await foto(momento, W);
+      }
+
+      // El seguro, con el modal abierto (el último momento de CAPTURA).
+      const estado = () => ev(`({ abierto: $('modalSeguro').classList.contains('show'), n: items.length,
+        foco: document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : '',
+        pend: _pendingVenta && _pendingVenta.serie })`);
+      let e0 = await estado();
+      if(!e0.abierto) falla(`captura a ${W}px: «Agregar» no abrió el modal del seguro`);
+      else {
+        if(e0.foco !== 'BODY')
+          falla(`captura a ${W}px: al abrir el seguro el foco queda en «${e0.foco}» — un Enter elegiría por el asesor`);
+        await tecla('Enter', 'Enter', '\r');
+        let e = await estado();
+        if(!e.abierto || e.n !== e0.n) falla(`captura a ${W}px: Enter con el modal abierto registró la venta (el seguro se eligió solo)`);
+        // Desde el campo de serie, que es donde estaba el Enter que abrió el modal.
+        await ev(`$('serie').focus(); true`);
+        await tecla('Enter', 'Enter', '\r');
+        e = await estado();
+        if(!e.abierto || e.n !== e0.n || e.pend !== e0.pend)
+          falla(`captura a ${W}px: Enter en el campo de serie con el modal abierto registró o pisó la venta`);
+        await ev(`document.activeElement && document.activeElement.blur(); true`);
+        await toque(6, 6);   // fuera de la caja del modal, sobre el velo
+        e = await estado();
+        if(!e.abierto || e.n !== e0.n) falla(`captura a ${W}px: tocar fuera del modal registró la venta`);
+        // Y el toque de verdad sobre «1 año» sí registra, con seguro.
+        const r = await ev(`(() => { const r = $('segSi1').getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+        await toque(r.x, r.y);
+        e = await estado();
+        const ult = await ev(`items[0] ? { seguro: items[0].seguro, desc: items[0].desc } : null`);
+        if(e.abierto || e.n !== e0.n + 1 || !ult || ult.seguro !== true)
+          falla(`captura a ${W}px: un toque real sobre «1 año» no registró la venta con seguro`);
+        else if(ult.desc !== 'AUDIF IN EAR HW F-BUDS PRO 4 VD')
+          falla(`captura a ${W}px: la venta se guardó con «${ult.desc}» y no con la descripción del sistema`);
+      }
+
+      // La lista con la venta recién hecha.
+      await ev(`scrollTo(0,0); true`); await dormir(250);
+      const m = await ev(MEDIR);
+      if(m.nFuera) falla(`captura lista a ${W}px: ${m.nFuera} elemento(s) se salen — ${m.fuera.join(', ')}`);
+      await foto('lista', W);
+
+      const cebo = await ev(`(() => { const d = document.createElement('div'); d.style.cssText = 'width:520px;height:10px';
+        document.querySelector('main').appendChild(d); const m = ${MEDIR}; d.remove(); return m.nFuera; })()`);
+      if(!cebo) falla(`captura a ${W}px: se metió un bloque de 520 px y la prueba no lo vio — está ciega`);
+    }
   } finally {
     b.cerrar(); edge.kill(); servidor.close();
     await dormir(300);
@@ -213,5 +321,5 @@ main().then(() => {
     fallos.forEach(f => console.log('   · ' + f));
     process.exit(1);
   }
-  console.log('pantalla 390: el tablero cabe a 390 y 360 px, encabezado en una franja, un icono por tarjeta (y el cebo de 520 px se caza)');
+  console.log('pantalla 390: el tablero y Captura caben a 390 y 360 px, encabezado en una franja, un icono por tarjeta, el seguro no se elige solo con Enter ni tocando fuera (y el cebo de 520 px se caza)');
 }, e => { console.log('pantalla 390: no pudo correr — ' + e.message); process.exit(1); });
