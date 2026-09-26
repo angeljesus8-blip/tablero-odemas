@@ -287,6 +287,18 @@
   .vd-det .sku{ font-family:ui-monospace,monospace; font-weight:700; color:#555;
     background:#f1f1f1; border-radius:5px; padding:1px 5px; letter-spacing:.2px; }
   .vd-fila.hecha .vd-det .sku{ background:#f7f7f7; color:#cfcfcf; }
+  /* Si el artículo se fue con Assurant (6-sep-2026). Va en `.vd-det`, junto al
+     precio, y no arriba con la serie: ahí ya vive la pastilla de entrega/cobro
+     y en un celular las dos juntas empujan la serie a dos renglones. Mismos
+     colores que la insignia de la lista de capturas, que es la que el equipo ya
+     conoce — dos verdes distintos para lo mismo se leen como dos cosas. */
+  .vd-det .vd-seg{ font-family:Montserrat,sans-serif; font-size:10px; font-weight:800;
+    background:#eafaf1; color:var(--verde); border-radius:5px; padding:1px 6px;
+    white-space:nowrap; }
+  /* «Sin seguro» se dice, no se calla: un hueco no distingue el que no llevó
+     seguro del que se capturó antes de que existiera el dato. */
+  .vd-det .vd-seg.no{ background:#f5f5f5; color:#aaa; }
+  .vd-fila.hecha .vd-det .vd-seg{ background:#f7f7f7; color:#cfcfcf; }
   /* Entregas de preventa y traspaso (17-ago-2026). Se cobraron semanas antes,
      así que al cuadrar contra el POS no aparecen en el ticket de hoy. Azul y no
      rojo: no es un problema, es un renglón que se explica solo. */
@@ -1571,6 +1583,13 @@ async function cargarVentasDia(dia){
                precio: v.precio==null ? '' : String(v.precio),
                vend:v.vendedor||'', hora: v.vendida_en ? String(v.vendida_en).slice(11,16) : '',
                captura_id: v.captura_id||'', foto: !!v.tiene_foto,
+               /* El seguro del artículo (6-sep-2026). `ventas_detalle` lo daba
+                  desde el principio —en las tres clases de fila— y este mapeo
+                  lo tiraba, así que la pantalla no podía enseñar lo que ya
+                  tenía. Mismo criterio que al guardar: `null` NO es «sin
+                  seguro», es una captura vieja sin el dato, y confundirlos
+                  pinta de rojo un attach que nadie midió. */
+               seguro: (v.con_seguro === true || v.con_seguro === false) ? v.con_seguro : null,
                // 'preventa' | 'traspaso' | '' — ver la etiqueta en pintarVentasDia
                entrega: v.entrega || '',
                // Cuándo se cobró el apartado: dice en qué corte está su ticket
@@ -1630,6 +1649,24 @@ function etiquetaVenta_(v){
   return '';
 }
 
+/* Si este artículo se fue con Assurant. Tres estados, no dos:
+
+     true   – 🛡️ Assurant
+     false  – sin seguro, en gris
+     null   – no se dice NADA. Son las capturas anteriores a que el dato
+              existiera; poner «sin seguro» ahí sería inventar una venta sin
+              proteger que nadie registró así.
+
+   Se pinta igual en las tres clases —venta, entrega y cobro—, porque la
+   pregunta que contesta es «qué se llevó el cliente», y un apartado cobrado hoy
+   lleva su seguro desde el día que se apartó. Lo que NO cuenta igual para el
+   KPI son las entregas, y de eso avisa la pastilla de al lado. */
+function insigniaSeguro_(v){
+  if(v.seguro === true)  return '<span class="vd-seg">🛡️ Assurant</span>';
+  if(v.seguro === false) return '<span class="vd-seg no">sin seguro</span>';
+  return '';
+}
+
 function pintarVentasDia(){
   const dia = _vdFecha || new Date();
   const ya  = copiadasDe(fechaGas(dia));
@@ -1674,6 +1711,7 @@ function pintarVentasDia(){
                 <span class="sku">${v.sku || '—'}</span>
                 <span>${v.desc || 'sin descripción'}</span>
                 <span class="precio">$${Number(String(v.precio).replace(/[^0-9.]/g,'')||0).toLocaleString('es-MX')}</span>
+                ${insigniaSeguro_(v)}
                 ${v.vend ? '<span>· ' + v.vend + '</span>' : ''}
               </div>
             </div>
@@ -1929,7 +1967,32 @@ function vdContar(){
        explica — que es el descuadre que esto viene a cerrar. */
     + (cobros ? nota(`${cobros} apartado${cobros===1?'':'s'} cobrado${cobros===1?'':'s'} hoy · `
                    + `sí cuenta${cobros===1?'':'n'} para el Assurant, el equipo se entrega después`,
-                   'var(--verde)') : '');
+                   'var(--verde)') : '')
+    + notaAttach_();
+}
+
+/* El attach del día, contado como lo cuenta el KPI y no de cualquier forma
+   (6-sep-2026).
+
+   ⚠️ EXCLUYE LAS ENTREGAS E INCLUYE LOS COBROS — el mismo criterio de
+   `ventas_hoy`, que es de donde sale el porcentaje que se reporta. Contar las
+   filas de la pantalla a ojo daría OTRO número, y entonces habría dos attach
+   distintos del mismo día sin que ninguno esté mal: el descuadre que la lista
+   agrupada vino a cerrar, reabierto por abajo.
+
+   Las de `seguro === null` no se cuentan ni arriba ni abajo: son capturas viejas
+   sin el dato, y meterlas en el denominador hunde un porcentaje que nadie midió
+   así. Si no queda ninguna fila con dato, no se dice nada. */
+function notaAttach_(){
+  const cuentan = _vdVentas.filter(v => v.clase !== 'entrega' && typeof v.seguro === 'boolean');
+  if(!cuentan.length) return '';
+  const con = cuentan.filter(v => v.seguro).length;
+  const pct = Math.round(con * 100 / cuentan.length);
+  // El semáforo de la tienda: meta 25%, ámbar entre 15 y 25.
+  const color = pct >= 25 ? 'var(--verde)' : pct >= 15 ? 'var(--naranja)' : 'var(--rojo)';
+  return `<div style="margin-top:6px;font-size:11.5px;color:${color};line-height:1.4">`
+       + `🛡️ Assurant del día · <b>${con} de ${cuentan.length}</b> con seguro (${pct}%)`
+       + `</div>`;
 }
 
 function vdMover(dias){

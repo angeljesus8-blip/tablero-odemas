@@ -64,7 +64,12 @@ function posiciones(html){
      ls      – lo que hay en localStorage al arrancar
      fetch   – por defecto rechaza SIEMPRE: es el escenario que más importa,
                porque la app tiene que seguir dejando trabajar sin nube
-     ruta    – location.pathname, para las apps que miran de dónde vienen  */
+     ruta    – location.pathname, para las apps que miran de dónde vienen
+     extras  – lo que la página espera encontrar YA en `window` porque lo puso
+               un <script src> de fuera. El entorno no baja nada de la red, así
+               que sin esto el archivo revienta en la primera línea y el fallo
+               parece de la página. Lo usa `horarios.html`, que arranca con
+               `window.supabase.createClient(...)`.  */
 function crearEntorno(opciones){
   const o    = opciones || {};
   const html = o.html || '';
@@ -143,6 +148,7 @@ function crearEntorno(opciones){
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     atob: s => Buffer.from(s, 'base64').toString('binary')
   };
+  Object.assign(caja, o.extras || {});
   caja.window = caja;
   caja.globalThis = caja;
   vm.createContext(caja);

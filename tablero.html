@@ -379,6 +379,40 @@
   /* ---- WhatsApp share ---- */
   .btn-wa { display:flex; align-items:center; justify-content:center; gap:6px; background:#eafaf1; color:#128C7E; border:none; border-radius:10px; padding:9px 14px; font-family:'Montserrat',sans-serif; font-size:12px; font-weight:700; cursor:pointer; margin-top:10px; width:100%; }
 
+  /* ── Cotización (6-sep-2026) ──────────────────────────────────────────
+     Sumar varios artículos para decirle al cliente el total. NO cobra nada:
+     es la cuenta que hoy se hace en la calculadora del celular, con el riesgo
+     de olvidar un seguro o teclear un precio de otro producto. */
+  .btn-cot { display:flex; align-items:center; justify-content:center; background:#f1f5fb;
+    color:var(--azul); border:none; border-radius:var(--r-sm); font-weight:800;
+    cursor:pointer; width:auto; margin:0; padding:6px 12px; font-size:var(--t-sm);
+    flex-shrink:0; }
+  .btn-cot.puesto { background:#eafaf1; color:var(--verde); }
+  /* Barra fija abajo: con el cliente delante, el total tiene que estar a la
+     vista sin buscarlo. Solo aparece cuando hay algo que sumar. */
+  .cot-bar { position:fixed; left:0; right:0; bottom:0; z-index:60; display:none;
+    align-items:center; gap:10px; padding:11px 14px calc(11px + env(safe-area-inset-bottom));
+    background:#fff; border-top:2px solid var(--azul); box-shadow:0 -4px 16px rgba(0,0,0,.10); }
+  .cot-bar.show { display:flex; }
+  .cot-bar .n { font-size:12px; color:var(--gris); font-weight:700; }
+  .cot-bar .tot { font-size:19px; font-weight:800; color:var(--azul); line-height:1.1; }
+  .cot-bar button { border:none; border-radius:var(--r-sm); font-weight:800; cursor:pointer;
+    padding:10px 14px; font-size:13px; background:var(--azul); color:#fff; }
+  .cot-linea { display:flex; align-items:flex-start; gap:10px; padding:11px 16px;
+    border-bottom:1px solid #f4f4f4; }
+  .cot-linea .txt { flex:1; min-width:0; }
+  .cot-linea h4 { font-size:13.5px; font-weight:700; line-height:1.35; }
+  .cot-linea .det { font-size:11.5px; color:var(--gris); margin-top:3px;
+    display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; }
+  .cot-linea .det .seg { font-weight:800; color:var(--verde); }
+  .cot-linea .imp { font-weight:800; font-size:14px; white-space:nowrap; }
+  .cot-quitar { border:none; background:#f7f7f8; color:#b3aeac; border-radius:8px;
+    width:30px; height:30px; font-size:15px; cursor:pointer; flex-shrink:0; }
+  .cot-total { display:flex; justify-content:space-between; align-items:baseline;
+    padding:14px 16px; border-top:2px solid #eee; }
+  .cot-total .lbl { font-size:13px; font-weight:700; color:#555; }
+  .cot-total .n { font-size:24px; font-weight:800; color:var(--azul); }
+
   .eol-bundle-tip { margin-top:10px; padding:9px 11px; border-radius:9px; background:#fff8ec; border:1px solid #ffe6bd; }
   .eol-bundle-tip .tip-lbl { font-size:10.5px; font-weight:800; color:var(--naranja); text-transform:uppercase; letter-spacing:.4px; }
   .eol-bundle-tip .tip-nom { font-size:12.5px; font-weight:700; margin-top:2px; }
@@ -533,6 +567,49 @@
     <input id="apTransaccion" class="ap-inp" type="text" inputmode="numeric" placeholder="Folio del ticket de pago" autocomplete="off">
     <label class="ap-toggle"><input id="apSeguro" type="checkbox"> 🛡️ El cliente se llevó <b>Seguro</b></label>
     <button id="apGuardar" class="ap-guardar" onclick="guardarApartado()">Guardar apartado</button>
+  </div>
+</div>
+
+<!-- ── Cotización (6-sep-2026) ────────────────────────────────────────────
+     Suma varios artículos con o sin garantía para decirle el total al cliente.
+     No cobra, no aparta, no toca inventario: sustituye a la calculadora del
+     celular. La barra solo aparece cuando hay algo sumado. -->
+<div id="cotBar" class="cot-bar">
+  <div style="flex:1;min-width:0">
+    <div class="n" id="cotN">0 artículos</div>
+    <div class="tot" id="cotTot">$0</div>
+  </div>
+  <button onclick="cotAbrir()">Ver cotización</button>
+</div>
+
+<div id="cotPanel" class="ap-modal">
+  <div class="ap-box">
+    <div class="ap-head">
+      <div><div class="ap-title">🧾 Cotización</div>
+      <div class="ap-sub">Lo que se le dice al cliente</div></div>
+      <button class="ap-close" onclick="cotCerrar()" aria-label="Cerrar">✕</button>
+    </div>
+    <div id="cotLista" style="max-height:52vh;overflow-y:auto;margin:0 -16px"></div>
+    <div class="cot-total">
+      <span class="lbl">Total para el cliente</span>
+      <span class="n" id="cotTotalPanel">$0</span>
+    </div>
+    <!-- Los MSI van sobre el TOTAL, y por eso valen aquí más que en la tarjeta:
+         un reloj de $5,048 solo llega a 6 MSI, pero con un teléfono al lado la
+         cuenta pasa de $20,000 y alcanza 18. Es el argumento que cierra la
+         venta, y hasta ahora la cotización lo escondía. -->
+    <div class="seg-msi" id="cotMsi" style="margin:0 0 10px"></div>
+    <!-- Se dice lo que ESTO no es. Un total en pantalla con el cliente delante
+         se puede confundir con una venta hecha, y de aquí no sale ningún
+         apartado ni se descuenta ninguna pieza. -->
+    <p style="font-size:11.5px;color:#a09895;line-height:1.45;margin:2px 0 12px">
+      Es solo la cuenta. No aparta piezas ni registra la venta: si el cliente se
+      decide, la venta se captura como siempre.
+    </p>
+    <div style="display:flex;gap:9px">
+      <button class="ap-guardar" style="flex:1;background:#f4f4f5;color:#666" onclick="cotVaciar()">Vaciar</button>
+      <button class="ap-guardar" style="flex:2" onclick="cotCompartir()">📲 Compartir</button>
+    </div>
   </div>
 </div>
 
@@ -965,13 +1042,28 @@ function seguroPara(precio, sku) {
 // "American Express" completo la partía en dos líneas.
 const MSI_18_BANCOS = 'Citibanamex y Amex';
 
+/* Los plazos que alcanza un importe, de menor a mayor. UN SOLO SITIO: lo pintan
+   las tarjetas, lo escribe el WhatsApp del producto y lo suma la cotización.
+   Los umbrales estaban copiados en dos lugares y la cotización habría sido el
+   tercero; con tres copias, subir el mínimo de 6 MSI se hace en dos sitios y el
+   que falta no da error — solo deja de ofrecer meses que el cliente sí tiene. */
+function msiPlazos(total) {
+  const p = [];
+  if (total >= 1500)  p.push(6);
+  if (total >= 10000) p.push(12);
+  if (total >= 20000) p.push(18);
+  return p;
+}
+
 function msiInfo(total) {
   // La cuota va en <b>: es el número que el asesor dice en voz alta.
   const cuota = m => `<b>${money(Math.ceil(total/m))}</b>`;
-  if (total >= 20000) return `<span class="msi-badge msi-18">18 MSI · ${cuota(18)}/mes — ${MSI_18_BANCOS}</span> <span class="msi-badge msi-12">12 MSI · ${cuota(12)}/mes</span>`;
-  if (total >= 10000) return `<span class="msi-badge msi-12">12 MSI · ${cuota(12)}/mes</span> <span class="msi-badge msi-6">6 MSI · ${cuota(6)}/mes</span>`;
-  if (total >= 1500)  return `<span class="msi-badge msi-6">6 MSI · ${cuota(6)}/mes</span>`;
-  return '';
+  /* Los DOS plazos más largos, no todos: el badge vive en una tarjeta estrecha
+     y el plazo corto se deduce del largo. El orden es de mayor a menor porque
+     el que se dice primero es el que baja más la mensualidad. */
+  const dos = msiPlazos(total).slice(-2).reverse();
+  return dos.map(m => `<span class="msi-badge msi-${m}">${m} MSI · ${cuota(m)}/mes${
+    m === 18 ? ' — ' + MSI_18_BANCOS : ''}</span>`).join(' ');
 }
 /* Solo el total, grande. El desglose "2.690 + 299 seguro = 2.989" se retiró el
    8-ago-2026: ahora el chip dice lo que cuesta el seguro, así que la suma en
@@ -989,7 +1081,10 @@ function desgloseHtml(p0, total, segCosto) {
 /* `dto` es el porcentaje de ahorro. Se pinta AQUÍ y no en la tarjeta porque
    este es el único sitio donde vive el precio: al añadirlo fuera salían dos
    precios, uno encima del otro. (8-ago-2026, visto en piso.) */
-function segSelector(sku, precioBase, precioVenta, enMedio, regularTachado, dto) {
+/* `prodNombre` entra al final (6-sep-2026) para el botón de sumar: la
+   cotización necesita decir QUÉ se sumó, y aquí solo estaba el SKU. Va el
+   último para no mover ningún argumento de las llamadas que ya existían. */
+function segSelector(sku, precioBase, precioVenta, enMedio, regularTachado, dto, prodNombre) {
   const s = seguroPara(precioBase, sku);
   const p0 = parseFloat(String(precioVenta||0).replace(/[^0-9.]/g,'')) || 0;
   const p1 = s ? p0 + s.p1 : null;
@@ -1017,8 +1112,27 @@ function segSelector(sku, precioBase, precioVenta, enMedio, regularTachado, dto)
       ${chip1}${chip2}
     </div>
     <div class="seg-msi">${msiInfo(p0)}</div>
+    <div class="prod-pie" style="justify-content:flex-end;border-top:none;padding-top:6px;margin-top:6px">
+      ${botonCot(sku, prodNombre, p0, p1, p2, i1, i2, id)}
+    </div>
   </div>`;
 }
+/* El botón de sumar a la cotización (6-sep-2026).
+
+   Va pegado al selector de seguro y NO en la tarjeta suelta a propósito: lo que
+   se suma es «este producto CON lo que esté elegido ahí». Ese es el pedido tal
+   cual —«selecciona el reloj más la garantía»—, y separarlo del selector haría
+   que el asesor tocara «1 año» y agregara sin garantía sin notarlo.
+
+   Los precios viajan en el onclick, igual que en los chips: son los mismos
+   números que ya se calcularon arriba, y volver a deducirlos del texto pintado
+   es lo que hace que un día no coincidan. */
+function botonCot(sku, producto, p0, p1, p2, i1, i2, id) {
+  if (!p0) return '';                     // sin precio no hay nada que sumar
+  const nom = encodeURIComponent(producto || ('SKU ' + sku));
+  return `<button class="btn-cot" id="bc_${id}" onclick="cotAgregar('${sku}','${nom}',${p0},${p1||p0},${p2||p0},${i1||0},${i2||0},'${id}')">＋ Sumar</button>`;
+}
+
 function selSeg(id, idx, p0, p1, p2, i1, i2) {
   const wrap = document.getElementById(id);
   if (!wrap) return;
@@ -1042,6 +1156,152 @@ function selSeg(id, idx, p0, p1, p2, i1, i2) {
     el.style.display = conSeguro ? 'none' : '';
   });
 }
+/* ---------- Cotización: sumar varios artículos (6-sep-2026) ----------
+
+   Pedido en piso: «estamos vendiendo un reloj, selecciona el reloj más la
+   garantía; pero también quiere un teléfono, selecciona el teléfono más la
+   garantía y va haciendo la suma. No se va a cobrar desde ahí, solamente
+   necesito que se puedan sumar varios artículos y le podamos dar el precio al
+   cliente».
+
+   Así que esto SUMA Y NADA MÁS. No cobra, no aparta, no toca inventario y no
+   sube nada a la nube. Sustituye a la calculadora del celular, donde lo que se
+   pierde es un seguro que no se sumó o un precio tecleado de otro producto.
+
+   ⚠️ Se guarda en el teléfono a propósito. Una cotización se arma con el
+   cliente delante y basta que entre una notificación o se bloquee la pantalla
+   para recargar la app: perder la cuenta a medias obliga a empezar de nuevo
+   enfrente del cliente. Es del teléfono y de nadie más — aquí no hay dato de
+   la tienda que proteger, son precios que ya se le dijeron al cliente. */
+const COT_KEY = 'odemas_cotizacion';
+let COT = [];
+try{ const c = JSON.parse(localStorage.getItem(COT_KEY)||'null'); if(Array.isArray(c)) COT = c; }
+catch(e){}   // ilegible: se arranca vacío, que es una cotización nueva
+
+function cotGuardar(){
+  // Sin espacio se pierde la copia, no la cuenta: `COT` sigue en memoria.
+  try{ localStorage.setItem(COT_KEY, JSON.stringify(COT)); }catch(e){}
+}
+
+/* Qué chip está activo en ese bloque de precio: 0 sin seguro, 1 un año, 2 dos.
+   Se lee del DOM y no de una variable propia porque el DOM ES el estado que ve
+   el asesor. Con una copia aparte, tocar «1 año» y que la copia no se enterara
+   sumaría sin garantía sin que nada lo dijera. */
+function cotSeguroElegido(id){
+  const wrap = document.getElementById(id);
+  if(!wrap) return 0;
+  const chips = wrap.querySelectorAll('.seg-chip');
+  for(let i = 0; i < chips.length; i++)
+    if(chips[i].classList.contains('active')) return i;
+  return 0;
+}
+
+function cotAgregar(sku, prodEnc, p0, p1, p2, i1, i2, id){
+  const idx = cotSeguroElegido(id);
+  const total = idx === 1 ? p1 : idx === 2 ? p2 : p0;
+  const seg   = idx === 1 ? i1 : idx === 2 ? i2 : 0;
+  COT.push({
+    sku: String(sku), producto: decodeURIComponent(prodEnc || ''),
+    base: p0, seguro: seg,
+    /* Los años se guardan como los entiende el cliente. «+1 año» en realidad
+       protege DOS —el año de fábrica más el contratado—, y así es como hay que
+       decírselo; el número de aquí es el del chip, y el texto lo traduce en un
+       solo sitio (`cotTextoSeguro`) para que las dos formas no se separen. */
+    anios: idx, total: total
+  });
+  cotGuardar();
+  cotPintar();
+  /* El botón confirma en el sitio donde se tocó. Sin esto, con la barra abajo
+     del todo y la lista larga, no hay señal de que el toque hizo algo y se
+     acaba tocando dos veces — dos veces el mismo producto en la cuenta. */
+  const b = document.getElementById('bc_' + id);
+  if(b){
+    b.classList.add('puesto');
+    b.textContent = '✓ Sumado';
+    setTimeout(function(){ b.classList.remove('puesto'); b.textContent = '＋ Sumar'; }, 1400);
+  }
+}
+
+function cotTextoSeguro(l){
+  if(!l.anios) return '';
+  // Ver arriba: lo contratado se suma a la garantía de fábrica.
+  return l.anios === 1 ? '🛡️ +1 año (protege 2)' : '🛡️ +2 años (protege 3)';
+}
+
+function cotTotal(){ return COT.reduce(function(s, l){ return s + (Number(l.total)||0); }, 0); }
+
+function cotPintar(){
+  const bar = document.getElementById('cotBar');
+  if(!bar) return;
+  bar.classList.toggle('show', COT.length > 0);
+  if(COT.length){
+    document.getElementById('cotN').textContent =
+      COT.length + (COT.length === 1 ? ' artículo' : ' artículos');
+    document.getElementById('cotTot').textContent = money(cotTotal());
+  }
+  const lista = document.getElementById('cotLista');
+  if(!lista) return;
+  lista.innerHTML = COT.length
+    ? COT.map(function(l, i){
+        const seg = cotTextoSeguro(l);
+        return `<div class="cot-linea">
+          <div class="txt">
+            <h4>${l.producto || ('SKU ' + l.sku)}</h4>
+            <div class="det">
+              <span>${money(l.base)}</span>
+              ${seg ? '<span class="seg">' + seg + ' · ' + money(l.seguro) + '</span>' : '<span>sin seguro</span>'}
+            </div>
+          </div>
+          <span class="imp">${money(l.total)}</span>
+          <button class="cot-quitar" title="Quitar" onclick="cotQuitar(${i})">×</button>
+        </div>`;
+      }).join('')
+    : '<div class="cot-linea" style="color:#a09895;justify-content:center">Todavía no has sumado nada.</div>';
+  const t = document.getElementById('cotTotalPanel');
+  if(t) t.textContent = money(cotTotal());
+  /* Se repinta en cada cambio, no una vez al abrir: quitar una línea puede
+     bajar el total por debajo de un umbral, y unos MSI que se quedaran de la
+     cuenta anterior serían meses ofrecidos que el cliente ya no tiene. */
+  const m = document.getElementById('cotMsi');
+  if(m) m.innerHTML = COT.length ? msiInfo(cotTotal()) : '';
+}
+
+function cotQuitar(i){ COT.splice(i, 1); cotGuardar(); cotPintar(); }
+
+function cotVaciar(){
+  /* Se pregunta: vaciar con el cliente delante y tener que rehacerlo es peor
+     que un toque de más. */
+  if(COT.length && !confirm('¿Vaciar la cotización? Son ' + COT.length + ' artículos.')) return;
+  COT = []; cotGuardar(); cotPintar();
+  document.getElementById('cotPanel').classList.remove('show');
+}
+
+function cotAbrir(){ cotPintar(); document.getElementById('cotPanel').classList.add('show'); }
+function cotCerrar(){ document.getElementById('cotPanel').classList.remove('show'); }
+
+/* Para leérselo al cliente o mandárselo. Reusa `compartirWA` no: aquello arma
+   el mensaje de UN producto con su promo. Aquí es una cuenta de varios. */
+function cotCompartir(){
+  if(!COT.length) return;
+  const lin = COT.map(function(l){
+    const seg = cotTextoSeguro(l);
+    return '• ' + (l.producto || ('SKU ' + l.sku)) + ' — ' + money(l.total)
+         + (seg ? '\n   ' + seg.replace('🛡️ ', 'con ') + ' incluido' : '');
+  }).join('\n');
+  /* Mismos plazos que el panel, escritos como en `compartirWA` para que el
+     cliente que recibe los dos mensajes lea lo mismo. Van sobre el TOTAL: es la
+     cuenta entera la que alcanza el plazo, no cada artículo por su lado. */
+  const plazos = msiPlazos(cotTotal());
+  const msi = plazos.length
+    ? '\n\n💳 ' + plazos.map(m => m + ' MSI' + (m === 18 ? '*' : '')).join(' · ') + ' disponibles'
+      + (plazos.indexOf(18) >= 0 ? '\n   *18 MSI con ' + MSI_18_BANCOS : '')
+    : '';
+  const txt = 'Tu cotización HES' + (TIENDA_NOMBRE ? ' ' + TIENDA_NOMBRE : '') + ':\n\n' + lin
+            + '\n\nTOTAL: ' + money(cotTotal()) + msi
+            + '\n\n*Precios sujetos a disponibilidad.*';
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+}
+
 /* slidePromo y onPromoSliderScroll se retiraron el 7-ago-2026 junto con las dos
    pestañas deslizables de promos: ahora es una sola lista con encabezados.
    Se borran en vez de dejarlas "por si acaso" — código que nadie llama es
@@ -1200,10 +1460,10 @@ function compartirWA(prodEnc,sku,pv,pb,sinSeguro,incluyeEnc){
       }
     }
   }
-  const msi=[];
-  if(pv>=1500) msi.push('6 MSI');
-  if(pv>=10000) msi.push('12 MSI');
-  if(pv>=20000) msi.push('18 MSI*');
+  /* Aquí van TODOS los plazos, no los dos más largos: en un mensaje no hay
+     tarjeta estrecha que lo obligue, y el cliente elige. El asterisco del 18
+     avisa de la restricción de banco, igual que el badge la escribe entera. */
+  const msi=msiPlazos(pv).map(m=>m+' MSI'+(m===18?'*':''));
   if(msi.length) msg+='\n\n💳 '+msi.join(' · ')+' disponibles';
   // La firma es la tienda de quien manda la cotización. Iba fija, y en una
   // copia que usan varias eso firmaría todas con el nombre de una sola: el
@@ -1938,7 +2198,7 @@ function cardPromo(x){
      leer el precio, que es cuando importa saber si ese precio es especial. */
   const badges = vig ? `<div class="meta">${vig}</div>` : '';
   const selA = (precioBase && precioVenta)
-    ? segSelector(x.sku, precioBase, precioVenta, badges, x.pr != null && pb > pv ? x.pr : null, dto)
+    ? segSelector(x.sku, precioBase, precioVenta, badges, x.pr != null && pb > pv ? x.pr : null, dto, x.producto)
     : badges;
   return `<div class="card prod">
     <div class="prod-top">
@@ -1960,7 +2220,7 @@ function cardPrecioReg(x){
      las tarjetas. Los badges de aquí se quedan solo para lo que no es estado. */
   const e = estadoSku(x.sku);
   const sel = precio
-    ? segSelector(x.sku, precio, precio, '')
+    ? segSelector(x.sku, precio, precio, '', null, 0, x.producto)
     : `<div class="meta"><span class="badge">Sin precio registrado</span></div>`;
   return `<div class="card prod">
     <div class="prod-top">
@@ -2012,6 +2272,25 @@ function cardEol(e){
       </div>
       <p class="warn">⚠️ Al 50% pierde garantía de fábrica y NO es elegible para Assurant.</p>
       ${bundleTip(e.sku)}
+      <div class="prod-pie" style="justify-content:flex-end;border-top:none;padding-top:0;margin-top:8px">
+        ${/* El 50% se suma con SU precio, el rebajado, y SIN seguro: al 50% el
+             equipo no es elegible para Assurant y la propia tarjeta lo dice dos
+             líneas más arriba. Aquí no hay chips de garantía, así que
+             `cotSeguroElegido` no encuentra el bloque y devuelve 0 — que es lo
+             correcto, pero por casualidad; por eso se pasan los precios del
+             seguro en cero, para que no dependa de eso.
+             (6-sep-2026: faltaba, y era justo el producto que más se cotiza
+             junto a otro — el cliente que se lleva el de exhibición pregunta
+             qué más le sale a cuenta.) */''}
+        ${/* El nombre lleva de qué pieza se trata. En la cuenta que se le lee al
+             cliente, «WATCH FIT 4» a mitad de precio y el mismo modelo nuevo son
+             dos renglones iguales con distinto importe, y la diferencia —que es
+             la de aparador, sin garantía— hay que decirla, no dejarla al tono de
+             voz del asesor. */''}
+        ${e.precio50 != null ? botonCot(e.sku, e.producto + ' · pieza de exhibición al 50%',
+                                        e.precio50, 0, 0, 0, 0,
+                                        'eol_' + String(e.sku).replace(/\D/g,'')) : ''}
+      </div>
       ${botonApartar(e.sku, e.producto, e.precio)}
     </div>`;
   }
@@ -2962,6 +3241,10 @@ async function refrescarNube(){
 }
 
 render();
+/* La cotización sobrevive a recargar la app: si quedó algo sumado, la barra
+   tiene que estar ahí al abrir. Sin esta llamada el total existe en
+   `localStorage` y no se ve, que es peor que no guardarlo. */
+cotPintar();
 actualizarBanner();
 refrescarNube();
 confirmarPuesto();
