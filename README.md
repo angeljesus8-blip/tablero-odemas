@@ -78,12 +78,25 @@ una función que no va a existir, y eso se descubre en producción.
 
 ## Alta de una tienda
 
-1. En el menú → **Registrar tienda**, con el correo del gerente.
-2. La base le pone sola su **clave de escritura** (`supabase_token_alta.sql`).
+1. **Código de invitación** — lo saca quien lleva la red, desde el SQL Editor
+   (nadie lo puede pedir desde la app):
+   `SELECT public.invitacion_nueva('1234', 'nota', 30);` → un código de 8 letras.
+   Con número de tienda, el código solo abre esa; sin él, cualquiera.
+2. En el menú → **Registrar tienda**: el código, el número y el nombre de la
+   tienda, el número y nombre del gerente, y su correo y contraseña. El gerente
+   queda dado de alta en su propia tienda.
+3. La base le pone sola su **clave de escritura** (`supabase_token_alta.sql`).
    Sin ella la app se ve entera pero no guarda nada, y todas las pantallas lo
    avisan al abrir.
-3. En Admin → Configuración: el equipo y el responsable de revisar ventas.
-4. Para los avisos push, `tiendas.app_url` con la dirección de tu copia.
+4. En Admin → 👥 Equipo: el resto de la gente, y quién revisa «Ventas del día»
+   (la marca en su ficha). En 📦 Catálogo y 🔥 Promos se suben el Informe de
+   Artículos y el CEA: sin ellos la tienda abre vacía.
+5. Para los avisos push, `tiendas.app_url` con la dirección de tu copia.
+
+Borrar una tienda de prueba es un `DELETE FROM public.tiendas WHERE store_id =
+'…'`: desde el 26-sep-2026 se lleva en cascada todo lo suyo, equipo incluido
+(`supabase_llaves_tienda.sql`). La cuenta de acceso del gerente queda aparte,
+en `auth.users`.
 
 ## Deploy
 
