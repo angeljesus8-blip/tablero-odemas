@@ -48,8 +48,11 @@ function clienteFalso(o, llamadas){
     auth:{
       signUp: async (args) => {
         llamadas.push('signUp');
+        llamadas.signUpArgs = args;
         if(o.correoRepetido) return { data:{}, error:{ message:'User already registered' } };
-        return { data:{ user:{ id:'u1', email:args.email },
+        // Como Supabase: lo que se manda en `options.data` vuelve en user_metadata.
+        return { data:{ user:{ id:'u1', email:args.email,
+                               user_metadata: Object.assign({}, (args.options || {}).data) },
                         session: o.confirmacionEncendida ? null : { access_token:'t' } },
                  error:null };
       },
@@ -59,7 +62,12 @@ function clienteFalso(o, llamadas){
         return { data:{ user:{ id:'u1', email:args.email }, session:{ access_token:'t' } }, error:null };
       },
       resend: async () => { llamadas.push('resend'); return { error:null }; },
-      getSession: async () => ({ data:{ session:null } }),
+      updateUser: async (args) => {
+        llamadas.push('updateUser:' + JSON.stringify(args && args.data));
+        return { data:{}, error:null };
+      },
+      getSession: async () => ({ data:{ session: o.sesionDelEnlace
+        ? { access_token:'t', user:o.sesionDelEnlace } : null } }),
       signOut: async () => ({})
     },
     // Si algo vuelve a crear tiendas por aquí, la prueba lo ve.
@@ -210,6 +218,90 @@ Promise.resolve()
       ok('YA ESTABA CREADA · y el pendiente se limpia',
          s.lsJson('hes_alta_pendiente') === null);
       ok('YA ESTABA CREADA · sin quejarse en pantalla', !s.tiene('loginErr', 'show'));
+    });
+  })
+
+  /* 10 · El alta viaja CON LA CUENTA (26-sep-2026). Al registrar la 1218 el
+        enlace se abrió en el celular, ahí no estaba el pendiente del
+        navegador, y la app volvió a pedir el código. */
+  .then(() => registrar({ confirmacionEncendida:true }).then(({ llamadas }) => {
+    const md = (((llamadas.signUpArgs || {}).options || {}).data || {}).alta_pendiente || {};
+    ok('EN LA CUENTA · el registro manda el alta con su código', md.codigo === CODIGO);
+    ok('EN LA CUENTA · y con los datos de la tienda y del gerente',
+       md.store_id === '1217' && md.empno === '1000001' && md.emp_nombre === 'Ana Ramirez Solis');
+  }))
+  .then(() => {
+    const alta = { codigo:CODIGO, store_id:'1217', nombre:'Angelopolis', ciudad:'Puebla',
+                   empno:'1000001', emp_nombre:'Ana Ramirez Solis' };
+    // Otro navegador: localStorage vacío. El alta solo está en la cuenta.
+    const { s, llamadas } = arrancar({});
+    s.caja.__md = alta;
+    s.el('loginEmail').value = CORREO; s.el('loginPass').value = 'secreta1';
+    s.correr('sb.auth.signInWithPassword = async function(){ return { data:{ user:{ id:"u1", email:"' + CORREO + '", user_metadata:{ alta_pendiente: __md } } }, error:null }; };');
+    return s.correr('doLogin()').then(() => {
+      ok('OTRO NAVEGADOR · la tienda se crea con el alta de la cuenta',
+         llamadas.indexOf('alta:' + CODIGO + '|1217|Angelopolis|1000001|Ana Ramirez Solis') >= 0);
+      ok('OTRO NAVEGADOR · sin volver a pedir el código', dentro(s));
+      ok('OTRO NAVEGADOR · y el alta se borra de la cuenta',
+         llamadas.indexOf('updateUser:{"alta_pendiente":null}') >= 0);
+    });
+  })
+
+  /* 11 · Registro con sesión (confirmación apagada): la tienda se crea y el
+        alta no se queda viva en la cuenta para el siguiente ingreso. */
+  .then(() => registrar({}).then(({ llamadas }) => {
+    ok('SIN RESTOS · al crearse la tienda el alta se borra de la cuenta',
+       llamadas.indexOf('updateUser:{"alta_pendiente":null}') >= 0);
+  }))
+
+  /* 12 · El alta guardada que falla (código vencido) no deja a nadie atorado
+        en el login: manda a terminar la tienda con todo ya escrito. */
+  .then(() => {
+    const pendiente = JSON.stringify({ codigo:CODIGO, store_id:'1217', nombre:'Angelopolis',
+      ciudad:'Puebla', empno:'1000001', emp_nombre:'Ana Ramirez Solis', email:CORREO });
+    const { s, pantalla } = arrancar({ altaFalla:'vencido', tienda:null,
+                                        ls:{ hes_alta_pendiente:pendiente } });
+    s.el('loginEmail').value = CORREO; s.el('loginPass').value = 'secreta1';
+    s.correr('sb.auth.signInWithPassword = async function(){ return { data:{ user:{ id:"u1", email:"' + CORREO + '" } }, error:null }; };');
+    return s.correr('doLogin()').then(() => {
+      ok('ALTA VENCIDA · va a terminar la tienda, no se queda en el login',
+         !s.el('scRegister')._clases.has('hide') && s.el('scLogin')._clases.has('hide'));
+      ok('ALTA VENCIDA · dice el motivo ahí', dice(s, 'regErr', 'venció'));
+      ok('ALTA VENCIDA · con los datos ya escritos',
+         s.el('regId').value === '1217' && s.el('regEmpNo').value === '1000001'
+         && s.el('regCodigo').value === CODIGO);
+    });
+  })
+
+  /* 13 · La pantalla no promete un código que no llega: dice los dos caminos,
+        y el del enlace tiene salida a iniciar sesión con el correo escrito. */
+  .then(() => registrar({ confirmacionEncendida:true }).then(({ s, pantalla }) => {
+    const sub = s.el('codSub').innerHTML;
+    ok('PANTALLA · habla del enlace, no solo del código',
+       sub.indexOf('enlace') >= 0 && sub.indexOf('inicia sesión') >= 0);
+    ok('PANTALLA · no promete «Te mandamos un código»', sub.indexOf('Te mandamos un código') < 0);
+    s.correr('yaAbriElEnlace_()');
+    ok('PANTALLA · «ya abrí el enlace» lleva a iniciar sesión', pantalla() === 'login');
+    ok('PANTALLA · con el correo ya escrito', s.el('loginEmail').value === CORREO);
+  }))
+
+  /* 14 · Volver del enlace: si trae sesión se entra (y se termina el alta);
+        si venció, se dice y se manda a la contraseña. */
+  .then(() => {
+    const alta = { codigo:CODIGO, store_id:'1217', nombre:'Angelopolis', ciudad:'Puebla',
+                   empno:'1000001', emp_nombre:'Ana Ramirez Solis' };
+    const { s, llamadas } = arrancar({ sesionDelEnlace:{ id:'u1', email:CORREO,
+                                                        user_metadata:{ alta_pendiente:alta } } });
+    return s.correr('volverDelCorreo_("#access_token=x&type=signup")').then(() => {
+      ok('DEL ENLACE · se crea la tienda', llamadas.some(l => l.indexOf('alta:' + CODIGO) === 0));
+      ok('DEL ENLACE · y se entra', dentro(s));
+    });
+  })
+  .then(() => {
+    const { s, pantalla } = arrancar({});
+    return s.correr('volverDelCorreo_("#error=access_denied&error_code=otp_expired")').then(() => {
+      ok('ENLACE VENCIDO · manda a iniciar sesión', pantalla() === 'login');
+      ok('ENLACE VENCIDO · y lo dice', s.el('loginOk').innerHTML.indexOf('venció') >= 0);
     });
   })
 

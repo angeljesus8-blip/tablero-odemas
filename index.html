@@ -189,14 +189,15 @@
     <button class="auth-back" onclick="showScreen('login')">← Volver</button>
     <img class="auth-logo" src="logo_odemas.png" alt="Odemás" style="margin:4px auto 0;display:block">
     <h1 class="auth-title" style="margin-bottom:0">Confirma tu correo</h1>
-    <p class="auth-sub" id="codSub" style="margin-bottom:12px">Te mandamos un código de 6 dígitos</p>
+    <p class="auth-sub" id="codSub" style="margin-bottom:12px">Te mandamos un correo para confirmar tu cuenta</p>
     <div class="auth-err" id="codErr"></div>
     <div class="auth-ok"  id="codOk"></div>
     <input class="auth-inp" id="codInp" type="text" inputmode="numeric" maxlength="6"
            placeholder="••••••" autocomplete="one-time-code"
            style="text-align:center;letter-spacing:6px;font-size:22px;font-weight:800">
     <button class="auth-btn" id="btnCod" onclick="doVerificarCodigo()">Confirmar y entrar</button>
-    <span class="auth-link" onclick="doReenviarCodigo()">No me llegó — enviar otro código</span>
+    <span class="auth-link" onclick="yaAbriElEnlace_()">Ya abrí el enlace — iniciar sesión</span>
+    <span class="auth-link" onclick="doReenviarCodigo()">No me llegó — enviar otro correo</span>
   </div>
 </div>
 
@@ -609,16 +610,46 @@ async function altaDeTienda_(d) {
    `signUp` no deja sesión y la tienda no se puede crear hasta el primer
    ingreso. Con ella apagada esto no se usa nunca, y por eso empieza mirando si
    hay algo pendiente en vez de dar por hecho que lo hay. */
+/* El alta pendiente viaja también CON LA CUENTA (26-sep-2026), en el
+   `user_metadata` que se manda al registrarse.
+
+   Solo en el navegador no bastaba: al registrar la 1218 el enlace del correo
+   se abrió en el celular, ahí no estaba el pendiente, y la app mandó a
+   «Termina de crear tu tienda» a pedir otra vez el código que ya se había
+   escrito. Guardado en la cuenta, el alta se termina desde donde se entre.
+
+   Que la persona pueda editar su propio metadata no abre nada: la tienda la
+   crea `alta_tienda`, que vuelve a validar el código en el servidor. */
+let _altaQueFallo = null;
+
+async function olvidarAltaPendiente_(user) {
+  // Sin almacenamiento o sin poder borrar, en el navegador o en la cuenta: el
+  // siguiente ingreso recibe «usado» y lo limpia `crearTiendaPendiente`.
+  // Molesta una llamada, no corta la entrada.
+  try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
+  const md = user && user.user_metadata;
+  if (!md || !md.alta_pendiente) return;
+  // El `user` que se tiene en mano no se refresca solo: sin esto, el ingreso
+  // que viene justo después lo volvería a intentar.
+  md.alta_pendiente = null;
+  if (sb && sb.auth && sb.auth.updateUser) {
+    try{ await sb.auth.updateUser({ data:{ alta_pendiente:null } }); }catch(e){ /* ver arriba: lo limpia el siguiente «usado» */ }
+  }
+}
+
 async function crearTiendaPendiente(user) {
+  _altaQueFallo = null;
   let p = null;
   // Ilegible o sin permiso de almacenamiento: no hay alta pendiente que atender,
   // que es exactamente lo que pasa el 99% de las veces.
   try{ p = JSON.parse(localStorage.getItem('hes_alta_pendiente') || 'null'); }catch(e){}
-  if (!p || !p.store_id) return null;
-  // El pendiente es de QUIEN lo escribió: si en este navegador entra otra
+  // El pendiente del navegador es de QUIEN lo escribió: si aquí entra otra
   // persona, su alta no puede colgarse de la sesión ajena.
-  if (!user || !user.email || !p.email ||
-      user.email.toLowerCase() !== String(p.email).toLowerCase()) return null;
+  if (p && (!user || !user.email || !p.email ||
+      user.email.toLowerCase() !== String(p.email).toLowerCase())) p = null;
+  // El de la cuenta, en cambio, ya es suyo por definición.
+  if (!p || !p.store_id) p = (user && user.user_metadata && user.user_metadata.alta_pendiente) || null;
+  if (!p || !p.store_id) return null;
 
   const fallo = await altaDeTienda_(p);
 
@@ -629,17 +660,19 @@ async function crearTiendaPendiente(user) {
   if (fallo && p.codigo && /ya se usó|ya está registrado/.test(fallo)) {
     // No poder borrarlo no cambia nada: el alta ya está hecha y el próximo
     // intento vuelve a caer aquí, con el mismo resultado.
-    try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
+    await olvidarAltaPendiente_(user);
     return null;
   }
-  if (fallo) return fallo;
+  // Se guarda para llenar con ello la pantalla de terminar la tienda: el error
+  // casi siempre es del código (vencido, mal escrito), y lo demás ya se tecleó.
+  if (fallo) { _altaQueFallo = p; return fallo; }
 
   /* Se borra solo cuando ya está todo dentro: si se borrara antes y algo
      fallara, esos datos no estarían en ningún sitio y habría que volver a
      escribirlos sin saber cuáles eran. */
   // Si no se puede borrar, la tienda YA está creada: el siguiente intento
   // recibe «usado» y se limpia arriba. Molesta menos que cortar el ingreso.
-  try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
+  await olvidarAltaPendiente_(user);
   return null;
 }
 
@@ -668,13 +701,17 @@ function irAlCodigo_(email, aviso) {
   _correoAConfirmar = email || '';
   hideErr('codErr');
   const sub = document.getElementById('codSub');
-  if (sub) sub.innerHTML = 'Te mandamos un código de 6 dígitos a <b>'
-    + _correoAConfirmar.replace(/</g,'&lt;') + '</b>. Escríbelo aquí y entras directo.';
+  /* Lo que trae el correo NO lo decide la app (26-sep-2026). Con la plantilla
+     de fábrica llega solo un enlace —editarla pide SMTP propio—, y esta
+     pantalla prometía «un código de 6 dígitos» que nunca llegó: al registrar
+     la 1218 se esperó un código que no existía. Se dicen los dos caminos. */
+  if (sub) sub.innerHTML = 'Te mandamos un correo a <b>'
+    + _correoAConfirmar.replace(/</g,'&lt;') + '</b> para confirmar tu cuenta.<br><br>'
+    + 'Si trae un <b>código de 6 dígitos</b>, escríbelo aquí.<br>'
+    + 'Si trae un <b>enlace</b>, ábrelo —desde el celular también sirve— y luego '
+    + 'inicia sesión con tu correo y contraseña.';
   const ok = document.getElementById('codOk');
   if (ok) {
-    /* El correo también trae el enlace de siempre, pero NO se anuncia como el
-       camino: en esta red se rompe, y ofrecer dos caminos donde uno falla es
-       peor que ofrecer uno. Queda para quien lo pueda abrir. */
     ok.innerHTML = aviso || '';
     ok.classList.toggle('show', !!aviso);
   }
@@ -729,11 +766,18 @@ async function doReenviarCodigo() {
        minutos» evita que alguien apriete diez veces creyendo que no funciona
        —y gaste el cupo de la tienda siguiente—. */
     showErr('codErr', /rate|limit|seconds/i.test(String(error.message))
-      ? 'Se han pedido muchos códigos seguidos. Espera unos minutos y vuelve a intentarlo.'
-      : (error.message || 'No se pudo reenviar el código'));
+      ? 'Se han pedido muchos correos seguidos. Espera unos minutos y vuelve a intentarlo.'
+      : (error.message || 'No se pudo reenviar el correo'));
     return;
   }
-  ok.textContent = 'Listo, te mandamos otro código. Puede tardar un minuto en llegar.';
+  ok.textContent = 'Listo, te mandamos otro correo. Puede tardar un minuto en llegar.';
+}
+
+/* Quien confirmó con el enlace ya tiene la cuenta lista, pero la sesión quedó
+   donde abrió el enlace: aquí toca entrar con la contraseña. */
+function yaAbriElEnlace_() {
+  alLoginConAviso_('Inicia sesión con tu correo y contraseña. Si tu tienda quedó '
+    + 'pendiente, se termina al entrar.', _correoAConfirmar);
 }
 
 /* Lo que pasa DESPUÉS de que Supabase dice quién eres, venga de donde venga.
@@ -757,7 +801,14 @@ async function entrarConSesion_(user, idErr) {
   // viene —buscar la tienda— daría «no estás dado de alta en ninguna tienda» y
   // mandaría a pedirle al gerente que te registre... siendo el gerente.
   const falloAlta = await crearTiendaPendiente(user);
-  if (falloAlta) { showErr(idErr, falloAlta); return false; }
+  /* El alta que falla NO se queda en un error del login: ahí no hay dónde
+     escribir un código nuevo, y la persona quedaba fuera sin salida. Se la
+     manda a terminar su tienda con lo que ya había escrito. */
+  if (falloAlta) {
+    completarTienda(user, _altaQueFallo);
+    showErr('regErr', falloAlta + ' Corrígelo aquí y termina tu tienda.');
+    return false;
+  }
 
   /* Dos clases de cuenta: la dueña de la tienda (el correo de tienda) y la de
      alguien del equipo con su propio correo —el subgerente—. La segunda no
@@ -880,8 +931,17 @@ function cambiarModoRegistro() {
    formulario de registro sin correo ni contraseña: esos ya existen. */
 let _usuarioSinTienda = null;
 
-function completarTienda(user) {
+function completarTienda(user, datos) {
   _usuarioSinTienda = user;
+  // Lo que ya se había escrito al registrarse, para no pedirlo dos veces.
+  if (datos) {
+    [['regId','store_id'],['regNombre','nombre'],['regCiudad','ciudad'],
+     ['regEmpNombre','emp_nombre'],['regEmpNo','empno'],['regCodigo','codigo']]
+      .forEach(function(par){
+        const el = document.getElementById(par[0]);
+        if (el && datos[par[1]]) el.value = datos[par[1]];
+      });
+  }
   _modoEquipo = false;
   document.getElementById('scLogin').classList.add('hide');
   document.getElementById('scRegister').classList.remove('hide');
@@ -964,8 +1024,8 @@ async function doRegister() {
                                         empno:empNo, emp_nombre:empNom });
     btn.disabled = false; btn.textContent = 'Crear mi tienda';
     if (fallo) { showErr('regErr', fallo); return; }
-    try{ localStorage.removeItem('hes_alta_pendiente'); }
-    catch(e){ /* la tienda ya está creada; el pendiente sobra */ }
+    // La tienda ya está creada: el pendiente sobra, aquí y en la cuenta.
+    await olvidarAltaPendiente_(u);
     _usuarioSinTienda = null;
     /* Ya hay sesión —por eso se llegó aquí—, así que no se le manda a iniciarla
        otra vez: se entra. */
@@ -989,8 +1049,13 @@ async function doRegister() {
      Supabase solo acepta destinos que estén en su lista de Redirect URLs, así
      que esto NO sustituye a configurarla en el panel: la acompaña. */
   const volverA = location.href.split('?')[0].split('#')[0];
-  const { data, error } = await sb.auth.signUp({
-    email, password: pass, options: { emailRedirectTo: volverA } });
+  /* El alta va DENTRO de la cuenta, no solo en este navegador: si el correo
+     se confirma en otro dispositivo, ahí también se termina. Ver
+     `crearTiendaPendiente`. Quien solo crea su cuenta de equipo no abre tienda. */
+  const opciones = { emailRedirectTo: volverA };
+  if (!_modoEquipo) opciones.data = { alta_pendiente: { codigo, store_id:storeId, nombre,
+                                        ciudad, empno:empNo, emp_nombre:empNom } };
+  const { data, error } = await sb.auth.signUp({ email, password: pass, options: opciones });
   btn.disabled = false; btn.textContent = 'Crear cuenta';
   if (error) { showErr('regErr', error.message.includes('already')?'Este correo ya está registrado. Inicia sesión.':error.message); return; }
   if (data.user && !_modoEquipo) {
@@ -1044,7 +1109,7 @@ async function doRegister() {
     }
     // La tienda quedó creada. Que el borrado falle solo deja un pendiente que
     // el próximo ingreso descarta al recibir «usado».
-    try{ localStorage.removeItem('hes_alta_pendiente'); }catch(e){}
+    await olvidarAltaPendiente_(data.user);
   }
   /* Con la confirmación de correo APAGADA, `signUp` ya devuelve sesión: no hay
      código que pedir y hacerlo dejaría a la gente esperando un correo que nadie
@@ -1102,12 +1167,44 @@ function sesionIncompleta(cfg, role, empGuardado) {
   return !!queFaltaEnLaSesion(cfg, role, empGuardado);
 }
 
+/* Volver del enlace del correo (26-sep-2026). La página se abría en la
+   pantalla del PIN como si nada: la cuenta sí quedaba confirmada, pero nadie lo
+   decía, y la tienda pendiente no se terminaba hasta que alguien adivinara que
+   había que ir a «iniciar sesión». Ahora, si el enlace trae sesión, se entra;
+   si ya venció, se dice y se manda a la contraseña. */
+async function volverDelCorreo_(hash) {
+  // Si no se puede limpiar la dirección, solo queda el token a la vista en la
+  // barra; Supabase ya lo leyó y no se vuelve a usar.
+  try{ history.replaceState(null, '', location.pathname); }catch(e){}
+  if (/error_code=/.test(hash)) {
+    alLoginConAviso_('Ese enlace ya venció o ya se usó. Si ya habías confirmado, inicia '
+      + 'sesión con tu correo y contraseña.', '');
+    return;
+  }
+  const { data } = await sb.auth.getSession();
+  const user = data && data.session && data.session.user;
+  if (!user) {
+    alLoginConAviso_('Tu correo quedó confirmado. Inicia sesión con tu correo y contraseña.', '');
+    return;
+  }
+  sc('login');
+  await entrarConSesion_(user, 'loginErr');
+}
+
 async function init() {
   try {
+    // Se lee ANTES de crear el cliente: Supabase limpia la dirección al leerla.
+    const hashInicial = location.hash || '';
     initSB();
     const stored = localStorage.getItem('odemas_store');
     const role   = localStorage.getItem('odemas_role');
-    if (!stored || !role) { sc('pin'); return; }
+    if (!stored || !role) {
+      if (sb && /(^|[#&])(access_token|error_code)=/.test(hashInicial)) {
+        await volverDelCorreo_(hashInicial);
+        return;
+      }
+      sc('pin'); return;
+    }
     let cfg;
     try { cfg = JSON.parse(stored); } catch(e) { cfg = null; }
     if (!cfg || !cfg.store_id) { localStorage.removeItem('odemas_store'); localStorage.removeItem('odemas_role'); sc('pin'); return; }
