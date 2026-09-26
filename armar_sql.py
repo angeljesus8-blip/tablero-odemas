@@ -61,6 +61,7 @@ ORDEN = [
    'supabase_comisiones_privadas.sql',
    'supabase_alta_por_invitacion.sql',
    'supabase_venta_capturado_por.sql',
+   'supabase_llaves_tienda.sql',
  ]),
 ]
 
@@ -123,6 +124,12 @@ POR_QUE = [
   'p_quien recibe PGRST202 y deja de guardar ventas'),
  ('supabase_preventa_series.sql', 'supabase_venta_capturado_por.sql',
   'venta_guardar llama a escritura_ok_, que se define en preventa_series'),
+ ('supabase_alta_por_invitacion.sql', 'supabase_llaves_tienda.sql',
+  'la llave de invitaciones.usado_store necesita la tabla invitaciones, que se '
+  'crea en alta_por_invitacion. Al reves el ALTER TABLE falla y el pegado se '
+  'queda a medias'),
+ ('supabase_empleados.sql', 'supabase_llaves_tienda.sql',
+  'la llave de empleados.store_id necesita la tabla empleados'),
  ('supabase_token_alta.sql', 'supabase_alta_por_invitacion.sql',
   'la tienda nace SIN gas_token escrito a mano: lo pone el DEFAULT que instala '
   'token_alta. Al reves, la tienda se crea y no puede guardar ni una venta '
