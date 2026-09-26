@@ -188,6 +188,7 @@
     border-radius:20px; cursor:pointer; transition:.12s; }
   .seg-chip.active { background:var(--azul); color:#fff; border-color:var(--azul); }
   .seg-desglose { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px; margin-bottom:0; }
+  .seg-incluye { flex-basis:100%; font-size:var(--t-sm); font-weight:700; color:var(--ok); margin-top:1px; }
   .seg-precio-total { font-size:25px; font-weight:800; color:var(--rojo); line-height:1.15;
     font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
   /* Precio regular tachado, junto al de promo: el ahorro se ve sin buscarlo. */
@@ -306,6 +307,14 @@
   .ir-txt span { display:block; font-size:var(--t-sm); color:var(--tinta-3); font-weight:600; margin-top:2px; }
   .ir-txt span.sub-alerta { color:var(--alerta); }
   .ir-card .cifra { flex-shrink:0; }
+
+  /* ---- Nombre del producto (22-sep-2026, nombres.js) ----
+     Modelo en grande, versión y color abajo, y la descripción del sistema al
+     final en chico: es la que trae la etiqueta de la caja. */
+  .nom .nom-modelo { display:block; }
+  .nom .nom-ficha { display:block; font-size:var(--t-sm); font-weight:600; color:var(--tinta-2); margin-top:2px; }
+  .nom .nom-sis { display:block; font-family:var(--mono); font-size:var(--t-xs); font-weight:500;
+    color:var(--tinta-3); margin-top:3px; letter-spacing:0; text-transform:none; }
 
   /* ---- Franja de avisos en Inicio ---- */
   .aviso-franja { background:#fff5ee; border:1.5px solid #f7c9a6; border-radius:12px;
@@ -450,8 +459,13 @@
   .pv-msi { font-size:11px; color:var(--azul); font-weight:700; }
   .pv-seg { font-size:12px; color:var(--verde); margin-top:6px; }
   .pv-btns { display:flex; gap:8px; margin-top:10px; }
-  .btn-apartar { flex:1; background:#7c3aed; color:#fff; border:none; border-radius:10px; padding:10px; font-family:inherit; font-size:13px; font-weight:700; cursor:pointer; }
-  .btn-apartar:disabled { background:#ddd; color:#999; cursor:default; }
+  /* Acotado a la preventa (22-sep-2026). Estaba como `.btn-apartar` a secas y,
+     por ir más abajo en el archivo, pisaba al de la l. ~223: TODAS las
+     tarjetas de producto salían con un botón morado sólido —tres o cuatro por
+     pantalla— cuando el diseño era el azul suave de "se trae de otra tienda". */
+  .pv-btns .btn-apartar { flex:1; margin-top:0; background:var(--azul); color:#fff; border-radius:10px;
+    padding:10px; font-size:var(--t-md); font-weight:700; }
+  .pv-btns .btn-apartar:disabled { background:#ddd; color:#999; cursor:default; }
   .btn-wa.pv-wa { width:auto; margin-top:0; padding:9px 14px; flex-shrink:0; }
   .ap-card { border-left-width:4px; }
   .ap-card.t-pre  { border-left-color:#7c3aed; }
@@ -497,6 +511,7 @@
 </head>
 <body>
 <script src="./continuidad.js"></script>
+<script src="./nombres.js"></script>
 
 <header class="barra">
   <a href="index.html" class="barra-volver" title="Menú" aria-label="Volver al menú">
@@ -926,7 +941,11 @@ function badgeVigencia(fecha){
 }
 function coincide(...campos){
   if(!busqueda) return true;
-  return campos.join(' ').toLowerCase().includes(busqueda);
+  /* Por el nombre del sistema Y por el de cliente, y sin acentos
+     (22-sep-2026): «audifonos», «freebuds» y «f-buds» encuentran lo mismo. */
+  const q = typeof sinAcento === 'function' ? sinAcento(busqueda) : busqueda;
+  return campos.map(c => typeof textoBusqueda === 'function' ? textoBusqueda(c) : String(c||'').toLowerCase())
+               .join(' ').includes(q);
 }
 
 /* Inventario guardado de la última vez que respondió la nube.
@@ -959,6 +978,35 @@ const invBySku = {};
    teclea el asesor, así que un apellido con `&` o un `<` cualquiera rompía la
    tarjeta —y una serie es un dato que hay que poder leer entero—. */
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---- Nombre del producto en lenguaje de cliente (22-sep-2026) ----
+   «AUDIF IN EAR HW F-BUDS PRO 4 VD» → «Audífonos Huawei FreeBuds Pro 4»,
+   con «Verde» abajo y la descripción del sistema en chico, para empatarla con
+   la etiqueta de la caja. Las reglas viven en nombres.js (por qué llegan así,
+   y por qué NO se corrige en la base). La descripción original no cambia en
+   ningún dato: esto es solo lo que se PINTA.
+   Si nombres.js no llegara, se pinta la descripción tal cual: se ve como
+   antes, pero la tarjeta no se rompe. */
+const _nomMemo = new Map();
+function nomDe(desc){
+  const k = String(desc == null ? '' : desc);
+  if(_nomMemo.has(k)) return _nomMemo.get(k);
+  const n = typeof nombreCliente === 'function' ? nombreCliente(k)
+          : { texto:k, modelo:k, ficha:'', color:'', original:k };
+  _nomMemo.set(k, n);
+  return n;
+}
+function nomProd(desc){
+  const n = nomDe(desc);
+  const ficha = [n.ficha, n.color].filter(Boolean).join(' · ');
+  return `<span class="nom-modelo">${esc(n.modelo)}</span>`
+       + (ficha ? `<span class="nom-ficha">${esc(ficha)}</span>` : '')
+       + (n.original && n.original !== n.modelo ? `<span class="nom-sis">${esc(n.original)}</span>` : '');
+}
+function nomLinea(desc){
+  const n = nomDe(desc);
+  return [n.modelo, n.ficha, n.color].filter(Boolean).join(' · ');
+}
 const money = n => '$'+Number(n||0).toLocaleString('es-MX');
 const money2 = n => '$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2, maximumFractionDigits:2});
 const eolSkuSet = new Set((D.eol||[]).map(e=>e.sku));
@@ -1088,8 +1136,30 @@ function msiInfo(total) {
    gris repetía el dato y le robaba tamaño al número que de verdad se cobra.
    `p0` y `segCosto` se conservan en la firma porque selSeg los pasa y puede
    volver a hacer falta el desglose si algún día se cobra el seguro aparte. */
-function desgloseHtml(p0, total, segCosto) {
-  return `<span class="seg-precio-total">${money(total)}</span>`;
+/* Con seguro, una línea abajo dice que el precio YA lo incluye (22-sep-2026).
+   Desde que «1 año» sale marcado de entrada, el número grande es producto +
+   seguro; sin esta línea el asesor lo cantaría como el precio del equipo.
+   Los años van como se los dice al cliente: el contratado se SUMA al de
+   fábrica, así que «1 año» protege 2 (mismo criterio que cotTextoSeguro). */
+function desgloseHtml(p0, total, segCosto, anios) {
+  const incluye = segCosto > 0 && anios
+    ? `<span class="seg-incluye">con seguro · protege ${anios + 1} años</span>` : '';
+  return `<span class="seg-precio-total">${money(total)}</span>${incluye}`;
+}
+/* Qué chip sale marcado al abrir la tarjeta (22-sep-2026, decisión de Ángel:
+   «1 año» marcado de entrada, para subir el Assurant attach).
+   Aquí solo se COTIZA: el tablero no guarda ventas, así que marcarlo no puede
+   inflar el attach con un seguro que nadie eligió — eso es Captura, y allá se
+   destaca sin marcar.
+   Arranca en «Sin seguro» solo lo que no tiene rango de seguro: no hay chip
+   de 1 año que marcar.
+   El M-Pencil NO es excepción (Ángel, 22-sep-2026: «va con seguro»). Vendido
+   solo lleva seguro como cualquier otro; la regla de no ponerle seguro es de
+   los COMBOS, donde el seguro se pasa a otro artículo — y aquí no se arman
+   combos. Se le quitó la excepción que tuvo unas horas en la v273.
+   `prodNombre` se queda en la firma por si otra excepción hace falta. */
+function segInicial(s, prodNombre) {
+  return s ? 1 : 0;
 }
 /* El precio va PRIMERO y los meses al final, en gris (rediseño del 1-ago-2026):
    la tarjeta mostraba once bloques con el mismo peso y no había dónde caer
@@ -1114,22 +1184,27 @@ function segSelector(sku, precioBase, precioVenta, enMedio, regularTachado, dto,
      tocarlo, en el desglose gris de arriba: el asesor tenía que seleccionarlo
      para poder decir cuánto costaba, y con el cliente delante eso es tantear.
      Aquí se lee antes: "por 299 más te llevas un año". */
-  const chip1 = s ? `<button class="seg-chip" onclick="selSeg('${id}',1,${p0},${p1},${p2},${i1},${i2})">1 año <i>+${money(i1)}</i></button>` : '';
-  const chip2 = s ? `<button class="seg-chip" onclick="selSeg('${id}',2,${p0},${p1},${p2},${i1},${i2})">2 años <i>+${money(i2)}</i></button>` : '';
+  const ini = segInicial(s, prodNombre);
+  const act = i => i === ini ? ' active' : '';
+  const chip1 = s ? `<button class="seg-chip${act(1)}" onclick="selSeg('${id}',1,${p0},${p1},${p2},${i1},${i2})">1 año <i>+${money(i1)}</i></button>` : '';
+  const chip2 = s ? `<button class="seg-chip${act(2)}" onclick="selSeg('${id}',2,${p0},${p1},${p2},${i1},${i2})">2 años <i>+${money(i2)}</i></button>` : '';
   // El tachado va FUERA de .seg-desglose: selSeg reescribe ese nodo completo al
   // cambiar de seguro, y si estuviera dentro se borraría en el primer toque.
-  const tach = regularTachado ? `<span class="precio-reg">${money(regularTachado)}</span>` : '';
-  const badgeDto = dto ? `<span class="ah">−${dto}%</span>` : '';
+  // Con seguro de entrada nacen ocultos, igual que los deja selSeg al tocarlo.
+  const oculto = ini ? ' style="display:none"' : '';
+  const tach = regularTachado ? `<span class="precio-reg"${oculto}>${money(regularTachado)}</span>` : '';
+  const badgeDto = dto ? `<span class="ah"${oculto}>−${dto}%</span>` : '';
+  const total0 = ini === 1 ? p1 : p0;
   return `<div class="seg-sel" id="${id}">
     <div class="precio-linea">
-      <div class="seg-desglose">${desgloseHtml(p0, p0, 0)}</div>${tach}${badgeDto}
+      <div class="seg-desglose">${desgloseHtml(p0, total0, ini === 1 ? i1 : 0, ini)}</div>${tach}${badgeDto}
     </div>
     ${enMedio || ''}
     <div class="seg-chips">
-      <button class="seg-chip active" onclick="selSeg('${id}',0,${p0},${p1||p0},${p2||p0},${i1},${i2})">Sin seguro</button>
+      <button class="seg-chip${act(0)}" onclick="selSeg('${id}',0,${p0},${p1||p0},${p2||p0},${i1},${i2})">Sin seguro</button>
       ${chip1}${chip2}
     </div>
-    <div class="seg-msi">${msiInfo(p0)}</div>
+    <div class="seg-msi">${msiInfo(total0)}</div>
     <div class="prod-pie" style="justify-content:flex-end;border-top:none;padding-top:6px;margin-top:6px">
       ${botonCot(sku, prodNombre, p0, p1, p2, i1, i2, id)}
     </div>
@@ -1157,7 +1232,7 @@ function selSeg(id, idx, p0, p1, p2, i1, i2) {
   wrap.querySelectorAll('.seg-chip').forEach((c,i) => c.classList.toggle('active', i===idx));
   const total = idx===0 ? p0 : idx===1 ? p1 : p2;
   const segCosto = idx===1 ? i1 : idx===2 ? i2 : 0;
-  wrap.querySelector('.seg-desglose').innerHTML = desgloseHtml(p0, total, segCosto);
+  wrap.querySelector('.seg-desglose').innerHTML = desgloseHtml(p0, total, segCosto, idx);
   wrap.querySelector('.seg-msi').innerHTML = msiInfo(total);
 
   /* El precio regular tachado y el % de ahorro SOLO valen sin seguro
@@ -1264,7 +1339,7 @@ function cotPintar(){
         const seg = cotTextoSeguro(l);
         return `<div class="cot-linea">
           <div class="txt">
-            <h4>${l.producto || ('SKU ' + l.sku)}</h4>
+            <h4>${esc(l.producto ? nomLinea(l.producto) : 'SKU ' + l.sku)}</h4>
             <div class="det">
               <span>${money(l.base)}</span>
               ${seg ? '<span class="seg">' + seg + ' · ' + money(l.seguro) + '</span>' : '<span>sin seguro</span>'}
@@ -1303,7 +1378,7 @@ function cotCompartir(){
   if(!COT.length) return;
   const lin = COT.map(function(l){
     const seg = cotTextoSeguro(l);
-    return '• ' + (l.producto || ('SKU ' + l.sku)) + ' — ' + money(l.total)
+    return '• ' + (l.producto ? nomLinea(l.producto) : 'SKU ' + l.sku) + ' — ' + money(l.total)
          + (seg ? '\n   ' + seg.replace('🛡️ ', 'con ') + ' incluido' : '');
   }).join('\n');
   /* Mismos plazos que el panel, escritos como en `compartirWA` para que el
@@ -1461,7 +1536,8 @@ function resumenWA(){
 }
 /* ---- WhatsApp share ---- */
 function compartirWA(prodEnc,sku,pv,pb,sinSeguro,incluyeEnc){
-  const producto=decodeURIComponent(prodEnc);
+  // Al cliente le llega el nombre que entiende, no la abreviatura del sistema.
+  const producto=nomLinea(decodeURIComponent(prodEnc));
   let msg='*'+producto+'*';
   if(incluyeEnc){ msg+='\n'+decodeURIComponent(incluyeEnc); }
   msg+='\n💰 '+money(pv);
@@ -1654,7 +1730,7 @@ const APARTAR_EXCEPCION = new Set(['100274990']);
 function botonApartar(sku, producto, precio){
   const k = estadoSku(sku).k;
   if(k !== 'traer' && k !== 'piso' && !APARTAR_EXCEPCION.has(sku)) return '';
-  return `<button class="btn-apartar" onclick="abrirApartado('${sku}','${encodeURIComponent(producto||'')}',${Number(precio)||0})">📋 Apartar para un cliente</button>`;
+  return `<button class="btn-apartar" onclick="abrirApartado('${sku}','${encodeURIComponent(producto||'')}',${Number(precio)||0})">Apartar para un cliente</button>`;
 }
 
 function pastillaEstado(sku){
@@ -2222,7 +2298,7 @@ function cardPromo(x){
     <div class="prod-top">
       <div class="prod-nom">
         <div class="prod-eyebrow">${eyebrowSku(x.sku)}<span class="badge b-promo">🔥 Promo</span></div>
-        <h3>${x.producto}</h3>
+        <h3 class="nom">${nomProd(x.producto)}</h3>
       </div>
       ${pastillaEstado(x.sku)}
     </div>
@@ -2244,7 +2320,7 @@ function cardPrecioReg(x){
     <div class="prod-top">
       <div class="prod-nom">
         <div class="prod-eyebrow">${eyebrowSku(x.sku)}</div>
-        <h3>${x.producto}</h3>
+        <h3 class="nom">${nomProd(x.producto)}</h3>
       </div>
       ${pastillaEstado(x.sku)}
     </div>
@@ -2282,7 +2358,7 @@ function bundleTip(sku){
 function cardEol(e){
   if(e.estado==='listo'){
     return `<div class="card t-eol listo">
-      <div class="top"><h3>${e.producto}</h3><span class="tag eol">−50%</span></div>
+      <div class="top"><h3 class="nom">${nomProd(e.producto)}</h3><span class="tag eol">−50%</span></div>
       <p class="det"><b>✅ Ya se puede vender al 50%</b> — solo la pieza de exhibición (👁 ${e.exhibe}). Stock cerrado en 0.</p>
       <div class="meta">
         ${e.precio50!=null?`<span class="precio"><span class="antes">${money(e.precio)}</span>${money2(e.precio50)}</span>`:`<span class="badge">50% del precio regular</span>`}
@@ -2305,7 +2381,7 @@ function cardEol(e){
              dos renglones iguales con distinto importe, y la diferencia —que es
              la de aparador, sin garantía— hay que decirla, no dejarla al tono de
              voz del asesor. */''}
-        ${e.precio50 != null ? botonCot(e.sku, e.producto + ' · pieza de exhibición al 50%',
+        ${e.precio50 != null ? botonCot(e.sku, nomLinea(e.producto) + ' · pieza de exhibición al 50%',
                                         e.precio50, 0, 0, 0, 0,
                                         'eol_' + String(e.sku).replace(/\D/g,'')) : ''}
       </div>
@@ -2314,13 +2390,13 @@ function cardEol(e){
   }
   if(e.estado==='pendiente'){
     return `<div class="card t-eol">
-      <div class="top"><h3>${e.producto}</h3><span class="eol-status pend">EOL</span></div>
+      <div class="top"><h3 class="nom">${nomProd(e.producto)}</h3><span class="eol-status pend">EOL</span></div>
       <p class="det">Primero agotar <b>${e.stock}</b> pza(s) de stock cerrado a precio normal. El <b>50%</b> se activa cuando llegue a 0.</p>
       <div class="meta"><span class="badge">SKU ${e.sku}</span>${e.exhibe?`<span class="exh">👁 ${e.exhibe} exhib.</span>`:''}</div>
     </div>`;
   }
   return `<div class="card t-eol">
-    <div class="top"><h3>${e.producto}</h3><span class="eol-status agot">Agotado</span></div>
+    <div class="top"><h3 class="nom">${nomProd(e.producto)}</h3><span class="eol-status agot">Agotado</span></div>
     <p class="det">Sin stock cerrado ni pieza de exhibición.</p>
     <div class="meta"><span class="badge">SKU ${e.sku}</span></div>
   </div>`;
@@ -2351,7 +2427,7 @@ function rowResurtir(x){
     : '';
   return `<div class="inv-row">
     <div class="dot cero"></div>
-    <div class="inv-info"><h4>${x.producto}</h4><span>SKU ${x.sku||'—'}</span></div>
+    <div class="inv-info"><h4 class="nom">${nomProd(x.producto)}</h4><span>SKU ${x.sku||'—'}</span></div>
     ${badge}
     ${btnEol}
     <div class="stock cero"><div class="num">0</div><div class="lbl lbl2">piezas</div></div>
@@ -2411,7 +2487,7 @@ function rowInv(x){
   const promoB = pp ? `<span class="exh promo-b">🔥 ${money(pp)}</span>` : '';
   return `<div class="inv-row">
     <div class="dot ${cls}"></div>
-    <div class="inv-info" style="flex:1;min-width:0"><h4>${x.producto}</h4><span>SKU ${x.sku||'—'}</span></div>
+    <div class="inv-info" style="flex:1;min-width:0"><h4 class="nom">${nomProd(x.producto)}</h4><span>SKU ${x.sku||'—'}</span></div>
     ${eolB}${promoB}${exh}${vB}
     <div class="stock ${cls}"><div class="num">${x.stock}</div><div class="lbl lbl2">para vender</div></div>
   </div>`;

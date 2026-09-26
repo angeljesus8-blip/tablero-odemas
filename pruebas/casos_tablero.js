@@ -450,3 +450,88 @@ aplicarTodo(Object.assign(_deSupabase(JSON.parse(JSON.stringify(TIENDA))), { __s
 
   COT = [];
 }
+
+/* ── 15 · «1 año» sale marcado de entrada (22-sep-2026) ──────────────────
+   Decisión de Ángel para subir el Assurant attach: la tarjeta abre cotizando
+   con un año de seguro. Lo que se protege aquí es lo que falla callando:
+
+   · que el número grande, los meses y el «Sumar» digan LO MISMO que el chip
+     marcado. `cotSeguroElegido` lee el chip activo; si el precio de arriba
+     fuera sin seguro y el chip dijera «1 año», se sumaría una cosa y se
+     cantaría otra.
+   · que el precio con seguro diga que lo incluye — si no, el asesor lo canta
+     como precio del equipo — y en años de protección (1 contratado = 2).
+   · que el tachado y el −% de la promo NO acompañen a un precio con seguro:
+     $3,998 junto a un $3,999 tachado insinúa una rebaja que no existe.
+   · y la única excepción: lo que no tiene rango de seguro abre en «Sin
+     seguro». El M-Pencil NO lo es (Ángel, 22-sep: «va con seguro»; la regla de
+     no ponerle seguro es de los combos) — se prueba para que nadie la reponga
+     creyendo que falta. */
+{
+  const chipsDe = h => (h.match(/class="seg-chip( active)?"/g) || []);
+  const activo  = h => chipsDe(h).findIndex(c => / active"/.test(c));
+
+  // Un producto de $2,999 en promo, regular $3,999. El seguro va por el precio
+  // REGULAR (así lo cobra Assurant): se pregunta a la misma tabla del tablero.
+  const seg = seguroPara(3999, '900001').p1;
+  const h = segSelector('900001', 3999, 2999, '', 3999, 25, 'PRUEBA TEL');
+  ok('el chip marcado de entrada es «1 año»', activo(h) === 1, 'activo=' + activo(h));
+  ok('el precio grande ya trae el seguro', h.indexOf('>' + money(2999 + seg) + '<') >= 0, h.slice(0, 300));
+  ok('y dice que lo incluye, en años de protección',
+     h.indexOf('con seguro · protege 2 años') >= 0);
+  ok('los meses salen del precio con seguro', h.indexOf(money(Math.ceil((2999 + seg) / 6))) >= 0);
+  ok('el tachado de la promo nace oculto', /class="precio-reg" style="display:none"/.test(h));
+  ok('y el −% también', /class="ah" style="display:none"/.test(h));
+
+  const lapiz = segSelector('900050', 1999, 1999, '', null, 0, 'm-pencil de prueba');
+  ok('el M-Pencil vendido solo abre con «1 año», como todo', activo(lapiz) === 1, 'activo=' + activo(lapiz));
+  ok('y con sus tres chips', chipsDe(lapiz).length === 3);
+
+  const barato = segSelector('900051', 99, 99, '', null, 0, 'CABLE');
+  ok('sin rango de seguro abre en «Sin seguro»', activo(barato) === 0 && chipsDe(barato).length === 1,
+     chipsDe(barato).length + ' chips, activo=' + activo(barato));
+
+  // El render entero: toda tarjeta con precio sale con UN solo chip marcado.
+  filtroActivo = 'promo'; busqueda = ''; render();
+  const bloques = app.innerHTML.split('class="seg-sel"').slice(1);
+  ok('cada tarjeta de precio tiene exactamente un chip marcado',
+     bloques.length > 0 && bloques.every(b => (b.split('class="seg-chips"')[1] || '')
+       .split('</div>')[0].split(' active"').length === 2), bloques.length + ' bloques');
+  filtroActivo = 'inicio'; render();
+}
+
+/* ── 16 · El nombre en lenguaje de cliente, conectado (22-sep-2026) ──────
+   Las reglas las prueba nombres_cliente.js. Aquí, que el tablero las USE en
+   los tres sitios que importan —lo que se pinta, lo que se busca y lo que se
+   le manda al cliente— sin perder la descripción del sistema, que es la que
+   trae la etiqueta de la caja. */
+{
+  const D1 = 'AUDIF IN EAR HW F-BUDS PRO 4 VD';
+  const h = nomProd(D1);
+  ok('la tarjeta dice el modelo para el cliente', h.indexOf('>Audífonos Huawei FreeBuds Pro 4<') >= 0, h);
+  ok('el color va abajo, traducido', h.indexOf('>Verde<') >= 0, h);
+  ok('y la descripción del sistema sigue ahí, para empatar la caja', h.indexOf('>' + D1 + '<') >= 0, h);
+  ok('al cliente le llega el nombre que entiende', nomLinea(D1) === 'Audífonos Huawei FreeBuds Pro 4 · Verde', nomLinea(D1));
+
+  // El buscador: por las dos formas y sin acentos.
+  const bOrig = busqueda;
+  for(const q of ['audifonos', 'audífonos', 'freebuds', 'f-buds', 'verde', '900001']){
+    busqueda = q;
+    ok('buscar «' + q + '» lo encuentra', coincide(D1, '900001'));
+  }
+  busqueda = 'freeclip'; ok('y no encuentra otro producto', !coincide(D1, '900001'));
+  busqueda = bOrig;
+
+  // Sin nombres.js (no llegó el <script>): se pinta lo crudo, no se rompe.
+  const guard = global.nombreCliente; delete global.nombreCliente; _nomMemo.clear();
+  let crudo = '', err = null;
+  try { crudo = nomProd(D1); } catch(e){ err = e.message; }
+  ok('sin nombres.js la tarjeta no revienta', !err, err);
+  ok('y pinta la descripción tal cual', crudo.indexOf('>' + D1 + '<') >= 0, crudo);
+  global.nombreCliente = guard; _nomMemo.clear();
+
+  // Las tarjetas de verdad lo usan.
+  filtroActivo = 'promo'; busqueda = ''; render();
+  ok('las tarjetas de precio pintan el nombre con nomProd', app.innerHTML.indexOf('class="nom-modelo"') >= 0);
+  filtroActivo = 'inicio'; render();
+}

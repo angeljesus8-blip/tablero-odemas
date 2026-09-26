@@ -2,7 +2,7 @@ importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 // ÚNICO lugar donde vive la versión de la app. Las páginas ya no la repiten:
 // registran './sw.js' con updateViaCache:'none' y el navegador detecta el
 // cambio al ver que este archivo es distinto. Subir el número aquí y ya.
-const VERSION = 'v27';
+const VERSION = 'v28';
 const CACHE = 'odemas-' + VERSION;
 const ARCHIVOS = [
   './index.html',
@@ -20,6 +20,9 @@ const ARCHIVOS = [
   // la MAC ni el EID). Un <script src> que no llega no rompe la página: deja
   // la foto sin leer y sin avisar, así que va al precache.
   './lector_etiqueta.js',
+  // Los nombres en lenguaje de cliente (22-sep-2026). Sin él la página no se
+  // rompe —pinta la descripción cruda—, pero sin señal volvería el «AUDIF… HW».
+  './nombres.js',
   // La fuente va al precache: si no, el primer arranque sin red dibuja el
   // tablero con otra letra, que es justo lo que se quiso evitar al traerla
   // del CDN al repo (8-ago-2026).

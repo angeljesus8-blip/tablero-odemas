@@ -26,6 +26,9 @@ if(js.length < 1000){
 }
 
 domFalso();
+// nombres.js lo carga la página con <script src>; aquí se carga igual, para
+// probar el camino real y no el respaldo de «si no llegó, pinta lo crudo».
+Object.assign(global, require('../nombres.js'));
 global.TIENDA = TIENDA;
 global.__fallos = [];
 global.ok = function(titulo, condicion, detalle){
