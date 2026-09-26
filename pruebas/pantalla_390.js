@@ -42,6 +42,11 @@
    inventadas, y Admin pestaña por pestaña, a 390 y 360 px. Admin se mide
    también a 1280: es donde se pega lo de Sonar con Ctrl+V.
 
+   MENÚ Y LA PÁGINA RETIRADA (22-sep-2026): el menú con sesión (su
+   encabezado medía 89 px) y en el teclado de entrada, y actualizar_datos.html,
+   que quedó como aviso. (En la 1217 mide además la consulta de los técnicos de
+   Mr Fix, que en esta copia no existe.)
+
    Sin dependencias: Edge viene con Windows y Node 22+ trae WebSocket. Si no
    hay Edge (otra máquina), avisa y no bloquea — igual que `node` en
    verificar.py.
@@ -420,6 +425,27 @@ async function main(){
         if(!cebo) falla(`admin a ${W}px: se metió un bloque de 520 px y la prueba no lo vio — está ciega`);
       }
     }
+
+    // ── Menú, técnico y la página retirada ──
+    for(const W of ANCHOS){
+      await abrir('index.html', W, 844, 'applyStoreConfig');
+      await ev(`(() => { applyStoreConfig({ store_id:'9999', nombre:'Tienda Prueba con nombre largo', ciudad:'Prueba' }, 'gerente');
+        sc('menu'); scrollTo(0,0); return true; })()`);
+      await dormir(200);
+      await medir(`menú a ${W}px`, `menu_${W}.png`, W, 844);
+      const halos = await ev(`new Set([...document.querySelectorAll('.tile .ic')].map(e => getComputedStyle(e).backgroundColor)).size`);
+      if(halos > 1) falla(`menú a ${W}px: los iconos llevan ${halos} fondos distintos; es uno solo (--mosaico)`);
+      // El teclado de entrada no tiene encabezado: solo se mide el ancho.
+      await ev(`(() => { sc('pin'); return true; })()`); await dormir(150);
+      const mp = await ev(MEDIR);
+      if(mp.ancho > mp.W + 1 || mp.nFuera) falla(`entrada del menú a ${W}px: algo se sale de la pantalla — ${mp.fuera.join(', ')}`);
+      for(const [pagina, listo, foto] of [['actualizar_datos.html', 'Object', 'actualizar_retirada']]){
+        await abrir(pagina, W, 844, listo);
+        await medir(`${foto} a ${W}px`, `${foto}_${W}.png`, W, 844);
+      }
+      const hayVolver = await ev(`!!document.querySelector('.barra-volver')`);
+      if(!hayVolver) falla(`actualizar_datos a ${W}px: la página retirada perdió el «‹» al menú`);
+    }
   } finally {
     b.cerrar(); edge.kill(); servidor.close();
     await dormir(300);
@@ -433,5 +459,5 @@ main().then(() => {
     fallos.forEach(f => console.log('   · ' + f));
     process.exit(1);
   }
-  console.log('pantalla 390: el tablero, Captura, Horarios, Comisiones y Admin caben a 390 y 360 px, encabezado en una franja, un icono por tarjeta, el seguro no se elige solo con Enter ni tocando fuera (y el cebo de 520 px se caza)');
+  console.log('pantalla 390: el tablero, Captura, Horarios, Comisiones, Admin, el menú y la página retirada caben a 390 y 360 px, encabezado en una franja, un icono por tarjeta, el seguro no se elige solo con Enter ni tocando fuera (y el cebo de 520 px se caza)');
 }, e => { console.log('pantalla 390: no pudo correr — ' + e.message); process.exit(1); });

@@ -82,6 +82,14 @@
 .barra-volver svg{ width:22px; height:22px; }
 .barra-logo{ height:30px; width:auto; flex-shrink:0; }
 .barra-txt{ flex:1; min-width:0; }
+/* Márgenes en cero AQUÍ, no confiados al `* { margin:0 }` de cada página: la
+   consulta del técnico y la página retirada no lo traen, y el margen por
+   defecto de h1 y p inflaba la barra a 83 y 97 px (22-sep-2026, lo cazó
+   pantalla_390.js). */
+.barra-titulo, .barra-sub{ margin:0; }
+/* Y border-box en la propia barra: sin el reinicio de la página, su
+   min-height de 60 px se sumaba al relleno y al borde (79 px). */
+.barra, .barra *{ box-sizing:border-box; }
 .barra-titulo{
   font-size:var(--t-lg); font-weight:800; letter-spacing:-.2px; line-height:1.2;
   color:var(--tinta); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;

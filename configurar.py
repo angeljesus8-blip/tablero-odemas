@@ -29,7 +29,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 # imprimir las etiquetas y preventa_cupo_gen.py nombra el proyecto en el SQL
 # que genera.
 ARCHIVOS = ['index.html', 'tablero.html', 'captura_series.html', 'admin.html',
-            'comisiones.html', 'actualizar_datos.html', 'horarios.html',
+            'comisiones.html', 'horarios.html',
             'etiquetas_preventa.py', 'preventa_cupo_gen.py']
 
 RX_URL = re.compile(r'https://([a-z0-9]{16,32})\.supabase\.co')

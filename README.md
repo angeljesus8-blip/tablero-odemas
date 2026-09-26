@@ -26,7 +26,7 @@ No hace falta Google Apps Script ni hoja de cálculo. **Todo vive en Supabase.**
 | `admin.html` | Gerente: equipo, cargas, catálogo, configuración |
 | `comisiones.html` | Lo que lleva ganado cada quien |
 | `horarios.html` | Horario semanal |
-| `actualizar_datos.html` | Subir el Excel de inventario, catálogo y promos |
+| `actualizar_datos.html` | Retirada (26-sep-2026): solo manda a Admin → Catálogo y Promos |
 
 ## Montar la base
 

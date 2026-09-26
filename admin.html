@@ -1336,7 +1336,7 @@ async function subirCatalogo(){
        antes de terminar de escribir. Aqui la funcion no vuelve hasta que la
        transaccion cerro, y si algo falla, lanza. */
     const rc = await sbCargaAdmin('carga_catalogo', { p_filas: parsedCat, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?') });
-    // Lo mismo que en actualizar_datos.html, y por lo mismo: quien sube desde
+    // Como hacía actualizar_datos.html (retirada el 22-sep-2026), y por lo mismo: quien sube desde
     // aquí tiene que enterarse de que algo dejó de ofrecerse.
     const bajasCat = (rc.agotados === -1)
       ? ` ⚠️ No se marcó nada como agotado: el archivo parece un pedazo y no la tienda completa.`

@@ -11,7 +11,10 @@ import collections, glob, io, json, os, re, subprocess, sys, tempfile
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 HTML = ['index.html', 'tablero.html', 'captura_series.html', 'admin.html',
-        'comisiones.html', 'actualizar_datos.html', 'horarios.html']
+        'comisiones.html', 'horarios.html']
+# actualizar_datos.html se retiró el 26-sep-2026 (en la 1217, el 22-sep): quedó
+# una página mínima que manda a Admin, sin cargas ni sesión. Por eso ya no está
+# en estas listas.
 # En la tienda de origen, `horarios.html` era una copia de otra carpeta y esta
 # lista comprobaba que no se separaran. Aquí no hay tal original: el archivo se
 # edita en este repo y punto. Vacía y NO borrada, porque la regla sigue siendo
@@ -499,7 +502,7 @@ def r_cargas_sb():
     # 1 · Ninguna pantalla puede volver a mandar una carga al Apps Script. Si lo
     #     hiciera, el Excel iría a una hoja que ya nadie lee y el tablero
     #     seguiría con el inventario del día anterior — sin avisar de nada.
-    for archivo in ('actualizar_datos.html', 'admin.html'):
+    for archivo in ('admin.html',):
         s = leer(archivo)
         if s is None: continue
         for tipo in ("tipo:'catalogo'", "tipo:'catalogo_ref'", "tipo:'exhibicion'",
@@ -639,7 +642,7 @@ def r_contrato_sql():
     sqls = [c for c in cambiados if c.endswith('.sql')]
     if not sqls: return
     htmls = ['tablero.html', 'captura_series.html', 'admin.html',
-             'comisiones.html', 'actualizar_datos.html']
+             'comisiones.html']
     for sql in sqls:
         s = leer(sql)
         if s is None: continue
@@ -1015,9 +1018,8 @@ def r_precache():
 # Los topes son los de ESTA copia (26-sep-2026, al traer la regla de la 1217),
 # contados sobre sus páginas: no los de allá, que tenían Mr Fix y el concurso.
 PALETA_TOPE = {
-    'index.html': 34, 'tablero.html': 70, 'captura_series.html': 12,
+    'index.html': 2, 'tablero.html': 70, 'captura_series.html': 12,
     'admin.html': 6, 'horarios.html': 3, 'comisiones.html': 1,
-    'actualizar_datos.html': 20,
     'estilo.css': 19,
 }
 def _colores(texto):
@@ -1069,8 +1071,7 @@ def r_paleta():
 def r_scripts_locales():
     sw = leer('sw.js') or ''
     for pagina in ('index.html', 'tablero.html', 'captura_series.html',
-                   'admin.html', 'comisiones.html', 'horarios.html',
-                   'actualizar_datos.html'):
+                   'admin.html', 'comisiones.html', 'horarios.html'):
         s = leer(pagina)
         if s is None:
             continue

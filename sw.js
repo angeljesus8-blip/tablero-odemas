@@ -2,7 +2,7 @@ importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 // ÚNICO lugar donde vive la versión de la app. Las páginas ya no la repiten:
 // registran './sw.js' con updateViaCache:'none' y el navegador detecta el
 // cambio al ver que este archivo es distinto. Subir el número aquí y ya.
-const VERSION = 'v31';
+const VERSION = 'v32';
 const CACHE = 'odemas-' + VERSION;
 const ARCHIVOS = [
   './index.html',
@@ -11,7 +11,8 @@ const ARCHIVOS = [
   './admin.html',
   './comisiones.html',
   './horarios.html',
-  './actualizar_datos.html',
+  // actualizar_datos.html se retiró el 26-sep-2026 (v32): quedó una página
+  // mínima que manda a Admin, y no hace falta tenerla sin red.
   './datos.js',
   // Sin esto, la pieza que devuelve al asesor donde estaba sería justo la que
   // falta cuando no hay red — que es cuando más se nota volver al menú.
