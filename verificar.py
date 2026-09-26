@@ -1016,7 +1016,7 @@ def r_precache():
 # contados sobre sus páginas: no los de allá, que tenían Mr Fix y el concurso.
 PALETA_TOPE = {
     'index.html': 34, 'tablero.html': 70, 'captura_series.html': 12,
-    'admin.html': 49, 'horarios.html': 3, 'comisiones.html': 23,
+    'admin.html': 6, 'horarios.html': 3, 'comisiones.html': 1,
     'actualizar_datos.html': 20,
     'estilo.css': 19,
 }

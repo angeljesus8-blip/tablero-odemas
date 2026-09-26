@@ -38,6 +38,10 @@
    390 y 360 px, con un equipo inventado. Antes del rediseño la página medía
    413 px de ancho en un celular de 390: la navegación de semana se salía.
 
+   COMISIONES Y ADMIN (22-sep-2026, fase 6): Comisiones con tres personas
+   inventadas, y Admin pestaña por pestaña, a 390 y 360 px. Admin se mide
+   también a 1280: es donde se pega lo de Sonar con Ctrl+V.
+
    Sin dependencias: Edge viene con Windows y Node 22+ trae WebSocket. Si no
    hay Edge (otra máquina), avisa y no bloquea — igual que `node` en
    verificar.py.
@@ -67,6 +71,13 @@ const EQUIPO_H = { horaApertura:10, horaCierre:21,
             { key:'G2', nombre:'BENI SUBGER', cargo:'Subgerente', emp:'900002', descFijo:4 }],
   asesores:[{ key:'A1', nombre:'CARO ASESORA', cargo:'Asesor', emp:'900003', descFijo:3 },
             { key:'A2', nombre:'DANI ASESOR', cargo:'Asesor', emp:'900004', descFijo:1 }] };
+// Las de ESTA copia: sin Preventa por archivo, Concurso ni Config (esas son de la 1217).
+const PESTANAS_ADMIN = ['cat', 'promos', 'eol', 'avisos', 'comis', 'equipo'];
+const COMIS_FALSAS = [
+  { nombre:'ANA GERENTE', puesto:'Gerente de Tienda', venta:412345.5, alcance:104, pptoPct:98,
+    garantiaPct:28, garantiaPzas:14, garantiaElegible:50, garantiaMonto:18990 },
+  { nombre:'CARO ASESORA', puesto:'Asesor', venta:233100, alcance:81, pptoPct:77,
+    garantiaPct:19, garantiaPzas:6, garantiaElegible:31, garantiaMonto:7120 }];
 const ALTO_ENCABEZADO = 76;
 
 const EDGE = [
@@ -358,6 +369,57 @@ async function main(){
         document.body.appendChild(d); const m = ${MEDIR}; d.remove(); return m.nFuera; })()`);
       if(!cebo) falla(`horario a ${W}px: se metió un bloque de 520 px y la prueba no lo vio — está ciega`);
     }
+
+    // ── Comisiones y Admin ──
+    const medir = async (donde, archivoFoto, W, alto) => {
+      const m = await ev(MEDIR);
+      if(m.ancho > m.W + 1) falla(`${donde}: la página mide ${m.ancho} px de ancho en una pantalla de ${m.W}`);
+      if(m.nFuera) falla(`${donde}: ${m.nFuera} elemento(s) se salen de la pantalla — ${m.fuera.join(', ')}`);
+      if(m.encabezado == null) falla(`${donde}: no hay encabezado visible`);
+      else if(m.encabezado > ALTO_ENCABEZADO)
+        falla(`${donde}: el encabezado mide ${m.encabezado} px (tope ${ALTO_ENCABEZADO}); se parte en renglones`);
+      if(FOTOS){
+        fs.mkdirSync(FOTOS, { recursive: true });
+        const h = await ev(`Math.min(document.documentElement.scrollHeight, 2600)`);
+        await b.enviar('Emulation.setDeviceMetricsOverride', { width: W, height: h, deviceScaleFactor: W > 700 ? 1 : 2, mobile: W < 700 }, s);
+        const { data } = await b.enviar('Page.captureScreenshot', { format: 'png' }, s);
+        fs.writeFileSync(path.join(FOTOS, archivoFoto), Buffer.from(data, 'base64'));
+        await b.enviar('Emulation.setDeviceMetricsOverride', { width: W, height: alto, deviceScaleFactor: W > 700 ? 1 : 2, mobile: W < 700 }, s);
+      }
+    };
+    const abrir = async (pagina, W, alto, listo) => {
+      await b.enviar('Emulation.setDeviceMetricsOverride', { width: W, height: alto, deviceScaleFactor: W > 700 ? 1 : 2, mobile: W < 700 }, s);
+      await b.enviar('Page.navigate', { url: `http://127.0.0.1:${puerto}/${pagina}` }, s);
+      for(let i = 0; i < 60; i++){
+        await dormir(100);
+        if(await ev(`document.readyState === 'complete' && typeof ${listo} === 'function'`).catch(() => false)) break;
+      }
+      await ev(`document.fonts.ready.then(() => true)`);
+    };
+    for(const W of ANCHOS){
+      await abrir('comisiones.html', W, 844, 'cardEmpleado');
+      // Las tarjetas con la función real; la lectura de la base no corre sin red.
+      await ev(`(() => { document.getElementById('app').innerHTML = ${JSON.stringify(COMIS_FALSAS)}.map(cardEmpleado).join(''); scrollTo(0,0); return true; })()`);
+      await dormir(200);
+      await medir(`comisiones a ${W}px`, `comisiones_${W}.png`, W, 844);
+    }
+    for(const W of ANCHOS.concat([1280])){
+      const alto = W > 700 ? 900 : 844;
+      await abrir('admin.html', W, alto, 'abrirAdmin');
+      await ev(`(() => { abrirAdmin(); return true; })()`);
+      for(const t of PESTANAS_ADMIN){
+        await ev(`(() => { const bt = [...document.querySelectorAll('.tab-bar button')]
+          .find(x => (x.getAttribute('onclick') || '').indexOf("tab('${t}'") >= 0);
+          tab('${t}', bt); scrollTo(0,0); return true; })()`);
+        await dormir(200);
+        await medir(`admin ${t} a ${W}px`, `admin_${t}_${W}.png`, W, alto);
+      }
+      if(W < 700){
+        const cebo = await ev(`(() => { const d = document.createElement('div'); d.style.cssText = 'width:520px;height:10px';
+          document.querySelector('.pane.on').appendChild(d); const m = ${MEDIR}; d.remove(); return m.nFuera; })()`);
+        if(!cebo) falla(`admin a ${W}px: se metió un bloque de 520 px y la prueba no lo vio — está ciega`);
+      }
+    }
   } finally {
     b.cerrar(); edge.kill(); servidor.close();
     await dormir(300);
@@ -371,5 +433,5 @@ main().then(() => {
     fallos.forEach(f => console.log('   · ' + f));
     process.exit(1);
   }
-  console.log('pantalla 390: el tablero, Captura y Horarios caben a 390 y 360 px, encabezado en una franja, un icono por tarjeta, el seguro no se elige solo con Enter ni tocando fuera (y el cebo de 520 px se caza)');
+  console.log('pantalla 390: el tablero, Captura, Horarios, Comisiones y Admin caben a 390 y 360 px, encabezado en una franja, un icono por tarjeta, el seguro no se elige solo con Enter ni tocando fuera (y el cebo de 520 px se caza)');
 }, e => { console.log('pantalla 390: no pudo correr — ' + e.message); process.exit(1); });

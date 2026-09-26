@@ -10,64 +10,54 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Odemás">
-<style>
-  /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
-     de la tienda fallando, el CDN caído dibujaba la app con la letra del
-     sistema y todo se descuadraba sin avisar. Ver tablero.html. */
-  @font-face{
-    font-family:'Montserrat';
-    src:url('./fuentes/Montserrat.woff2') format('woff2');
-    font-weight:400 800; font-display:swap;
-  }
-</style>
+<!-- Estilo común (22-sep-2026, traído de la 1217): tokens de color,
+     Montserrat desde ./fuentes/ (nunca del CDN: sin señal dibujaba con otra
+     letra) y el encabezado `.barra`. -->
+<link rel="stylesheet" href="./estilo.css">
 <style>
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  :root { --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e; --teal:#0e9594; --gris:#777; --linea:#ececec; --bg:#f6f6f7; }
-  body { font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; padding-bottom:40px; }
-
-  header { background:#fff; border-bottom:3px solid var(--rojo); padding:14px 16px;
-    display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:30; }
-  header .back { text-decoration:none; color:var(--rojo); font-size:30px; font-weight:700;
-    line-height:1; padding:0 6px 4px 0; display:flex; align-items:center; }
-  header img { height:34px; width:auto; }
-  .h-txt h1 { font-size:15px; font-weight:800; letter-spacing:-.2px; }
-  .h-txt p { font-size:11px; color:var(--gris); margin-top:1px; }
-  .updated { margin-left:auto; font-size:10px; color:#aaa; text-align:right; line-height:1.3; }
-  .updated b { color:var(--teal); display:block; font-size:11px; }
+  body { font-family:'Montserrat',sans-serif; background:var(--fondo); color:var(--tinta); padding-bottom:40px; }
 
   main { padding:16px 16px 0; max-width:560px; margin:0 auto; }
-  .nota { font-size:11.5px; color:#999; background:#fff; border:1px solid var(--linea); border-radius:10px;
-    padding:10px 12px; margin-bottom:16px; line-height:1.4; }
-  .nota b { color:#555; }
+  .nota { font-size:11.5px; color:var(--tinta-2); background:var(--superficie); border:1px solid var(--linea); border-radius:10px;
+    padding:10px 12px; margin-bottom:16px; line-height:1.45; }
+  .nota b { color:var(--tinta); }
 
-  .grupo-titulo { font-size:11px; font-weight:700; color:#999; text-transform:uppercase;
+  .grupo-titulo { font-size:11px; font-weight:700; color:var(--tinta-3); text-transform:uppercase;
     letter-spacing:1px; margin:18px 4px 8px; }
 
-  .card { background:#fff; border:1px solid var(--linea); border-left-width:4px;
-    border-radius:12px; padding:14px 15px; margin-bottom:10px; border-left-color:var(--teal); }
+  /* Sin raya de color (22-sep-2026): era turquesa, que ni es de Odemás ni
+     decía nada. El color de esta pantalla es el de los semáforos, y nada más. */
+  .card { background:var(--superficie); border:1px solid var(--linea); border-radius:var(--r-md);
+    padding:14px 15px; margin-bottom:10px; box-shadow:var(--sombra); }
 
   .card .top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
   .card h3 { font-size:14.5px; font-weight:700; line-height:1.3; }
-  .card .puesto { font-size:11.5px; color:#999; font-weight:600; margin-top:1px; }
+  .card .puesto { font-size:11.5px; color:var(--tinta-2); font-weight:600; margin-top:1px; }
 
   .venta-row { display:flex; align-items:baseline; gap:8px; margin-top:10px; }
-  .venta { font-size:20px; font-weight:800; color:var(--rojo); }
-  .venta-lbl { font-size:10.5px; color:#aaa; font-weight:600; }
-  .badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; background:#f2f2f2; color:#666; }
-  .badge.ok { background:#eafaf1; color:var(--verde); }
-  .badge.warn { background:#fff5ee; color:var(--naranja); }
-  .badge.bad { background:#fdeaea; color:var(--rojo); }
+  /* En tinta, no en rojo (estilo.css, regla 1): la venta informa. En rojo
+     parecía que algo estaba mal con cada persona. */
+  .venta { font-size:var(--t-xl); font-weight:800; color:var(--tinta); font-variant-numeric:tabular-nums; }
+  .venta-lbl { font-size:10.5px; color:var(--tinta-3); font-weight:600; }
+  /* Los semáforos son los del KPI y NO cambiaron: alcance ≥100 / ≥70 y
+     extracobertura ≥25 / ≥15. El ámbar va en --atencion: el naranja de marca
+     sobre su tinte daba 2.9:1. */
+  .badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; background:var(--fondo); color:var(--tinta-2); }
+  .badge.ok { background:var(--ok-bg); color:var(--ok); }
+  .badge.warn { background:var(--atencion-bg); color:var(--atencion); }
+  .badge.bad { background:var(--alerta-bg); color:var(--alerta); }
   .meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px; }
 
   .extra { margin-top:10px; padding-top:10px; border-top:1px dashed var(--linea); }
-  .extra-head { font-size:11px; font-weight:800; color:var(--teal); text-transform:uppercase;
+  .extra-head { font-size:11px; font-weight:800; color:var(--tinta-2); text-transform:uppercase;
     letter-spacing:.4px; margin-bottom:6px; }
   .extra-grid { display:flex; align-items:center; gap:14px; }
   .extra-pct { font-size:22px; font-weight:800; }
-  .extra-det { font-size:11.5px; color:#888; line-height:1.4; }
-  .extra-none { font-size:12px; color:#bbb; }
+  .extra-det { font-size:11.5px; color:var(--tinta-2); line-height:1.4; }
+  .extra-none { font-size:12px; color:var(--tinta-3); }
 
-  footer { text-align:center; font-size:10px; color:#ccc; margin-top:24px; padding:0 16px; }
+  footer { text-align:center; font-size:10px; color:var(--tinta-3); margin-top:24px; padding:0 16px; }
 </style>
 </head>
 <body>
@@ -85,14 +75,19 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 
-<header>
-  <a href="index.html" class="back" title="Menú">‹</a>
-  <img src="logo_odemas.png" alt="Odemás">
-  <div class="h-txt">
-    <h1>Comisiones y Extracoberturas</h1>
-    <p id="storeSub">—</p>
+<header class="barra">
+  <a href="index.html" class="barra-volver" title="Menú" aria-label="Volver al menú">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </a>
+  <img class="barra-logo" src="logo_odemas.png" alt="Odemás">
+  <div class="barra-txt">
+    <!-- «y Extracoberturas» se fue del título: lo partía en dos renglones, y
+         la sección de cada tarjeta ya lo dice. -->
+    <h1 class="barra-titulo">Comisiones</h1>
+    <p class="barra-sub" id="storeSub">—</p>
   </div>
-  <div class="updated">Actualizado<b id="updated">—</b></div>
+  <!-- Solo informa la fecha del reporte: sin color de estado. -->
+  <div class="estado">Actualizado<b id="updated">—</b></div>
 </header>
 
 <main>
@@ -239,6 +234,8 @@ pintarPeriodos();
 function money(n){
   return '$' + Number(n||0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+/* Lo que llega de la base va a innerHTML: se escapa (22-sep-2026). */
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function nombreCorto(n){ const p=(n||'').split(' '); return p[0]+(p[1]?' '+p[1]:''); }
 
 function alcanceBadge(pct){
@@ -248,9 +245,9 @@ function alcanceBadge(pct){
 }
 
 function garantiaColor(pct){
-  if (pct >= 25) return 'var(--verde)';
-  if (pct >= 15) return 'var(--naranja)';
-  return 'var(--rojo)';
+  if (pct >= 25) return 'var(--ok)';
+  if (pct >= 15) return 'var(--atencion)';
+  return 'var(--alerta)';
 }
 
 function cardEmpleado(e){
@@ -265,7 +262,7 @@ function cardEmpleado(e){
       </div>`;
   return `<div class="card">
     <div class="top">
-      <div><h3>${e.nombre}</h3><div class="puesto">${e.puesto}</div></div>
+      <div><h3>${esc(e.nombre)}</h3><div class="puesto">${esc(e.puesto)}</div></div>
     </div>
     <div class="venta-row"><span class="venta">${money(e.venta)}</span><span class="venta-lbl">venta para comisión</span></div>
     <div class="meta">${alcanceBadge(e.alcance)}<span class="badge">${e.pptoPct}% de aplicación</span></div>
@@ -320,7 +317,7 @@ function avisoNube(msg){
     el = document.createElement('div');
     el.id = 'avisoNube';
     el.style.cssText = 'margin:12px 16px;padding:10px 12px;border-radius:10px;'
-      + 'background:#fdf3dc;border-left:3px solid #F37021;color:#7a5200;'
+      + 'background:var(--atencion-bg);border-left:3px solid var(--naranja);color:var(--atencion);'
       + 'font-size:12.5px;line-height:1.45;font-weight:600';
     const m = document.querySelector('main');
     if(m) m.insertBefore(el, m.firstChild); else document.body.appendChild(el);

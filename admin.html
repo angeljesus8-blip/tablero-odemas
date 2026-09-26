@@ -6,51 +6,43 @@
 <meta name="theme-color" content="#D12026">
 <title>Admin · Odemás</title>
 <link rel="apple-touch-icon" href="logo_odemas.png">
-<style>
-  /* Montserrat desde el repo, no del CDN de Google (8-ago-2026). Con la señal
-     de la tienda fallando, el CDN caído dibujaba la app con la letra del
-     sistema y todo se descuadraba sin avisar. Ver tablero.html. */
-  @font-face{
-    font-family:'Montserrat';
-    src:url('./fuentes/Montserrat.woff2') format('woff2');
-    font-weight:400 800; font-display:swap;
-  }
-</style>
+<!-- Estilo común (22-sep-2026, fase 6 del rediseño): tokens de color,
+     Montserrat desde ./fuentes/ y el encabezado `.barra`. -->
+<link rel="stylesheet" href="./estilo.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js"></script>
 <script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';</script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-:root { --rojo:#D12026; --naranja:#F37021; --azul:#336BB4; --verde:#1a8c4e; --bg:#f6f6f7; }
-body { font-family:'Montserrat',sans-serif; background:var(--bg); color:#1a1a1a; min-height:100vh; }
+/* Colores propios de Admin (22-sep-2026). Los de marca y significado vienen de
+   estilo.css; aquí solo los bordes de los avisos y el de los campos, con
+   nombre. Eran 53 colores sueltos: `verificar.py` (regla «paleta») no deja
+   que vuelvan a subir. */
+:root { --borde:#dddddd; --ok-borde:#bfe7cd; --alerta-borde:#f5c6c6; --atencion-borde:#ffd28a; }
+body { font-family:'Montserrat',sans-serif; background:var(--fondo); color:var(--tinta); min-height:100vh; }
 
 /* PIN */
-#pinWrap { position:fixed;inset:0;background:#fff;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px; }
-#pinWrap .pin-back { position:absolute;top:calc(10px + env(safe-area-inset-top));left:12px;
-  text-decoration:none;color:var(--rojo);font-size:30px;font-weight:700;line-height:1;padding:4px 12px 8px; }
-#pinWrap img { height:44px; }
-#pinWrap h1 { font-size:18px;font-weight:800; }
-#pinWrap p { font-size:13px;color:#888; }
+/* Capa de verificación: el mismo encabezado `.barra` y el mensaje abajo
+   (22-sep-2026). Era un logo grande centrado con su propio «‹». */
+#pinWrap { position:fixed;inset:0;background:var(--superficie);z-index:100;overflow-y:auto; }
+.pin-cuerpo { display:flex;flex-direction:column;align-items:center;gap:18px;padding:48px 24px;text-align:center; }
+.pin-cuerpo p, .pin-msg { font-size:13px;color:var(--tinta-2);max-width:300px;line-height:1.5; }
 .pin-row { display:flex;gap:14px; }
-.pin-dot { width:14px;height:14px;border-radius:50%;border:2px solid #ddd;transition:.15s; }
+.pin-dot { width:14px;height:14px;border-radius:50%;border:2px solid var(--borde);transition:.15s; }
 .pin-dot.on { background:var(--rojo);border-color:var(--rojo); }
 .pin-err { font-size:12px;color:var(--rojo);font-weight:700;min-height:16px;text-align:center; }
 .numpad { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:240px; }
-.numpad button { height:56px;border-radius:14px;border:1.5px solid #e5e5e5;background:#fff;font-family:'Montserrat',sans-serif;font-size:20px;font-weight:700;cursor:pointer;color:#1a1a1a; }
-.numpad button:active { background:#f5f5f5; }
-.num-del { font-size:16px;color:#888; }
+.numpad button { height:56px;border-radius:14px;border:1.5px solid var(--borde);background:#fff;font-family:'Montserrat',sans-serif;font-size:20px;font-weight:700;cursor:pointer;color:var(--tinta); }
+.numpad button:active { background:var(--fondo); }
+.num-del { font-size:16px;color:var(--tinta-2); }
 
-/* HEADER */
-header { background:#fff;border-bottom:3px solid var(--rojo);padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10; }
-.back { text-decoration:none;color:var(--rojo);font-size:30px;font-weight:700;line-height:1;padding:0 4px 4px 0; }
-header img { height:30px; }
-header h1 { font-size:15px;font-weight:800;margin-left:2px; }
+/* HEADER: el común de estilo.css (`.barra`) desde el 22-sep-2026. */
 
 /* TABS */
-.tab-bar { display:flex;background:#fff;border-bottom:2px solid #eee;padding:0 8px;overflow-x:auto; }
+.tab-bar { display:flex;background:#fff;border-bottom:2px solid var(--linea);padding:0 8px;overflow-x:auto; }
 .tab-bar::-webkit-scrollbar { display:none; }
-.tab-bar button { flex-shrink:0;padding:12px 10px;border:none;background:none;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:#bbb;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap; }
+.tab-bar button { flex-shrink:0;padding:12px 10px;border:none;background:none;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:var(--tinta-3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap; }
 .tab-bar button.on { color:var(--rojo);border-bottom-color:var(--rojo); }
 
 /* PANES */
@@ -58,90 +50,94 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 .pane.on { display:block; }
 
 /* CARDS */
-.card { background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;border:1px solid #ececec; }
+.card { background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;border:1px solid var(--linea); }
 .card h2 { font-size:14px;font-weight:800;margin-bottom:10px; }
-.card .note { font-size:12px;color:#aaa;margin-bottom:12px;line-height:1.45; }
+/* --tinta-2 (6.7:1): era gris claro (2.3:1), y las notas son lo que más se lee aquí. */
+.card .note { font-size:12px;color:var(--tinta-2);margin-bottom:12px;line-height:1.5; }
 
 /* FORM */
 .field { margin-bottom:10px; }
-.field label { font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px; }
-.field input, .field textarea { width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:14px;font-weight:600;outline:none;background:#fafafa;color:#1a1a1a; }
-.field input:focus, .field textarea:focus { border-color:var(--rojo);background:#fff; }
+.field label { font-size:11px;font-weight:700;color:var(--tinta-2);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px; }
+/* `select` también (22-sep-2026): solo los input tenían estilo, y el selector de
+   Puesto de «Dar de alta» salía del tamaño de un botoncito. `.campo` es lo
+   mismo para un control suelto, fuera de un `.field`. */
+.field input, .field textarea, .field select, .campo { width:100%;border:1.5px solid var(--borde);border-radius:10px;padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:14px;font-weight:600;outline:none;background:var(--fondo);color:var(--tinta); }
+.field input:focus, .field textarea:focus, .field select:focus, .campo:focus { border-color:var(--rojo);background:#fff; }
 .field textarea { resize:vertical;min-height:80px; }
 .g2 { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
 .btn-pri { width:100%;padding:13px;background:var(--rojo);color:#fff;border:none;border-radius:12px;font-family:'Montserrat',sans-serif;font-size:14px;font-weight:800;cursor:pointer;margin-top:4px; }
-.btn-pri:disabled { background:#ccc; }
-.divider { display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:#ccc;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px; }
-.divider::before,.divider::after { content:'';flex:1;height:1px;background:#eee; }
+.btn-pri:disabled { background:var(--borde); }
+.divider { display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--borde);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px; }
+.divider::before,.divider::after { content:'';flex:1;height:1px;background:var(--linea); }
 
 /* FILE UPLOAD */
-.filebox { border:2px dashed #e0e0e0;border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:.15s; }
-.filebox.ok { border-color:var(--verde);background:#f7fdfa; }
-.filebox:focus { outline:none;border-color:var(--rojo);background:#fffafa; }
-.filebox .ph { font-size:13px;color:#999;line-height:1.4; }
+.filebox { border:2px dashed var(--borde);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:.15s; }
+.filebox.ok { border-color:var(--ok);background:var(--ok-bg); }
+.filebox:focus { outline:none;border-color:var(--rojo);background:var(--alerta-bg); }
+.filebox .ph { font-size:13px;color:var(--tinta-3);line-height:1.4; }
 
 /* Nombres sin traducir (22-sep-2026) */
 .sin-trad { width:100%;border-collapse:collapse;margin-top:12px;font-size:13px; }
-.sin-trad th { text-align:left;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;padding:4px 6px; }
-.sin-trad td { padding:8px 6px;border-top:1px solid #ececec;vertical-align:top; }
+.sin-trad th { text-align:left;font-size:11px;font-weight:700;color:var(--tinta-2);text-transform:uppercase;letter-spacing:.4px;padding:4px 6px; }
+.sin-trad td { padding:8px 6px;border-top:1px solid var(--linea);vertical-align:top; }
 .sin-trad td:first-child { font-weight:800;font-family:ui-monospace,monospace;white-space:nowrap; }
 .sin-trad td:nth-child(2) { text-align:right;font-weight:700; }
-.sin-trad .ej { font-family:ui-monospace,monospace;font-size:11px;color:#888;word-break:break-word; }
+.sin-trad .ej { font-family:ui-monospace,monospace;font-size:11px;color:var(--tinta-2);word-break:break-word; }
 
 /* RESULT */
 .result { font-size:13px;line-height:1.5;border-radius:10px;padding:12px 14px;margin-top:12px;display:none; }
 .result.show { display:block; }
-.result.ok { background:#eafaf1;color:#13703c;border:1.5px solid #bfe7cd; }
-.result.bad { background:#fdeaea;color:#b3261e;border:1.5px solid #f3c3c0; }
+.result.ok { background:var(--ok-bg);color:var(--ok);border:1.5px solid var(--ok-borde); }
+.result.bad { background:var(--alerta-bg);color:var(--alerta);border:1.5px solid var(--alerta-borde); }
 
 /* PREVIEW */
-.prev-hdr { font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px; }
-.prev-item { background:#f7fdfa;border:1.5px solid #bfe7cd;border-radius:10px;padding:10px 12px;margin-bottom:8px; }
-.prev-item strong { display:block;font-size:13px;font-weight:700;color:#13703c;margin-bottom:3px; }
-.prev-item span { display:block;font-size:12px;color:#555;margin-top:1px; }
+.prev-hdr { font-size:11px;font-weight:700;color:var(--tinta-2);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px; }
+.prev-item { background:var(--ok-bg);border:1.5px solid var(--ok-borde);border-radius:10px;padding:10px 12px;margin-bottom:8px; }
+.prev-item strong { display:block;font-size:13px;font-weight:700;color:var(--ok);margin-bottom:3px; }
+.prev-item span { display:block;font-size:12px;color:var(--tinta-2);margin-top:1px; }
 
 /* LIST */
-.list-hdr { font-size:12px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.5px;margin:4px 4px 10px; }
-.item { background:#fff;border:1px solid #ececec;border-left:4px solid var(--naranja);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px; }
+.list-hdr { font-size:12px;font-weight:700;color:var(--tinta-3);text-transform:uppercase;letter-spacing:.5px;margin:4px 4px 10px; }
+.item { background:#fff;border:1px solid var(--linea);border-left:4px solid var(--naranja);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px; }
 .item-info { flex:1;min-width:0; }
 .item-info strong { font-size:13px;font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.item-info span { font-size:11.5px;color:#888;margin-top:2px;display:block;line-height:1.4; }
-.btn-del { background:#fff5f5;border:1.5px solid #ffd5d5;color:var(--rojo);border-radius:8px;padding:7px 10px;font-size:14px;cursor:pointer;flex-shrink:0; }
-.empty { text-align:center;color:#ccc;font-size:13px;padding:24px; }
+.item-info span { font-size:11.5px;color:var(--tinta-2);margin-top:2px;display:block;line-height:1.4; }
+.btn-del { background:var(--alerta-bg);border:1.5px solid var(--alerta-borde);color:var(--rojo);border-radius:8px;padding:7px 10px;font-size:14px;cursor:pointer;flex-shrink:0; }
+.empty { text-align:center;color:var(--borde);font-size:13px;padding:24px; }
 
 /* COMISIONES — vista previa editable */
-.comis-card { background:#fff;border:1px solid #ececec;border-left:4px solid var(--teal,#0e9594);border-radius:12px;padding:12px 14px;margin-bottom:10px; }
+.comis-card { background:#fff;border:1px solid var(--linea);border-left:4px solid var(--info);border-radius:12px;padding:12px 14px;margin-bottom:10px; }
 .comis-card.warn { border-left-color:var(--naranja); }
 .comis-top { display:flex;align-items:center;gap:8px;margin-bottom:8px; }
-.comis-top input.nombre { flex:1;font-family:'Montserrat',sans-serif;font-size:13.5px;font-weight:700;border:1.5px solid #e0e0e0;border-radius:8px;padding:7px 9px;background:#fafafa;outline:none; }
+.comis-top input.nombre { flex:1;font-family:'Montserrat',sans-serif;font-size:13.5px;font-weight:700;border:1.5px solid var(--borde);border-radius:8px;padding:7px 9px;background:var(--fondo);outline:none; }
 .comis-top input.nombre:focus { border-color:var(--rojo);background:#fff; }
-.comis-del { background:#fff5f5;border:1.5px solid #ffd5d5;color:var(--rojo);border-radius:8px;padding:5px 9px;font-size:13px;cursor:pointer;flex-shrink:0; }
+.comis-del { background:var(--alerta-bg);border:1.5px solid var(--alerta-borde);color:var(--rojo);border-radius:8px;padding:5px 9px;font-size:13px;cursor:pointer;flex-shrink:0; }
 .comis-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:8px; }
 .comis-f { display:flex;flex-direction:column;gap:3px; }
-.comis-f label { font-size:9.5px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.3px; }
-.comis-f input, .comis-f select { font-family:'Montserrat',sans-serif;font-size:12.5px;font-weight:600;border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 8px;background:#fafafa;outline:none;width:100%; }
+.comis-f label { font-size:9.5px;font-weight:700;color:var(--tinta-3);text-transform:uppercase;letter-spacing:.3px; }
+.comis-f input, .comis-f select { font-family:'Montserrat',sans-serif;font-size:12.5px;font-weight:600;border:1.5px solid var(--borde);border-radius:7px;padding:6px 8px;background:var(--fondo);outline:none;width:100%; }
 .comis-f input:focus, .comis-f select:focus { border-color:var(--rojo);background:#fff; }
-.comis-sec { font-size:9.5px;font-weight:800;color:var(--teal,#0e9594);text-transform:uppercase;letter-spacing:.4px;margin:8px 0 4px; }
-.comis-f input.sospechoso { border-color:var(--rojo);background:#fdeaea;color:var(--rojo);font-weight:800; }
+.comis-sec { font-size:9.5px;font-weight:800;color:var(--info);text-transform:uppercase;letter-spacing:.4px;margin:8px 0 4px; }
+.comis-f input.sospechoso { border-color:var(--rojo);background:var(--alerta-bg);color:var(--rojo);font-weight:800; }
 .comis-warn-tag { font-size:9px;font-weight:800;color:var(--rojo);margin-left:6px;text-transform:none;letter-spacing:0; }
 
 /* SPIN */
 /* Equipo */
 .eq-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px; }
-.eq-check { display:flex;align-items:center;gap:8px;font-size:12.5px;color:#555;margin:10px 0 12px;cursor:pointer; }
+.eq-check { display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tinta-2);margin:10px 0 12px;cursor:pointer; }
 .eq-check input { width:17px;height:17px;accent-color:var(--rojo); }
-.eq-row { display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap; }
+.eq-row { display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--linea);flex-wrap:wrap; }
 .eq-row:last-child { border-bottom:none; }
 .eq-num { font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;color:var(--azul);min-width:62px; }
 .eq-info { flex:1;min-width:130px; }
 .eq-info b { display:block;font-size:13.5px; }
-.eq-info span { font-size:11px;color:#999; }
+.eq-info span { font-size:11px;color:var(--tinta-3); }
 .eq-tags { display:flex;gap:6px;align-items:center;flex-wrap:wrap; }
 .eq-tag { font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.3px; }
-.eq-tag.admin { background:#fdeaea;color:var(--rojo); }
-.eq-tag.baja { background:#eee;color:#999; }
-.eq-btn { border:1px solid #ddd;background:#fff;border-radius:9px;padding:6px 10px;font-family:inherit;font-size:11.5px;font-weight:700;color:#666;cursor:pointer; }
-.eq-btn:hover { border-color:#bbb;color:#333; }
+.eq-tag.admin { background:var(--alerta-bg);color:var(--rojo); }
+.eq-tag.baja { background:var(--linea);color:var(--tinta-3); }
+.eq-btn { border:1px solid var(--borde);background:#fff;border-radius:9px;padding:6px 10px;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--tinta-2);cursor:pointer; }
+.eq-btn:hover { border-color:var(--tinta-3);color:var(--tinta); }
 .eq-btn.on { background:var(--rojo);border-color:var(--rojo);color:#fff; }
 .eq-row.inactivo .eq-info b, .eq-row.inactivo .eq-num { opacity:.45;text-decoration:line-through; }
 .spin { display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:6px; }
@@ -153,11 +149,11 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 /* Recortar la captura antes del OCR. Darle la pantalla completa a Tesseract
    (menús de Sonar, gráficas, dos tablas) le hace confundir dígitos y perder
    montos; con solo la tabla, lee bien. */
-#cropWrap { position:fixed;inset:0;background:#111;z-index:200;display:none;flex-direction:column; }
+#cropWrap { position:fixed;inset:0;background:var(--tinta);z-index:200;display:none;flex-direction:column; }
 #cropWrap.on { display:flex; }
-#cropTop { padding:12px 14px;color:#fff;background:#1c1c1c;border-bottom:2px solid var(--rojo); }
+#cropTop { padding:12px 14px;color:#fff;background:var(--tinta);border-bottom:2px solid var(--rojo); }
 #cropTop h3 { font-size:14px;font-weight:800;margin-bottom:3px; }
-#cropTop p { font-size:11.5px;color:#bbb;line-height:1.35; }
+#cropTop p { font-size:11.5px;color:var(--tinta-3);line-height:1.35; }
 #cropStage { flex:1;position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:none; }
 #cropBox { position:relative;line-height:0; }
 /* La captura se ve COMPLETA de un vistazo: si desbordara habría que hacer
@@ -165,13 +161,39 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 #cropImg { max-width:100%;max-height:100%;user-select:none;-webkit-user-drag:none;display:block; }
 #cropShade { position:absolute;inset:0;background:rgba(0,0,0,.55);pointer-events:none; }
 #cropSel { position:absolute;border:2px solid var(--naranja);box-shadow:0 0 0 9999px rgba(0,0,0,.55);display:none;pointer-events:none; }
-#cropBot { padding:10px 14px;background:#1c1c1c;display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
-#cropInfo { color:#bbb;font-size:11.5px;flex:1;min-width:110px; }
+#cropBot { padding:10px 14px;background:var(--tinta);display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+#cropInfo { color:var(--tinta-3);font-size:11.5px;flex:1;min-width:110px; }
 .crop-btn { border:none;border-radius:10px;padding:10px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer; }
-.crop-ok { background:var(--verde);color:#fff; }
-.crop-ok:disabled { background:#3a3a3a;color:#777;cursor:default; }
-.crop-alt { background:#333;color:#ddd; }
+.crop-ok { background:var(--ok);color:#fff; }
+.crop-ok:disabled { background:var(--tinta-2);color:var(--tinta-2);cursor:default; }
+.crop-alt { background:var(--tinta);color:var(--borde); }
 #toast.show { opacity:1; }
+
+/* ── Piezas que antes se repetían como style="…" (22-sep-2026) ──────────
+   Al final a propósito, para ganarle a las reglas de arriba con la misma
+   especificidad. Lo que sigue inline es estado o un caso único. */
+.mt5{ margin-top:5px; } .mt6{ margin-top:6px; } .mt8{ margin-top:8px; } .mt10{ margin-top:10px; }
+.mt12{ margin-top:12px; } .mt14{ margin-top:14px; }
+.mb4{ margin-bottom:4px; } .mb6{ margin-bottom:6px; } .mb8{ margin-bottom:8px; }
+.f1{ flex:1; } .centro{ text-align:center; } .suave{ color:var(--tinta-3); } .clic{ cursor:pointer; }
+.t-sm{ font-size:11.5px; } .t-rojo{ color:var(--rojo); } .t-ok{ color:var(--ok); }
+/* Los «vacío» iban casi blancos (1.4:1): no se leían. */
+.vacio{ text-align:center; color:var(--tinta-3); font-size:13px; padding:20px; }
+.vacio-chico{ text-align:center; color:var(--tinta-3); font-size:12px; padding:12px; }
+.pie-chico{ font-size:11px; color:var(--tinta-3); margin-top:4px; }
+.lbl-suave{ font-weight:400; text-transform:none; color:var(--tinta-3); }
+.aviso-centro{ text-align:center; padding:10px; font-size:12px; color:var(--tinta-2); font-weight:700; }
+.btn-mini{ width:auto; padding:4px 10px; font-size:11px; }
+.btn-auto{ width:auto; padding:10px 14px; margin:0; }
+.peligro{ background:var(--alerta-bg); border-color:var(--alerta-borde); color:var(--alerta); }
+/* `.card .note` pesa más que una clase sola: sin repetir `.note` aquí, un aviso
+   de error dentro de una nota saldría gris en vez de rojo. */
+.card .note.peligro{ color:var(--alerta); padding:10px 12px; border-radius:10px; }
+.card .note.t-rojo{ color:var(--rojo); }
+.card .note.suave{ color:var(--tinta-3); }
+/* `btn btn-sec` no tenía regla aquí y salía con el botón gris del navegador;
+   con estilo.css cargado, `.btn` ya es el común. */
+.btn.btn-sec{ background:var(--superficie); color:var(--tinta-2); border-color:var(--linea); }
 </style>
 </head>
 <body>
@@ -184,20 +206,36 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 <!-- PIN -->
 <div id="pinWrap">
   <!-- Salida disponible desde el primer instante: esta capa tapa la cabecera,
-       y si la verificación se queda colgada (sin red) no habría forma de irse. -->
-  <a href="index.html" class="pin-back" title="Menú">‹</a>
-  <img src="logo_odemas.png" alt="Odemás">
-  <h1>Admin</h1>
-  <p>Verificando tu acceso…</p>
-  <div class="pin-err" id="pinErr"></div>
+       y si la verificación se queda colgada (sin red) no habría forma de irse.
+       Desde el 22-sep-2026 es el «‹» del mismo encabezado que el resto. -->
+  <header class="barra">
+    <a href="index.html" class="barra-volver" title="Menú" aria-label="Volver al menú">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
+    <img class="barra-logo" src="logo_odemas.png" alt="Odemás">
+    <div class="barra-txt">
+      <h1 class="barra-titulo">Admin</h1>
+      <p class="barra-sub">Verificando tu acceso</p>
+    </div>
+  </header>
+  <div class="pin-cuerpo" id="pinCuerpo">
+    <p>Verificando tu acceso…</p>
+    <div class="pin-err" id="pinErr"></div>
+  </div>
 </div>
 
 <!-- ADMIN -->
 <div id="app" style="display:none">
-  <header>
-    <a href="index.html" class="back">‹</a>
-    <img src="logo_odemas.png" alt="Odemás">
-    <h1>Admin</h1>
+  <!-- La tienda sale de la sesión (fijarSubAdmin), nunca escrita a mano. -->
+  <header class="barra">
+    <a href="index.html" class="barra-volver" title="Menú" aria-label="Volver al menú">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
+    <img class="barra-logo" src="logo_odemas.png" alt="Odemás">
+    <div class="barra-txt">
+      <h1 class="barra-titulo">Admin</h1>
+      <p class="barra-sub" id="adminSub">HES · —</p>
+    </div>
   </header>
 
   <!-- El aviso de cuadre se fue con la hoja (fase 6, 17-ago-2026): ya no hay
@@ -227,29 +265,29 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="filebox" id="fboxCat" onclick="document.getElementById('fileCat').click()">
         <div class="ph" id="fphCat">📄 Toca para elegir el archivo (.xlsx)</div>
       </div>
-      <button class="btn-pri" id="btnCat" onclick="subirCatalogo()" disabled style="margin-top:14px">Subir y actualizar</button>
+      <button class="btn-pri mt14" id="btnCat" onclick="subirCatalogo()" disabled>Subir y actualizar</button>
       <div class="result" id="resCat"></div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt14">
       <h2>🖥️ Piezas de exhibición</h2>
       <p class="note">Excel con columnas <b>SKU</b> y <b>EXHIBICION</b> (también acepta DISPLAY o MUESTRA). Reemplaza el conteo de piezas en piso para todos los SKUs.</p>
       <input type="file" id="fileExhib" accept=".xlsx,.xls" hidden>
       <div class="filebox" id="fboxExhib" onclick="document.getElementById('fileExhib').click()">
         <div class="ph" id="fphExhib">📄 Toca para elegir el Excel de exhibición</div>
       </div>
-      <button class="btn-pri" id="btnExhib" onclick="subirExhibicion()" disabled style="margin-top:14px">Actualizar exhibición</button>
+      <button class="btn-pri mt14" id="btnExhib" onclick="subirExhibicion()" disabled>Actualizar exhibición</button>
       <div class="result" id="resExhib"></div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt14">
       <h2>📋 Catálogo de referencia</h2>
       <p class="note">Excel con <b>todos los productos que maneja la tienda</b> (SKU · descripción · EAN/UPC). Sin existencias ni precios — complementa el informe de artículos.</p>
       <input type="file" id="fileCatRef" accept=".xlsx,.xls" hidden>
       <div class="filebox" id="fboxCatRef" onclick="document.getElementById('fileCatRef').click()">
         <div class="ph" id="fphCatRef">📄 Toca para elegir el Excel de catálogo</div>
       </div>
-      <button class="btn-pri" id="btnCatRef" onclick="subirCatalogoRef()" disabled style="margin-top:14px">Subir catálogo de referencia</button>
+      <button class="btn-pri mt14" id="btnCatRef" onclick="subirCatalogoRef()" disabled>Subir catálogo de referencia</button>
       <div class="result" id="resCatRef"></div>
     </div>
 
@@ -257,7 +295,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
          «Audífonos Huawei FreeBuds Pro 4» en vez de «AUDIF IN EAR HW F-BUDS
          PRO 4 VD» con las reglas de nombres.js. Lo que esas reglas no conocen
          sale tal cual y aquí se ve, para agregarlo. Solo lectura. -->
-    <div class="card" style="margin-top:14px">
+    <div class="card mt14">
       <h2>🔤 Nombres sin traducir</h2>
       <p class="note">Abreviaturas del catálogo que la app todavía <b>no sabe traducir</b>: salen tal cual en el tablero y en Captura. Para agregar una, di qué significa (ej. «PK = Pack») y se suma a <b>nombres.js</b>. Lo que se guarda en las ventas no cambia.</p>
       <button class="btn-pri" id="btnSinTrad" onclick="cargarSinTraducir()">Revisar el catálogo</button>
@@ -285,10 +323,10 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
         <p class="note" id="vigNotaPromos"></p>
       </div>
       <details id="detPromos" style="display:none;margin-top:12px">
-        <summary style="font-size:11px;color:#888;cursor:pointer;font-weight:700">🔍 Ver lo que leyó del archivo (antes de subir)</summary>
+        <summary style="font-size:11px;color:var(--tinta-2);cursor:pointer;font-weight:700">🔍 Ver lo que leyó del archivo (antes de subir)</summary>
         <div id="prevListPromos"></div>
       </details>
-      <button class="btn-pri" id="btnPromos" onclick="subirPromos()" disabled style="margin-top:14px">Subir promociones</button>
+      <button class="btn-pri mt14" id="btnPromos" onclick="subirPromos()" disabled>Subir promociones</button>
       <div class="result" id="resPromos"></div>
     </div>
   </div>
@@ -325,7 +363,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
     </div>
     <div class="list-hdr" style="display:flex;align-items:center;justify-content:space-between">
       <span>Bundles activos</span>
-      <button onclick="clearBundles()" style="font-size:11px;padding:4px 10px;border:1.5px solid #ffd5d5;background:#fff5f5;color:var(--rojo);border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">🗑️ Limpiar todos</button>
+      <button onclick="clearBundles()" style="font-size:11px;padding:4px 10px;border:1.5px solid var(--alerta-borde);background:var(--alerta-bg);color:var(--rojo);border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">🗑️ Limpiar todos</button>
     </div>
     <div id="listB"></div>
   </div>
@@ -378,7 +416,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
         <p class="ph">📎 Toca para seleccionar el PDF del CEA o LEA</p>
       </div>
       <input type="file" id="ceaFile" accept=".pdf,application/pdf" style="display:none" onchange="parseCeaPDF(this.files[0])">
-      <div id="ceaLoading" style="display:none;text-align:center;padding:14px;font-size:12px;color:#888;font-weight:700">Leyendo PDF…</div>
+      <div id="ceaLoading" style="display:none;text-align:center;padding:14px;font-size:12px;color:var(--tinta-2);font-weight:700">Leyendo PDF…</div>
     </div>
     <div class="card" id="ceaForm" style="display:none">
       <h2>✏️ Confirmar y guardar</h2>
@@ -387,7 +425,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="g2">
         <div class="field"><label>Vigencia hasta</label><input id="aD2" type="date"></div>
         <div class="field"><label>Prioridad</label>
-          <select id="aP" style="width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;background:#fafafa;outline:none">
+          <select id="aP">
             <option value="normal">Normal</option>
             <option value="alta">🔴 Alta</option>
           </select>
@@ -404,7 +442,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="g2">
         <div class="field"><label>Vigencia hasta</label><input id="mD2" type="date"></div>
         <div class="field"><label>Prioridad</label>
-          <select id="mP" style="width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;background:#fafafa;outline:none">
+          <select id="mP">
             <option value="normal">Normal</option>
             <option value="alta">🔴 Alta</option>
           </select>
@@ -413,7 +451,7 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <button class="btn-pri" onclick="guardarAvisoManual()">💾 Guardar</button>
     </div>
     <div class="divider">Avisos activos en nube</div>
-    <div id="ceaLista"><p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Abre esta pestaña para cargar…</p></div>
+    <div id="ceaLista"><p class="vacio-chico">Abre esta pestaña para cargar…</p></div>
   </div>
 
   <!-- COMISIONES Y EXTRACOBERTURA -->
@@ -425,28 +463,28 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
       <div class="filebox" id="fboxComis" tabindex="0" onclick="document.getElementById('fileComis').click()">
         <div class="ph" id="fphComis">📋 Da clic aquí y pega con Ctrl+V la tabla copiada de Sonar (o una captura)</div>
       </div>
-      <div id="comisOcrStatus" style="display:none;text-align:center;padding:10px;font-size:12px;color:#888;font-weight:700">Leyendo imagen…</div>
-      <details id="comisDebugWrap" style="margin-top:8px;display:none">
-        <summary style="font-size:11px;color:#aaa;cursor:pointer">🔍 Ver texto leído por el OCR (para depurar)</summary>
-        <pre id="comisDebugTxt" style="white-space:pre-wrap;font-size:11px;color:#888;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;margin-top:6px;max-height:220px;overflow:auto"></pre>
+      <div class="aviso-centro" id="comisOcrStatus" style="display:none">Leyendo imagen…</div>
+      <details class="mt8" id="comisDebugWrap" style="display:none">
+        <summary class="pie-chico clic">🔍 Ver texto leído por el OCR (para depurar)</summary>
+        <pre id="comisDebugTxt" style="white-space:pre-wrap;font-size:11px;color:var(--tinta-2);background:var(--fondo);border:1px solid var(--linea);border-radius:8px;padding:8px;margin-top:6px;max-height:220px;overflow:auto"></pre>
       </details>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt14">
       <h2>🛡️ Captura de "Garantías por fechas" (Sonar Attach)</h2>
       <p class="note">Igual que arriba: <b>Ctrl+C</b> en Sonar y <b>Ctrl+V</b> aquí es lo más seguro (esta tabla es la que peor se lee por OCR, por sus celdas de color). Se cruza automáticamente con la lista de arriba por número de empleado.</p>
       <input type="file" id="fileGar" accept="image/*" hidden>
       <div class="filebox" id="fboxGar" tabindex="0" onclick="document.getElementById('fileGar').click()">
         <div class="ph" id="fphGar">📋 Da clic aquí y pega con Ctrl+V la tabla copiada de Sonar (o una captura)</div>
       </div>
-      <div id="garOcrStatus" style="display:none;text-align:center;padding:10px;font-size:12px;color:#888;font-weight:700">Leyendo imagen…</div>
-      <details id="garDebugWrap" style="margin-top:8px;display:none">
-        <summary style="font-size:11px;color:#aaa;cursor:pointer">🔍 Ver texto leído por el OCR (para depurar)</summary>
-        <pre id="garDebugTxt" style="white-space:pre-wrap;font-size:11px;color:#888;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;margin-top:6px;max-height:220px;overflow:auto"></pre>
+      <div class="aviso-centro" id="garOcrStatus" style="display:none">Leyendo imagen…</div>
+      <details class="mt8" id="garDebugWrap" style="display:none">
+        <summary class="pie-chico clic">🔍 Ver texto leído por el OCR (para depurar)</summary>
+        <pre id="garDebugTxt" style="white-space:pre-wrap;font-size:11px;color:var(--tinta-2);background:var(--fondo);border:1px solid var(--linea);border-radius:8px;padding:8px;margin-top:6px;max-height:220px;overflow:auto"></pre>
       </details>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt14">
       <h2>🗓️ Periodos</h2>
       <div class="field"><label>Periodo de comisiones</label><input id="comisPeriodo" placeholder="Ej: jul 2026 (mes a la fecha)"></div>
       <div class="field"><label>Periodo de garantías</label><input id="comisPeriodoGar" placeholder="Ej: 1–5 jul 2026 (semana a la fecha)"></div>
@@ -454,15 +492,15 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
 
     <div class="list-hdr" style="display:flex;align-items:center;justify-content:space-between;margin-top:18px">
       <span>Vista previa — revisa antes de guardar</span>
-      <button onclick="agregarEmpleadoManual()" style="font-size:11px;padding:4px 10px;border:1.5px solid var(--linea);background:#fff;color:#555;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">＋ Agregar</button>
+      <button onclick="agregarEmpleadoManual()" style="font-size:11px;padding:4px 10px;border:1.5px solid var(--linea);background:#fff;color:var(--tinta-2);border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700">＋ Agregar</button>
     </div>
-    <div id="comisPreview"><p class="empty" style="text-align:center;color:#ccc;font-size:13px;padding:20px">Sube una captura para empezar.</p></div>
+    <div id="comisPreview"><p class="empty vacio">Sube una captura para empezar.</p></div>
 
-    <button class="btn-pri" id="btnComis" onclick="guardarComisiones()" style="margin-top:14px" disabled>💾 Guardar comisiones en la nube</button>
+    <button class="btn-pri mt14" id="btnComis" onclick="guardarComisiones()" disabled>💾 Guardar comisiones en la nube</button>
     <div class="result" id="resComis"></div>
 
     <div class="divider">Guardado actualmente en la nube</div>
-    <div id="comisCloudInfo"><p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Abre esta pestaña para cargar…</p></div>
+    <div id="comisCloudInfo"><p class="vacio-chico">Abre esta pestaña para cargar…</p></div>
   </div>
 
   <!-- CONFIG TIENDA -->
@@ -472,9 +510,9 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
     <div class="card">
       <h2>👥 Quién entra a la app</h2>
       <p class="note">Cada persona entra con <b>su número de empleado</b>. Aquí das de alta a los nuevos, das de baja a quien se va y decides quién puede abrir esta pantalla de Admin.</p>
-      <div id="equipoAviso" class="note" style="display:none;background:#fff6e5;border-color:#ffd28a;color:#8a6100"></div>
+      <div id="equipoAviso" class="note" style="display:none;background:var(--atencion-bg);border-color:var(--atencion-borde);color:var(--atencion)"></div>
       <div id="equipoLista"></div>
-      <div id="divergEquipo" class="note" style="display:none;margin-top:12px;background:#fff1f1;border-color:#ffc9c9;color:#8a1f1f"></div>
+      <div id="divergEquipo" class="note" style="display:none;margin-top:12px;background:var(--alerta-bg);border-color:var(--alerta-borde);color:var(--alerta)"></div>
     </div>
 
     <div class="card" id="equipoAltaCard">
@@ -498,7 +536,9 @@ header h1 { font-size:15px;font-weight:800;margin-left:2px; }
         </div>
       </div>
       <p class="note" style="margin:-4px 0 8px;font-size:11.5px">El correo solo hace falta para quien vaya a <b>administrar</b>: con él crea su cuenta desde “Ya trabajo en una tienda registrada” y al entrar se vincula solo. Para vender basta el número.</p>
-      <label class="eq-check"><input type="checkbox" id="nuevoEmpAdmin"> Puede abrir <b>Admin</b> (subir catálogo, promos, EOL y comisiones)</label>
+      <!-- El texto en UN span: la etiqueta es flex y cada trozo suelto (texto, <b>,
+           texto) se volvía una columna. -->
+      <label class="eq-check"><input type="checkbox" id="nuevoEmpAdmin"> <span>Puede abrir <b>Admin</b> (subir catálogo, promos, EOL y comisiones)</span></label>
       <button class="btn-pri" onclick="altaEmpleado()">➕ Agregar al equipo</button>
       <div class="result" id="resEquipo"></div>
     </div>
@@ -548,7 +588,7 @@ const _cfg  = (function(){ try{ return JSON.parse(localStorage.getItem('odemas_s
   function _pintar(){
     var b = document.createElement('div');
     b.style.cssText = 'position:sticky;top:0;z-index:99;padding:11px 14px;'
-      + 'background:#fdf3dc;border-bottom:2px solid #F37021;color:#7a5200;'
+      + 'background:var(--atencion-bg);border-bottom:2px solid var(--naranja);color:var(--atencion);'
       + 'font-size:13px;font-weight:700;text-align:center;line-height:1.5';
     b.innerHTML = '⚠ Tu tienda no tiene clave de escritura: lo que guardes aquí '
       + 'no se va a aplicar, y el equipo no podrá capturar ventas. '
@@ -593,7 +633,16 @@ function initSB(){ try{ if(!window.supabase) return false; sb=window.supabase.cr
    Supabase (el correo y contraseña con los que entras); si no hay sesión, queda
    el PIN, que se verifica en el servidor (función verificar_pin_admin) para que
    no tenga que viajar al dispositivo. Ver supabase_acceso.sql. */
+/* La tienda en el encabezado, de la sesión (22-sep-2026). Decía «HES 1217»
+   escrito a mano. textContent: el nombre viene de la base. */
+function fijarSubAdmin(){
+  const el = document.getElementById('adminSub');
+  if(!el) return;
+  const id = (_cfg && _cfg.store_id) || '';
+  el.textContent = id ? ('HES ' + id + (_cfg.nombre ? ' · ' + _cfg.nombre : '')) : 'Odemás';
+}
 function abrirAdmin(){
+  fijarSubAdmin();
   document.getElementById('pinWrap').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   // loadBundles() se quitó con la pestaña (4-ago-2026): era un viaje al Apps
@@ -676,21 +725,20 @@ async function verificarAcceso(){
 }
 
 function mostrarCerrado(motivo, quien){
-  const w = document.getElementById('pinWrap');
+  /* En el cuerpo y no en toda la capa: el encabezado con su «‹» se queda. */
+  const w = document.getElementById('pinCuerpo');
   if(!w) return;
   const msg = motivo === 'sin_permiso'
     ? (quien ? quien.split(' ')[0] + ', tu usuario no tiene permiso para Admin.' : 'Tu usuario no tiene permiso para Admin.')
     : motivo === 'sin_conexion'
       ? 'No pude verificar tu acceso. Revisa tu conexión e intenta de nuevo.'
       : 'Entra primero con tu número de empleado o con tu correo de gerente.';
-  w.innerHTML = '<img src="logo_odemas.png" alt="Odemás" style="height:44px">' +
-    '<h1 style="font-size:18px;font-weight:800">Admin</h1>' +
-    '<p style="font-size:13px;color:#888;text-align:center;max-width:280px">' + msg + '</p>' +
+  w.innerHTML = '<p class="pin-msg">' + msg + '</p>' +
     /* ENLACE, no botón con location.replace (8-ago-2026). continuidad.js borra
        la marca de «dónde estabas» al hacer clic en un enlace al menú; una
        navegación por JavaScript se la salta. Con el botón, un asesor sin
        permiso quedaba en bucle: Admin → menú → Admin, sin salida. */
-    '<a href="index.html" style="text-decoration:none;border-radius:12px;padding:12px 20px;background:var(--rojo);color:#fff;font-family:inherit;font-size:13px;font-weight:700">← Ir al menú</a>';
+    '<a href="index.html" class="btn btn-primario">← Ir al menú</a>';
 }
 
 window.addEventListener('load', async function(){
@@ -741,7 +789,8 @@ function equipoAviso(msg){
 async function cargarEquipo(){
   const cont = document.getElementById('equipoLista');
   const alta = document.getElementById('equipoAltaCard');
-  cont.innerHTML = '<p class="note" style="text-align:center;color:#bbb">Cargando…</p>';
+  cont.innerHTML = '<p class="note centro suave">Cargando…</p>';
+  // El <select> de puestos usa la misma lista que el resto de Admin
   const sel = document.getElementById('nuevoEmpPuesto');
   if(sel && !sel.options.length)
     sel.innerHTML = PUESTOS_CONOCIDOS.map(p=>'<option value="'+p+'">'+p+'</option>').join('');
@@ -806,7 +855,7 @@ function pintarEquipo(){
      nombres no depende de que haya alguien pintado, y esperarla dejaría la
      lista en blanco mientras contesta el servidor. */
   if(!_equipo.length){
-    cont.innerHTML = '<p class="note" style="text-align:center;color:#bbb">Todavía no hay nadie dado de alta.</p>';
+    cont.innerHTML = '<p class="note centro suave">Todavía no hay nadie dado de alta.</p>';
     return;
   }
   const admins = _equipo.filter(e=>e.admin && e.activo).length;
@@ -814,11 +863,11 @@ function pintarEquipo(){
     return '<div class="eq-row' + (e.activo?'':' inactivo') + '">' +
       '<span class="eq-num">' + escHtml(e.empno) + '</span>' +
       '<div class="eq-info"><b>' + escHtml(e.nombre) + '</b><span>' + escHtml(e.puesto||'—') +
-        (e.email ? ' · ' + escHtml(e.email) + (e.user_id ? ' <b style="color:var(--verde)">✓ cuenta activa</b>' : ' <i>(falta que cree su cuenta)</i>') : '') +
+        (e.email ? ' · ' + escHtml(e.email) + (e.user_id ? ' <b class="t-ok">✓ cuenta activa</b>' : ' <i>(falta que cree su cuenta)</i>') : '') +
       '</span></div>' +
       '<div class="eq-tags">' +
         (e.admin ? '<span class="eq-tag admin">Admin</span>' : '') +
-        (e.ventas_dia ? '<span class="eq-tag admin" style="background:#eaf4ff;color:#24507f">Ventas del día</span>' : '') +
+        (e.ventas_dia ? '<span class="eq-tag admin" style="background:var(--info-bg);color:var(--info)">Ventas del día</span>' : '') +
         (e.activo ? '' : '<span class="eq-tag baja">Sin acceso</span>') +
         '<button class="eq-btn' + (e.admin?' on':'') + '" onclick="cambiarEquipo(' + e.id + ',\'admin\',' + (!e.admin) + ')">' +
           (e.admin ? 'Quitar Admin' : 'Dar Admin') + '</button>' +
@@ -831,7 +880,7 @@ function pintarEquipo(){
           (e.activo ? 'Dar de baja' : 'Reactivar') + '</button>' +
       '</div></div>';
   }).join('') +
-  '<p class="note" style="margin-top:12px;font-size:11.5px">Hay <b>' + admins + '</b> persona(s) con acceso a Admin. Quien esté dado de baja no puede entrar a la app con su número.</p>';
+  '<p class="note mt12 t-sm">Hay <b>' + admins + '</b> persona(s) con acceso a Admin. Quien esté dado de baja no puede entrar a la app con su número.</p>';
 }
 
 /* Los permisos se cambian por `empleado_permiso`, no escribiendo en la tabla
@@ -989,7 +1038,7 @@ async function sbEscribir(fn, params){
 const money=n=>'$'+Number(n||0).toLocaleString('es-MX');
 function toast(msg,ok){
   const el=document.getElementById('toast');
-  el.textContent=msg; el.style.background=ok===false?'#D12026':'#1a8c4e';
+  el.textContent=msg; el.style.background=ok===false?'var(--rojo)':'var(--ok)';
   el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800);
 }
 function showResult(id,ok,html){
@@ -1758,18 +1807,18 @@ function _vigPromosPintar(){
        archivo a la vista, y no después de un "Enviado" que no envió nada. */
     nota.innerHTML='⚠️ <b>Este CEA no dice hasta cuándo.</b> Escribe la fecha de fin: '+
                    'sin ella la nube no guarda ninguna promoción.';
-    nota.style.color='#D12026';
+    nota.style.color='var(--rojo)';
     btn.disabled=true;
     return;
   }
   if(d1&&d1>d2){
     nota.innerHTML='⚠️ La fecha de inicio es posterior a la de fin.';
-    nota.style.color='#D12026';
+    nota.style.color='var(--rojo)';
     btn.disabled=true;
     return;
   }
   nota.innerHTML='Se guardarán con esta vigencia. Corrígela si no coincide con el comunicado.';
-  nota.style.color='#888';
+  nota.style.color='var(--tinta-2)';
   btn.disabled=false;
 }
 
@@ -2023,7 +2072,7 @@ document.getElementById('filePdfBundle').onchange=async function(e){
       fbox.classList.remove('ok');
       const dt=result.debugText||'';
       ph.innerHTML=dt
-        ? `⚠️ Sin bundles · mándame captura de esto:<br><span style="font-family:monospace;font-size:10px;white-space:pre-wrap;word-break:break-all;color:#555">${dt.replace(/</g,'&lt;').slice(0,400)}</span>`
+        ? `⚠️ Sin bundles · mándame captura de esto:<br><span style="font-family:monospace;font-size:10px;white-space:pre-wrap;word-break:break-all;color:var(--tinta-2)">${dt.replace(/</g,'&lt;').slice(0,400)}</span>`
         : '⚠️ El PDF no tiene texto — puede ser imagen escaneada';
       document.getElementById('previewBundles').style.display='none';
       return;
@@ -2031,7 +2080,7 @@ document.getElementById('filePdfBundle').onchange=async function(e){
     document.getElementById('btnSaveAll').style.display='';
     fbox.classList.add('ok');
     const dbgLine=result.debugText.split('\n')[0]||'';
-    ph.innerHTML=`✓ ${f.name}<br>${result.bundles.length} bundle(s) · vigencia ${result.vig||'no detectada'}<br><span style="font-size:10px;color:#aaa">${dbgLine.replace(/</g,'&lt;')}</span>`;
+    ph.innerHTML=`✓ ${f.name}<br>${result.bundles.length} bundle(s) · vigencia ${result.vig||'no detectada'}<br><span style="font-size:10px;color:var(--tinta-3)">${dbgLine.replace(/</g,'&lt;')}</span>`;
     document.getElementById('prevHdr').textContent=result.bundles.length+' bundles encontrados:';
     document.getElementById('prevList').innerHTML=result.bundles.map(b=>{
       const n=b.skus.split(',').length;
@@ -2534,7 +2583,7 @@ async function guardarAvisoManual(){
 
 async function cargarListaAvisos(){
   const el=document.getElementById('ceaLista');
-  el.innerHTML='<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Cargando…</p>';
+  el.innerHTML='<p class="vacio-chico">Cargando…</p>';
   try{
     const data=(await sbLeer('avisos_vigentes')).map(function(a){
       return { id:String(a.id), titulo:a.titulo, detalle:a.detalle||'',
@@ -2544,18 +2593,18 @@ async function cargarListaAvisos(){
                tipo:a.tipo||'manual' };
     });
     if(!Array.isArray(data)||data.length===0){
-      el.innerHTML='<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Sin avisos en nube.</p>';
+      el.innerHTML='<p class="vacio-chico">Sin avisos en nube.</p>';
       return;
     }
     el.innerHTML=data.map(a=>`
-      <div class="prev-item" style="border-left:4px solid ${a.prioridad==='alta'?'var(--rojo)':'var(--verde)'}">
+      <div class="prev-item" style="border-left:4px solid ${a.prioridad==='alta'?'var(--rojo)':'var(--ok)'}">
         <strong>${a.titulo}</strong>
         <span>${(a.detalle||'').slice(0,120)}${a.detalle&&a.detalle.length>120?'…':''}</span>
-        <span style="color:#aaa;font-size:11px;margin-top:4px;display:block">Vence: <b>${a.d2||'—'}</b> · ${a.tipo||'manual'}</span>
-        <button onclick="eliminarAviso('${a.id}')" style="margin-top:8px;background:none;border:1.5px solid #fcc;border-radius:8px;padding:5px 12px;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:var(--rojo);cursor:pointer">🗑 Eliminar</button>
+        <span style="color:var(--tinta-3);font-size:11px;margin-top:4px;display:block">Vence: <b>${a.d2||'—'}</b> · ${a.tipo||'manual'}</span>
+        <button onclick="eliminarAviso('${a.id}')" style="margin-top:8px;background:none;border:1.5px solid var(--alerta-borde);border-radius:8px;padding:5px 12px;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:var(--rojo);cursor:pointer">🗑 Eliminar</button>
       </div>`).join('');
   } catch(e){
-    el.innerHTML='<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Error al cargar.</p>';
+    el.innerHTML='<p class="vacio-chico">Error al cargar.</p>';
   }
 }
 
@@ -3202,7 +3251,7 @@ function renderComisPreview(){
   const keys = Object.keys(comisionesDraft);
   document.getElementById('btnComis').disabled = keys.length===0;
   if(!keys.length){
-    cont.innerHTML = '<p class="empty" style="text-align:center;color:#ccc;font-size:13px;padding:20px">Sube una captura para empezar.</p>';
+    cont.innerHTML = '<p class="empty vacio">Sube una captura para empezar.</p>';
     return;
   }
   cont.innerHTML = keys.map(k=>{
@@ -3220,7 +3269,7 @@ function renderComisPreview(){
         <button class="comis-del" onclick="eliminarComisFila('${k}')" title="Quitar">✕</button>
       </div>
       ${sospechosos.length ? `<div class="comis-warn-tag">⚠ Revisa ${sospechosos.join(', ')} — se ve como error del OCR, no un dato real</div>` : ''}
-      <div class="comis-f" style="margin-bottom:6px"><label>Puesto</label>
+      <div class="comis-f mb6"><label>Puesto</label>
         <select onchange="comisUpdate('${k}','puesto',this.value)">
           <option value="">—</option>
           ${PUESTOS_CONOCIDOS.map(p=>`<option value="${p}" ${r.puesto===p?'selected':''}>${p}</option>`).join('')}
@@ -3230,17 +3279,17 @@ function renderComisPreview(){
       <div class="comis-grid">
         <div class="comis-f"><label>Venta</label><input type="number" step="0.01" value="${r.venta??''}" oninput="comisUpdate('${k}','venta',this.value)"></div>
         <div class="comis-f"><label>% Ppto</label><input type="number" step="0.01" class="${claseSi(r.pptoPct)}" value="${r.pptoPct??''}" oninput="comisUpdate('${k}','pptoPct',this.value); this.classList.toggle('sospechoso', +this.value>100)"></div>
-        <div class="comis-f"><label>Alcance % <span style="font-weight:400;text-transform:none;color:#ccc">(puede pasar de 100)</span></label><input type="number" step="0.01" class="${claseSiExtremo(r.alcance)}" value="${r.alcance??''}" oninput="comisUpdate('${k}','alcance',this.value); this.classList.toggle('sospechoso', +this.value>999)"></div>
+        <div class="comis-f"><label>Alcance % <span class="lbl-suave">(puede pasar de 100)</span></label><input type="number" step="0.01" class="${claseSiExtremo(r.alcance)}" value="${r.alcance??''}" oninput="comisUpdate('${k}','alcance',this.value); this.classList.toggle('sospechoso', +this.value>999)"></div>
       </div>
       <div class="comis-sec">🛡️ Extracobertura ${faltaGar?'<span style="color:var(--naranja);text-transform:none;font-weight:600"> · sin datos</span>':''}</div>
       <div class="comis-grid">
-        <div class="comis-f"><label>Garantía % <span style="font-weight:400;text-transform:none;color:#ccc">(puede pasar de 100)</span></label><input type="number" step="0.01" class="${claseSiExtremo(r.garantiaPct)}" value="${r.garantiaPct??''}" oninput="comisUpdate('${k}','garantiaPct',this.value); this.classList.toggle('sospechoso', +this.value>999)"></div>
+        <div class="comis-f"><label>Garantía % <span class="lbl-suave">(puede pasar de 100)</span></label><input type="number" step="0.01" class="${claseSiExtremo(r.garantiaPct)}" value="${r.garantiaPct??''}" oninput="comisUpdate('${k}','garantiaPct',this.value); this.classList.toggle('sospechoso', +this.value>999)"></div>
         <div class="comis-f"><label>Pzas Garantía</label><input type="number" value="${r.garantiaPzas??''}" oninput="comisUpdate('${k}','garantiaPzas',this.value)"></div>
         <div class="comis-f"><label>Pzas Elegible</label><input type="number" class="${chk?'sospechoso':''}" value="${r.garantiaElegible??''}" oninput="comisUpdate('${k}','garantiaElegible',this.value)"></div>
       </div>
       ${chk ? `<div class="comis-warn-tag">⚠ <b>Pzas Elegible</b> ${chk.motivo}. Con ${r.garantiaPct}% de garantía y ${r.garantiaPzas} pzas, deberían ser <b>${chk.esperado}</b>
         <button type="button" onclick="aplicarElegible('${k}',${chk.esperado})" style="margin-left:6px;border:none;background:var(--naranja);color:#fff;border-radius:6px;padding:3px 8px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">Usar ${chk.esperado}</button></div>` : ''}
-      <div class="comis-f" style="margin-top:6px"><label>Monto Garantía ($)</label><input type="number" step="0.01" value="${r.garantiaMonto??''}" oninput="comisUpdate('${k}','garantiaMonto',this.value)"></div>
+      <div class="comis-f mt6"><label>Monto Garantía ($)</label><input type="number" step="0.01" value="${r.garantiaMonto??''}" oninput="comisUpdate('${k}','garantiaMonto',this.value)"></div>
     </div>`;
   }).join('');
 }
@@ -3282,7 +3331,7 @@ async function guardarComisiones(){
 
 async function cargarComisionesCloud(){
   const el = document.getElementById('comisCloudInfo');
-  el.innerHTML = '<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Cargando…</p>';
+  el.innerHTML = '<p class="vacio-chico">Cargando…</p>';
   try{
     // comisiones_lista devuelve FILAS; aqui se espera {actualizado, periodo…,
     // empleados:[…]}, que es la forma que armaba el Apps Script.
@@ -3310,13 +3359,13 @@ async function cargarComisionesCloud(){
       })
     } : null;
     if(!data || !Array.isArray(data.empleados) || !data.empleados.length){
-      el.innerHTML = '<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Sin comisiones guardadas todavía.</p>';
+      el.innerHTML = '<p class="vacio-chico">Sin comisiones guardadas todavía.</p>';
       return;
     }
-    el.innerHTML = `<p style="font-size:11px;color:#888;margin-bottom:8px">Actualizado: <b>${data.actualizado||'—'}</b> · Periodo: ${data.periodoComisiones||'—'}</p>` +
+    el.innerHTML = `<p style="font-size:11px;color:var(--tinta-2);margin-bottom:8px">Actualizado: <b>${data.actualizado||'—'}</b> · Periodo: ${data.periodoComisiones||'—'}</p>` +
       data.empleados.map(e=>`<div class="prev-item"><strong>${escHtml(e.nombre)}</strong><span>${escHtml(e.puesto||'')} · venta ${money(e.venta)} · ${e.alcance}% de meta${e.garantiaPct!=null?' · '+e.garantiaPct+'% garantía':''}</span></div>`).join('');
   }catch(e){
-    el.innerHTML = '<p style="text-align:center;color:#aaa;font-size:12px;padding:12px">Error al cargar.</p>';
+    el.innerHTML = '<p class="vacio-chico">Error al cargar.</p>';
   }
 }
 
