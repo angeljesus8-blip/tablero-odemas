@@ -854,12 +854,19 @@ function pintarEquipo(){
   /* Va ANTES del return de la lista vacía y sin `await`: la comprobación de los
      nombres no depende de que haya alguien pintado, y esperarla dejaría la
      lista en blanco mientras contesta el servidor. */
-  if(!_equipo.length){
+  /* Dados de baja: NO se enseñan (26-sep-2026, decisión de Ángel). Quien se va
+     desaparece de la lista; si regresa, se le da de alta otra vez con su número
+     y `altaEmpleado` reactiva su ficha. La ficha no se borra a propósito: la
+     base no admite dos con el mismo número en la tienda, y un toque equivocado
+     sería irreversible. */
+  const activos = _equipo.filter(function(e){ return e.activo; });
+  const bajas = _equipo.length - activos.length;
+  if(!activos.length){
     cont.innerHTML = '<p class="note centro suave">Todavía no hay nadie dado de alta.</p>';
     return;
   }
-  const admins = _equipo.filter(e=>e.admin && e.activo).length;
-  cont.innerHTML = _equipo.map(function(e){
+  const admins = activos.filter(e=>e.admin).length;
+  cont.innerHTML = activos.map(function(e){
     return '<div class="eq-row' + (e.activo?'':' inactivo') + '">' +
       '<span class="eq-num">' + escHtml(e.empno) + '</span>' +
       '<div class="eq-info"><b>' + escHtml(e.nombre) + '</b><span>' + escHtml(e.puesto||'—') +
@@ -876,11 +883,12 @@ function pintarEquipo(){
            no hay nada que escribir mal. */
         '<button class="eq-btn' + (e.ventas_dia?' on':'') + '" onclick="cambiarEquipo(' + e.id + ',\'ventas_dia\',' + (!e.ventas_dia) + ')">' +
           (e.ventas_dia ? 'Quitar Ventas del día' : 'Dar Ventas del día') + '</button>' +
-        '<button class="eq-btn" onclick="cambiarEquipo(' + e.id + ',\'activo\',' + (!e.activo) + ')">' +
-          (e.activo ? 'Dar de baja' : 'Reactivar') + '</button>' +
+        '<button class="eq-btn" onclick="cambiarEquipo(' + e.id + ',\'activo\',false)">Dar de baja</button>' +
       '</div></div>';
   }).join('') +
-  '<p class="note mt12 t-sm">Hay <b>' + admins + '</b> persona(s) con acceso a Admin. Quien esté dado de baja no puede entrar a la app con su número.</p>';
+  '<p class="note mt12 t-sm">Hay <b>' + admins + '</b> persona(s) con acceso a Admin.' +
+  (bajas ? ' ' + bajas + ' dada(s) de baja: no salen aquí ni pueden entrar. Si alguien regresa, dale de alta otra vez con su número.' : '') +
+  '</p>';
 }
 
 /* Los permisos se cambian por `empleado_permiso`, no escribiendo en la tabla
@@ -900,7 +908,7 @@ async function cambiarEquipo(id, campo, valor){
     toast('No puedes quitar el último acceso a Admin — quedarías sin quién administre la tienda', false);
     return;
   }
-  if(campo==='activo' && valor===false && !confirm('¿Dar de baja a ' + e.nombre + '?\n\nYa no podrá entrar a la app con su número. Puedes reactivarlo cuando quieras.')) return;
+  if(campo==='activo' && valor===false && !confirm('¿Dar de baja a ' + e.nombre + '?\n\nYa no podrá entrar a la app con su número y sale de la lista. Si regresa, se le da de alta otra vez.')) return;
 
   const r = await sbEscribir('empleado_permiso',
     { p_quien: _miEmpno(), p_id: id, p_campo: campo, p_valor: valor });
@@ -912,7 +920,7 @@ async function cambiarEquipo(id, campo, valor){
     ? (valor ? quien + ' ya puede abrir Admin ✓' : 'A ' + quien + ' se le quitó el acceso a Admin')
     : campo === 'ventas_dia'
     ? (valor ? quien + ' ya puede ver «Ventas del día» ✓' : quien + ' dejó de ver «Ventas del día»')
-    : (valor ? quien + ' puede entrar de nuevo ✓' : quien + ' quedó sin acceso a la app'), true);
+    : (valor ? quien + ' puede entrar de nuevo ✓' : quien + ' quedó sin acceso y salió de la lista'), true);
 }
 
 /* El correo es lo que enlaza la ficha con la cuenta que esa persona crea.
@@ -948,14 +956,30 @@ async function altaEmpleado(){
 
   if(!/^\d{4,10}$/.test(empno)) return fallo('El número de empleado debe traer solo dígitos (mínimo 4).');
   if(nombre.length < 4) return fallo('Escribe el nombre completo.');
-  if(_equipo.some(function(x){ return x.empno === empno; })) return fallo('Ya hay alguien con el número ' + empno + '.');
+  const previo = _equipo.filter(function(x){ return x.empno === empno; })[0];
+  if(previo && previo.activo) return fallo('Ya hay alguien con el número ' + empno + '.');
   if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fallo('Ese correo no se ve bien escrito.');
 
-  const { data, error } = await sb.from('empleados')
-    .insert({ store_id:_cfg.store_id, empno:empno, nombre:nombre, puesto:puesto, admin:admin, activo:true, email:email||null })
-    .select('id,empno,nombre,puesto,activo,admin,email,user_id').single();
+  /* Regresa alguien que se dio de baja: su ficha sigue en la base (el número es
+     único en la tienda), así que se REACTIVA con lo que se escribió ahora, como
+     un alta nueva. Los permisos empiezan de cero —Admin solo si se marcó,
+     «Ventas del día» apagado— y si el correo cambió, se suelta la cuenta vieja
+     para que la cree otra vez. */
+  const fila = { nombre:nombre, puesto:puesto, admin:admin, activo:true, email:email||null };
+  let q;
+  if(previo){
+    fila.ventas_dia = false;
+    if((previo.email || null) !== (email || null)) fila.user_id = null;
+    q = sb.from('empleados').update(fila).eq('id', previo.id);
+  } else {
+    fila.store_id = _cfg.store_id; fila.empno = empno;
+    q = sb.from('empleados').insert(fila);
+  }
+  const { data, error } = await q
+    .select('id,empno,nombre,puesto,activo,admin,ventas_dia,email,user_id').single();
   if(error) return fallo(errorEquipo(error));
 
+  if(previo) _equipo = _equipo.filter(function(x){ return x.id !== previo.id; });
   _equipo.push(data);
   _equipo.sort(function(a,b){ return (b.activo-a.activo) || a.nombre.localeCompare(b.nombre); });
   pintarEquipo();
