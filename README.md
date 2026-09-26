@@ -55,7 +55,7 @@ python configurar.py                                    # a qué proyecto apunta
 python configurar.py https://xxxx.supabase.co sb_publishable_xxxx
 ```
 
-La URL está escrita en **nueve archivos**, con cinco nombres de variable
+La URL está escrita en **ocho archivos**, con cinco nombres de variable
 distintos. Cambiarlos a mano y olvidar uno no da error: esa pantalla sigue
 funcionando **contra la base equivocada**, y una venta capturada ahí descuenta
 stock de otra tienda. `verificar.py` no deja publicar mientras alguno siga

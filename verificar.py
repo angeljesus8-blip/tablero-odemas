@@ -1018,12 +1018,18 @@ def r_precache():
 # Los topes son los de ESTA copia (26-sep-2026, al traer la regla de la 1217),
 # contados sobre sus páginas: no los de allá, que tenían Mr Fix y el concurso.
 PALETA_TOPE = {
-    'index.html': 2, 'tablero.html': 70, 'captura_series.html': 12,
+    'index.html': 2, 'tablero.html': 4, 'captura_series.html': 12,
     'admin.html': 6, 'horarios.html': 3, 'comisiones.html': 1,
     'estilo.css': 19,
 }
 def _colores(texto):
     return set(c.lower() for c in re.findall(r'#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b', texto))
+
+# Páginas que ya van ENTERAS con la escala de letra de estilo.css (--t-*): ahí
+# un `font-size:12px` suelto es una falla, no una holgura. El tablero llegó el
+# 22-sep-2026 (v280) desde 29 tamaños distintos; su única excepción, el % del
+# Assurant, es un token (--t-kpi), no un número a mano.
+ESCALA_COMPLETA = ('tablero.html',)
 
 def r_paleta():
     sw = leer('sw.js') or ''
@@ -1047,6 +1053,20 @@ def r_paleta():
         elif n < tope:
             aviso('paleta', '%s bajó a %d colores (tope %d): baja su tope en PALETA_TOPE '
                             'para que no quede holgura' % (arch, n, tope))
+    for arch in ESCALA_COMPLETA:
+        sueltos = sorted(set(re.findall(r'font-size\s*:\s*[0-9.]+(?:px|rem|em|pt)\b', leer(arch) or '')))
+        if sueltos:
+            falla('paleta', '%s tiene tamaños de letra fuera de la escala (%s). Usa '
+                            'var(--t-xs) … var(--t-2xl) de estilo.css'
+                            % (arch, ', '.join(sueltos[:5])))
+        # El naranja de marca como LETRA da 2.9:1 sobre blanco: el ámbar que se
+        # lee es --atencion. Incluye el semáforo del Assurant (15-25 %), que se
+        # arma en JS como 'var(--…)'. Como borde o relleno, el naranja sí va.
+        s = leer(arch) or ''
+        naranja = re.findall(r"(?:(?<![a-z-])color\s*:\s*var\(--naranja\)|'var\(--naranja\)')", s)
+        if naranja:
+            falla('paleta', '%s usa el naranja de marca como color de texto (%d vez/veces): '
+                            'no se lee (2.9:1). Usa var(--atencion)' % (arch, len(naranja)))
     # La página que se apoya en estilo.css sin tenerlo en caché abre SIN
     # encabezado ni colores cuando no hay señal, y con red se ve perfecta.
     for pagina in PALETA_TOPE:
