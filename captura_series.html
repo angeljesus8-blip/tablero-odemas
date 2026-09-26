@@ -730,7 +730,14 @@ function _sbCuerpo(row){
        tiene DEFAULT false, pero mandarlo siempre deja la venta diciendo lo que
        es en vez de depender de un valor por omisión que alguien podría cambiar. */
     p_de_exhibicion: row.exhibicion === true,
-    p_grupo: row.grupo || null
+    p_grupo: row.grupo || null,
+    /* QUIÉN la tecleó — que no es quién la vendió. El vendedor cobra la
+       comisión; éste sólo capturó. Faltaba, y se notó en la 1217 el
+       21-sep-2026: apareció una venta de prueba a nombre de alguien que no
+       trabaja ahí y no hubo forma de saber quién la había metido, porque
+       `ventas` no lo guardaba. Ver supabase_venta_capturado_por.sql: ese SQL
+       va ANTES que esta app, o la función no conoce `p_quien` y no guarda. */
+    p_quien: MI_EMPNO || null
   };
 }
 
@@ -1792,6 +1799,7 @@ async function cargarVentasDia(dia){
                precio: v.precio==null ? '' : String(v.precio),
                vend:v.vendedor||'', hora: v.vendida_en ? String(v.vendida_en).slice(11,16) : '',
                captura_id: v.captura_id||'', foto: !!v.tiene_foto,
+               quien: v.capturado_por || '',
                /* El seguro del artículo (6-sep-2026). `ventas_detalle` lo daba
                   desde el principio —en las tres clases de fila— y este mapeo
                   lo tiraba, así que la pantalla no podía enseñar lo que ya
@@ -1982,6 +1990,19 @@ window.abrirEditarVenta = function(i){
      NO se convierte en `false`: son cosas distintas y confundirlas hunde el
      attach. Se deja sin marcar y no se puede guardar hasta elegir. */
   edSeguro(typeof v.seguro === 'boolean' ? v.seguro : null);
+
+  /* Quién la tecleó, cuando se sabe. No es un campo que se corrija: es para
+     poder preguntarle a esa persona. Las ventas anteriores al 21-sep-2026 y las
+     de una app que aún no manda el dato no lo traen, y entonces no se dice
+     nada — «capturada por: —» sólo ocuparía sitio. */
+  const _q = $('edQuien');
+  if(_q){
+    const quien = v.quien || '';
+    _q.textContent = quien
+      ? ('Capturada por el N° ' + quien + (quien === String(MI_EMPNO) ? ' (tú)' : ''))
+      : '';
+    _q.style.display = quien ? '' : 'none';
+  }
 
   $('edError').style.display = 'none';
   /* El texto se reinicia, no solo se esconde: `edMirarSku` lo reescribe con el
@@ -2693,6 +2714,7 @@ refreshEolVenta(); // trae los EOL con 50% activo (solo exhibición)
         Al cambiar el SKU se corrige también el inventario de los <b>dos</b>
         productos. Comprueba el stock de ambos después.
       </div>
+      <div id="edQuien" style="display:none;margin-top:10px;font-size:11px;color:#777;"></div>
       <div id="edError" style="display:none;margin-top:12px;padding:10px 12px;
            border-radius:9px;border-left:4px solid var(--rojo);background:#fdeaea;
            font-size:12.5px;line-height:1.45;color:#8a1f1f"></div>

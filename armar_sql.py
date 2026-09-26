@@ -60,6 +60,7 @@ ORDEN = [
  ('Septiembre — cada quien ve lo suyo', [
    'supabase_comisiones_privadas.sql',
    'supabase_alta_por_invitacion.sql',
+   'supabase_venta_capturado_por.sql',
  ]),
 ]
 
@@ -116,6 +117,12 @@ POR_QUE = [
   'alta_tienda escribe en tiendas y empleados, y una funcion LANGUAGE plpgsql '
   'no se valida al crearse: si las tablas no estan, esto se pega sin una queja '
   'y revienta el dia que alguien abre una tienda'),
+ ('supabase_venta_grupo.sql', 'supabase_venta_capturado_por.sql',
+  'venta_guardar, v5: la de venta_grupo con p_token y ademas p_quien, y '
+  'ventas_detalle con capturado_por. Al reves gana la v4, la app que manda '
+  'p_quien recibe PGRST202 y deja de guardar ventas'),
+ ('supabase_preventa_series.sql', 'supabase_venta_capturado_por.sql',
+  'venta_guardar llama a escritura_ok_, que se define en preventa_series'),
  ('supabase_token_alta.sql', 'supabase_alta_por_invitacion.sql',
   'la tienda nace SIN gas_token escrito a mano: lo pone el DEFAULT que instala '
   'token_alta. Al reves, la tienda se crea y no puede guardar ni una venta '
@@ -135,8 +142,8 @@ ESPERADO_GANA = {
   'avisos_vigentes':            'supabase_escrituras_resto.sql',
   'inventario_vivo':            'supabase_venta_exhibicion.sql',
   'eol_precio_venta':           'supabase_venta_exhibicion.sql',
-  'venta_guardar':              'supabase_venta_grupo.sql',
-  'ventas_detalle':             'supabase_venta_grupo.sql',
+  'venta_guardar':              'supabase_venta_capturado_por.sql',
+  'ventas_detalle':             'supabase_venta_capturado_por.sql',
   'ventas_hoy':                 'supabase_attach_apartados.sql',
   'comisiones_lista':           'supabase_comisiones_privadas.sql',
 }
