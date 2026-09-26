@@ -34,6 +34,10 @@
      7. y un toque real sobre «1 año» SÍ registra la venta con seguro — si
         esto fallara, las tres de arriba pasarían por no funcionar nada.
 
+   HORARIOS (22-sep-2026, fase 5): la semana del asesor y la del gerente a
+   390 y 360 px, con un equipo inventado. Antes del rediseño la página medía
+   413 px de ancho en un celular de 390: la navegación de semana se salía.
+
    Sin dependencias: Edge viene con Windows y Node 22+ trae WebSocket. Si no
    hay Edge (otra máquina), avisa y no bloquea — igual que `node` en
    verificar.py.
@@ -57,6 +61,12 @@ const CAPTURA = [
   ['paso2',  "irPaso(2); aplicarProducto({ s:'100245689', d:'AUDIF IN EAR HW F-BUDS PRO 4 VD' }); $('serie').value = 'ABCDE12345678901'"],
   ['seguro', "$('btnAdd').click()"],
 ];
+// Un equipo inventado para el horario (el repo es público).
+const EQUIPO_H = { horaApertura:10, horaCierre:21,
+  gerentes:[{ key:'G1', nombre:'ANA GERENTE', cargo:'Gerente de Tienda', emp:'900001', descFijo:5 },
+            { key:'G2', nombre:'BENI SUBGER', cargo:'Subgerente', emp:'900002', descFijo:4 }],
+  asesores:[{ key:'A1', nombre:'CARO ASESORA', cargo:'Asesor', emp:'900003', descFijo:3 },
+            { key:'A2', nombre:'DANI ASESOR', cargo:'Asesor', emp:'900004', descFijo:1 }] };
 const ALTO_ENCABEZADO = 76;
 
 const EDGE = [
@@ -308,6 +318,46 @@ async function main(){
         document.querySelector('main').appendChild(d); const m = ${MEDIR}; d.remove(); return m.nFuera; })()`);
       if(!cebo) falla(`captura a ${W}px: se metió un bloque de 520 px y la prueba no lo vio — está ciega`);
     }
+
+    // ── Horarios ──
+    for(const W of ANCHOS){
+      for(const [quien, emp] of [['asesor', { empno:'900003', puesto:'Asesor' }],
+                                 ['gerente', { empno:'900001', puesto:'Gerente de Tienda' }]]){
+        await b.enviar('Emulation.setDeviceMetricsOverride', { width: W, height: 844, deviceScaleFactor: 2, mobile: true }, s);
+        await b.enviar('Page.navigate', { url: `http://127.0.0.1:${puerto}/horarios.html` }, s);
+        for(let i = 0; i < 60; i++){
+          await dormir(100);
+          if(await ev(`document.readyState === 'complete' && typeof generarSemana === 'function'`).catch(() => false)) break;
+        }
+        await ev(`document.fonts.ready.then(() => true)`);
+        // Se pinta con la cadena real (la de horario_solo_mio.js) y se quitan
+        // la carga y el login, que sin red se quedarían encima.
+        await ev(`(() => { aplicarEquipo(${JSON.stringify(EQUIPO_H)});
+          fijarSesion({ store_id:'9999', nombre:'Tienda Prueba' }, ${JSON.stringify(emp)});
+          const _d = generarSemana(_semana, null, null); renderTabla(_semana, _domingo, _d, calcularComidas(_d));
+          ['cargando', 'overlay-login'].forEach(i => { const e = document.getElementById(i); if(e){ e.classList.remove('activo'); e.style.display = 'none'; } });
+          if(/Gerente/.test(${JSON.stringify(emp.puesto)})) document.getElementById('barra-usuario').classList.add('activo');
+          mostrarVolverAlMenu(); scrollTo(0,0); return true; })()`);
+        await dormir(250);
+        const m = await ev(MEDIR);
+        const donde = `horario ${quien} a ${W}px`;
+        if(m.ancho > m.W + 1) falla(`${donde}: la página mide ${m.ancho} px de ancho en una pantalla de ${m.W}`);
+        if(m.nFuera) falla(`${donde}: ${m.nFuera} elemento(s) se salen de la pantalla — ${m.fuera.join(', ')}`);
+        if(m.encabezado == null) falla(`${donde}: no hay encabezado visible`);
+        else if(m.encabezado > ALTO_ENCABEZADO)
+          falla(`${donde}: el encabezado mide ${m.encabezado} px (tope ${ALTO_ENCABEZADO}); se parte en renglones`);
+        if(FOTOS){
+          fs.mkdirSync(FOTOS, { recursive: true });
+          const alto = await ev(`Math.min(document.documentElement.scrollHeight, 3000)`);
+          await b.enviar('Emulation.setDeviceMetricsOverride', { width: W, height: alto, deviceScaleFactor: 2, mobile: true }, s);
+          const { data } = await b.enviar('Page.captureScreenshot', { format: 'png' }, s);
+          fs.writeFileSync(path.join(FOTOS, `horario_${quien}_${W}.png`), Buffer.from(data, 'base64'));
+        }
+      }
+      const cebo = await ev(`(() => { const d = document.createElement('div'); d.style.cssText = 'width:520px;height:10px';
+        document.body.appendChild(d); const m = ${MEDIR}; d.remove(); return m.nFuera; })()`);
+      if(!cebo) falla(`horario a ${W}px: se metió un bloque de 520 px y la prueba no lo vio — está ciega`);
+    }
   } finally {
     b.cerrar(); edge.kill(); servidor.close();
     await dormir(300);
@@ -321,5 +371,5 @@ main().then(() => {
     fallos.forEach(f => console.log('   · ' + f));
     process.exit(1);
   }
-  console.log('pantalla 390: el tablero y Captura caben a 390 y 360 px, encabezado en una franja, un icono por tarjeta, el seguro no se elige solo con Enter ni tocando fuera (y el cebo de 520 px se caza)');
+  console.log('pantalla 390: el tablero, Captura y Horarios caben a 390 y 360 px, encabezado en una franja, un icono por tarjeta, el seguro no se elige solo con Enter ni tocando fuera (y el cebo de 520 px se caza)');
 }, e => { console.log('pantalla 390: no pudo correr — ' + e.message); process.exit(1); });

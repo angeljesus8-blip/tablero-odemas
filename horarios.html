@@ -4,114 +4,103 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Horarios · Odemás</title>
-<!-- Montserrat sigue viniendo del CDN AQUÍ Y SOLO AQUÍ (8-ago-2026).
-     El resto del tablero la sirve desde ./fuentes/, porque con la señal de la
-     tienda el CDN caído dibuja todo con la letra del sistema. Este archivo no
-     puede: es copia de 02_Equipo/horario_semanal.html, que se publica también
-     en el repo planeador-odemas para las otras tiendas, y allí no existe la
-     carpeta ./fuentes/ — el @font-face fallaría siempre en vez de solo cuando
-     falle la red. Para arreglarlo hay que llevar la fuente a los dos repos. -->
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Estilo común (22-sep-2026, traído de la 1217): tokens de color, el
+     encabezado `.barra` y Montserrat desde ./fuentes/ —que ya está en el
+     precache—, así que sin señal ya no se dibuja con la letra del sistema.
+     Hasta hoy venía del CDN de Google porque en la 1217 esta página se publica
+     también en planeador-odemas, donde no había ./fuentes/. En esta copia no:
+     horarios.html es solo de aquí. -->
+<link rel="stylesheet" href="./estilo.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root {
-  --rojo:       #D12026;
-  --naranja:    #F37021;
-  --azul:       #336BB4;
-  --blanco:     #FFFFFF;
-  --gris-txt:   #1a1a1a;
-  --gris-sub:   #777777;
-  --borde:      #E0E0E0;
-  --gris-fondo: #F5F5F5;
+/* ── Colores del horario (22-sep-2026) ──────────────────────────────────
+   Los de marca y los de significado vienen de estilo.css. Antes la pantalla
+   usaba la paleta de Google (45 colores); Ángel aprobó rehacerla con la de
+   Odemás. El Excel que se descarga NO cambió: sus colores viven aparte, en
+   `exportarExcel`, y siguen siendo los de siempre.
 
-  --c-descanso:  #D32F2F;
-  --c-apertura:  #C8E6C9;
-  --c-cierre:    #FFF9C4;
-  --c-doble:     #FFCCBC;
-  --c-comp:      #E3F2FD;
-  --c-comida:    #FCE4EC;
-  --c-ley:       #FFFDE7;
-  --c-vacante:   #616161;
-  --c-ausente:   #E1BEE7;
+   Cada turno tiene su color y no se repite:
+     apertura → verde (--ok)      cierre → azul (--info)
+     doble    → ámbar (--atencion) descanso → rojo tenue (--alerta)
+     vacaciones/ausente → su tono  y lo demás (compensación, permiso,
+     capacitación, comida, Ley Silla) en grises distintos: son el caso raro y
+     la palabra de la celda ya dice qué es. */
+:root {
+  --turno-aus: #5b3f86; --turno-aus-bg: #efe9f7;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: 'Montserrat', 'Segoe UI', sans-serif;
-  background: #FFF;
-  color: var(--gris-txt);
+  background: var(--superficie);
+  color: var(--tinta);
   padding: 14px;
 }
 
-header {
-  background: #FFF;
-  border-bottom: 3px solid var(--rojo);
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 0;
+/* El encabezado es el común de estilo.css (`.barra`). El margen negativo lo
+   lleva de orilla a orilla a pesar del padding del body. */
+.barra { margin: -14px -14px 0; }
+.barra-volver { display: none; }
+/* La semana, en su propio renglón bajo la barra: en la barra no cabía y en el
+   celular empujaba la página a 413 px de ancho (medido el 22-sep-2026). */
+.semana-nav {
+  display: flex; align-items: center; gap: 8px; margin: 10px 0 12px;
 }
-.logo-odemas { height: 38px; object-fit: contain; flex-shrink: 0; }
-.logo-bars { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
-.logo-bars span { display: block; width: 32px; height: 7px; border-radius: 2px; }
-.bar-rojo    { background: var(--rojo); }
-.bar-naranja { background: var(--naranja); }
-.bar-azul    { background: var(--azul); }
-.header-info h1 { font-size: 16px; font-weight: 700; color: var(--gris-txt); line-height: 1.2; }
-.header-info p  { font-size: 11px; color: var(--gris-sub); margin-top: 2px; font-weight: 400; }
+.semana-nav button {
+  flex-shrink: 0; width: 38px; height: 36px; border: 1.5px solid var(--linea);
+  background: var(--superficie); border-radius: var(--r-sm); cursor: pointer;
+  font-family: inherit; font-size: 16px; font-weight: 700; color: var(--tinta-2);
+}
 .semana-badge {
-  margin-left: auto;
-  background: var(--gris-fondo);
-  border: 1.5px solid var(--borde);
-  border-radius: 20px;
-  padding: 5px 16px;
-  font-size: 12px; font-weight: 600;
-  color: var(--gris-txt);
-  white-space: nowrap; flex-shrink: 0;
+  flex: 1; min-width: 0; text-align: center;
+  background: var(--fondo); border-radius: var(--r-sm);
+  padding: 8px 10px; font-size: var(--t-md); font-weight: 700; color: var(--tinta);
+  line-height: 1.3;
 }
 
 .wrapper-tabla {
   overflow-x: auto;
-  border: 1px solid var(--borde);
+  border: 1px solid var(--linea);
   border-radius: 0 0 8px 8px;
   border-top: none;
   box-shadow: 0 2px 10px rgba(0,0,0,0.07);
   margin-bottom: 14px;
 }
 table { border-collapse: collapse; width: 100%; min-width: 680px; background: #FFF; }
-th, td { border: 1px solid var(--borde); padding: 5px 6px; text-align: center; vertical-align: middle; font-size: 11px; line-height: 1.35; }
-thead th { background: var(--azul); color: #FFF; font-weight: 700; font-size: 11px; padding: 9px 5px; letter-spacing: 0.2px; }
-thead th.col-nombre { background: var(--rojo); text-align: left; padding-left: 14px; min-width: 155px; font-size: 12px; }
-thead th small { display: block; font-weight: 500; font-size: 10px; opacity: 0.85; margin-top: 1px; }
+th, td { border: 1px solid var(--linea); padding: 5px 6px; text-align: center; vertical-align: middle; font-size: 11px; line-height: 1.35; }
+/* Cabeceras claras: la tabla ya es densa, y con el azul y el rojo sólidos de
+   antes lo que más gritaba era la estructura, no los turnos. */
+thead th { background: var(--fondo); color: var(--tinta); font-weight: 700; font-size: 11px; padding: 9px 5px; letter-spacing: 0.2px; }
+thead th.col-nombre { text-align: left; padding-left: 14px; min-width: 155px; font-size: 12px; }
+thead th small { display: block; font-weight: 500; font-size: 10px; color: var(--tinta-3); margin-top: 1px; }
 
-tr.fila-persona td { background: var(--rojo); color: #FFF; font-weight: 700; font-size: 11px; text-align: left; padding: 7px 14px; border-color: rgba(255,255,255,0.25); letter-spacing: 0.3px; }
-td.lbl { background: var(--gris-fondo); color: var(--gris-sub); font-size: 9px; font-style: italic; text-align: left; padding-left: 18px; border-right: 3px solid var(--rojo); white-space: nowrap; }
+tr.fila-persona td { background: var(--superficie); color: var(--tinta); font-weight: 800; font-size: 11px; text-align: left; padding: 8px 14px; border-left: 4px solid var(--rojo); letter-spacing: 0.3px; }
+td.lbl { background: var(--fondo); color: var(--tinta-2); font-size: 9px; font-style: italic; text-align: left; padding-left: 18px; border-right: 2px solid var(--linea); white-space: nowrap; }
 
-tr.sep-rojo    td { background: var(--rojo);    height: 3px; padding: 0; border: none; }
-tr.sep-naranja td { background: var(--naranja); height: 3px; padding: 0; border: none; }
+tr.sep-rojo    td { background: var(--linea); height: 3px; padding: 0; border: none; }
+tr.sep-naranja td { background: var(--linea); height: 3px; padding: 0; border: none; }
 
-.descanso  { background: var(--c-descanso) !important; color: #FFF !important; font-weight: 700; }
-.apertura  { background: var(--c-apertura); font-weight: 600; color: #1B5E20; }
-.cierre    { background: var(--c-cierre);   font-weight: 600; color: #5D4037; }
-.doble     { background: var(--c-doble);    font-weight: 700; color: #BF360C; }
-.comp         { background: var(--c-comp);     font-weight: 600; color: #0D47A1; }
-.permiso      { background: #E8F5E9; font-weight: 600; color: #1B5E20; }
-.capacitacion { background: #FFF8E1; font-weight: 600; color: #E65100; }
-.comida    { background: var(--c-comida);   color: #880E4F; font-size: 10px; }
-.ley-silla { background: var(--c-ley);      color: #827717; font-size: 9px; }
-.vacante   { background: var(--c-vacante) !important; color: #CCC !important; font-size: 9px; }
-.ausente   { background: var(--c-ausente);  color: #4A148C; font-weight: 600; }
-.vacio     { background: #FAFAFA; color: #DDD; font-size: 9px; }
+.descanso     { background: var(--alerta-bg) !important; color: var(--alerta) !important; font-weight: 800; }
+.apertura     { background: var(--ok-bg);       font-weight: 700; color: var(--ok); }
+.cierre       { background: var(--info-bg);     font-weight: 700; color: var(--info); }
+.doble        { background: var(--atencion-bg); font-weight: 800; color: var(--atencion); }
+.comp         { background: var(--mosaico);     font-weight: 600; color: var(--tinta-2); }
+.permiso      { background: var(--linea);       font-weight: 600; color: var(--tinta-2); }
+.capacitacion { background: var(--fondo);       font-weight: 600; color: var(--tinta); }
+.comida       { background: var(--fondo);       color: var(--tinta-2); font-size: 10px; }
+.ley-silla    { background: var(--fondo);       color: var(--tinta-3); font-size: 9px; }
+.vacante      { background: var(--tinta-2) !important; color: #fff !important; font-size: 9px; }
+.ausente      { background: var(--turno-aus-bg); color: var(--turno-aus); font-weight: 600; }
+.vacio        { background: var(--superficie); color: var(--tinta-3); font-size: 9px; }
 
-.leyenda { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: #FFF; border: 1px solid var(--borde); border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.06); margin-bottom: 10px; }
-.ley-item { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; color: var(--gris-txt); }
+.leyenda { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: #FFF; border: 1px solid var(--linea); border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.06); margin-bottom: 10px; }
+.ley-item { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; color: var(--tinta); }
 .ley-color { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
 
-.nota-pie { font-size: 10px; color: var(--gris-sub); padding: 4px 2px; margin-bottom: 4px; }
+.nota-pie { font-size: 10px; color: var(--tinta-2); padding: 4px 2px; margin-bottom: 4px; }
 .nota-pie strong { color: var(--rojo); }
-.footer { font-size: 9px; color: #BBB; text-align: right; padding-top: 4px; }
+.footer { font-size: 9px; color: var(--tinta-3); text-align: right; padding-top: 4px; }
 
 /* ── Vista de celular ──
    La tabla mide ~1050 px: un celular tiene 400. Antes solo se encogía la letra
@@ -133,10 +122,7 @@ body.solo-mi-horario .leyenda { display: none; }
 
 @media (max-width: 700px) {
   body { padding: 8px; }
-  header { flex-wrap: wrap; gap: 10px; }
-  .semana-badge { margin-left: 0; }
-  .logo-odemas { height: 28px; }
-  h1 { font-size: 15px; }
+  .barra { margin: -8px -8px 0; }
 
   #vista-movil { display: block; }
   .wrapper-tabla, .leyenda, .nota-pie { display: none; }
@@ -151,51 +137,55 @@ body.solo-mi-horario .leyenda { display: none; }
 }
 
 .mv-card {
-  background: #fff; border: 1px solid var(--borde); border-radius: 10px;
+  background: #fff; border: 1px solid var(--linea); border-radius: 10px;
   box-shadow: 0 1px 5px rgba(0,0,0,0.06); margin-bottom: 12px; overflow: hidden;
 }
-.mv-yo { border: 2px solid var(--rojo); }
+/* La tarjeta propia se marca con la raya roja de la cabecera, no con un marco:
+   el marco rojo de 2 px más la cabecera roja sólida era la pantalla entera en rojo. */
+.mv-yo { border-color: var(--linea); }
 .mv-head {
-  background: var(--rojo); color: #fff; padding: 9px 12px;
+  background: var(--superficie); color: var(--tinta); padding: 11px 12px;
+  border-left: 4px solid var(--rojo); border-bottom: 1px solid var(--linea);
   font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
 }
-.mv-head small { display: block; font-weight: 500; opacity: 0.9; font-size: 10px; margin-top: 2px; }
+.mv-head small { display: block; font-weight: 500; color: var(--tinta-2); font-size: 11px; margin-top: 2px; letter-spacing: 0; }
 .mv-dia {
   display: grid; grid-template-columns: 62px 1fr; align-items: center;
-  gap: 8px; padding: 8px 12px; border-top: 1px solid var(--borde);
+  gap: 8px; padding: 8px 12px; border-top: 1px solid var(--linea);
 }
 .mv-dia:first-of-type { border-top: none; }
-.mv-hoy { background: #FFF9E6; }
-.mv-fecha { font-size: 11px; font-weight: 700; color: var(--gris-sub); line-height: 1.25; }
-.mv-fecha b { display: block; font-size: 13px; color: var(--gris-txt); }
+/* Hoy, en rojo tenue (estilo.css, regla 1: rojo = mira aquí). */
+.mv-hoy { background: var(--alerta-bg); }
+.mv-fecha { font-size: 11px; font-weight: 700; color: var(--tinta-2); line-height: 1.25; }
+.mv-fecha b { display: block; font-size: 13px; color: var(--tinta); }
 .mv-turno {
   border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 700;
   text-align: center; line-height: 1.3;
 }
-.mv-extra { font-size: 11px; color: var(--gris-sub); margin-top: 4px; text-align: center; }
+.mv-extra { font-size: 11px; color: var(--tinta-2); margin-top: 4px; text-align: center; }
 .mv-extra span { display: inline-block; margin: 0 5px; }
 
 /* El resto del equipo: plegado, se abre al tocar */
-.mv-sec { font-size: 11px; font-weight: 700; color: var(--gris-sub);
+.mv-sec { font-size: 11px; font-weight: 700; color: var(--tinta-2);
           text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 2px 8px; }
-.mv-det { background: #fff; border: 1px solid var(--borde); border-radius: 10px;
+.mv-det { background: #fff; border: 1px solid var(--linea); border-radius: 10px;
           margin-bottom: 8px; overflow: hidden; }
 .mv-det > summary {
-  padding: 11px 12px; font-size: 12px; font-weight: 700; color: var(--gris-txt);
+  padding: 11px 12px; font-size: 12px; font-weight: 700; color: var(--tinta);
   cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
 }
 .mv-det > summary::-webkit-details-marker { display: none; }
 .mv-det > summary::before { content: '▸'; color: var(--rojo); font-size: 13px; }
 .mv-det[open] > summary::before { content: '▾'; }
-.mv-det > summary small { font-weight: 500; color: var(--gris-sub); }
+.mv-det > summary small { font-weight: 500; color: var(--tinta-2); }
 
 .mv-btn-tabla {
   width: 100%; padding: 12px; margin-top: 6px;
-  background: #fff; color: var(--gris-txt);
-  border: 1.5px solid var(--borde); border-radius: 8px;
+  background: #fff; color: var(--tinta);
+  border: 1.5px solid var(--linea); border-radius: 8px;
   font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
 }
-.mv-btn-tabla:hover { background: var(--gris-fondo); }
+.mv-btn-tabla:hover { background: var(--fondo); }
 
 /* El "volver" se inyecta fuera de #vista-movil (va encima de la tabla), así que
    se oculta a mano: en escritorio la tabla manda y no hay a dónde volver. */
@@ -220,11 +210,11 @@ body.solo-mi-horario .leyenda { display: none; }
   text-align: center;
 }
 .login-box img { height: 44px; margin-bottom: 20px; }
-.login-box h2 { font-size: 16px; font-weight: 700; color: var(--gris-txt); margin-bottom: 6px; }
-.login-box p  { font-size: 11px; color: var(--gris-sub); margin-bottom: 20px; }
+.login-box h2 { font-size: 16px; font-weight: 700; color: var(--tinta); margin-bottom: 6px; }
+.login-box p  { font-size: 11px; color: var(--tinta-2); margin-bottom: 20px; }
 .login-box input {
   width: 100%; padding: 10px 12px; margin-bottom: 12px;
-  border: 1.5px solid var(--borde); border-radius: 6px;
+  border: 1.5px solid var(--linea); border-radius: 6px;
   font-family: inherit; font-size: 13px; outline: none;
   box-sizing: border-box;
 }
@@ -239,24 +229,24 @@ body.solo-mi-horario .leyenda { display: none; }
 .btn-login:hover { opacity: .88; }
 .login-error { font-size: 11px; color: var(--rojo); margin-top: 10px; min-height: 16px; }
 .vac-dias-grid { display:flex; gap:3px; justify-content:center; flex-wrap:nowrap; margin-top:5px; }
-.vac-dia-pill { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:4px; font-size:10px; font-weight:700; cursor:pointer; background:#f0f0f0; color:#aaa; border:1.5px solid #ddd; transition:.12s; user-select:none; }
+.vac-dia-pill { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:4px; font-size:10px; font-weight:700; cursor:pointer; background:var(--linea); color:var(--tinta-3); border:1.5px solid var(--linea); transition:.12s; user-select:none; }
 .vac-dia-pill input { display:none; }
 .vac-dia-pill.activo { background:var(--rojo); color:#fff; border-color:var(--rojo); }
 .login-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
-.ltab { flex: 1; padding: 8px; border: 1.5px solid var(--borde); border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #fff; color: var(--gris-sub); transition: all .15s; }
+.ltab { flex: 1; padding: 8px; border: 1.5px solid var(--linea); border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #fff; color: var(--tinta-2); transition: all .15s; }
 .ltab.activo { background: var(--rojo); color: #fff; border-color: var(--rojo); }
 
 /* ── Barra de usuario ── */
 #barra-usuario {
   display: none;
-  background: var(--gris-fondo);
-  border-bottom: 1px solid var(--borde);
+  background: var(--fondo);
+  border-bottom: 1px solid var(--linea);
   padding: 6px 20px;
-  font-size: 11px; color: var(--gris-sub);
+  font-size: 11px; color: var(--tinta-2);
   justify-content: flex-end; align-items: center; gap: 14px;
 }
 #barra-usuario.activo { display: flex; }
-#barra-usuario span { font-weight: 600; color: var(--gris-txt); }
+#barra-usuario span { font-weight: 600; color: var(--tinta); }
 .btn-sm {
   padding: 4px 12px; border-radius: 4px; font-family: inherit;
   font-size: 11px; font-weight: 600; cursor: pointer; border: 1.5px solid;
@@ -282,80 +272,65 @@ body.solo-mi-horario .leyenda { display: none; }
   padding: 28px 28px; width: 100%; max-width: 1100px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.18);
 }
-.admin-box h3 { font-size: 14px; font-weight: 700; color: var(--gris-txt); margin-bottom: 16px; }
+.admin-box h3 { font-size: 14px; font-weight: 700; color: var(--tinta); margin-bottom: 16px; }
 .admin-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-.tab-btn { padding: 6px 16px; border-radius: 4px; border: 1.5px solid var(--borde); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #fff; color: var(--gris-sub); }
+.tab-btn { padding: 6px 16px; border-radius: 4px; border: 1.5px solid var(--linea); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #fff; color: var(--tinta-2); }
 .tab-btn.activo { background: var(--azul); color: #fff; border-color: var(--azul); }
 .admin-box textarea {
   width: 100%; height: 300px; font-family: monospace; font-size: 11px;
-  border: 1.5px solid var(--borde); border-radius: 6px; padding: 10px;
+  border: 1.5px solid var(--linea); border-radius: 6px; padding: 10px;
   resize: vertical; outline: none; box-sizing: border-box;
 }
 .admin-box textarea:focus { border-color: var(--azul); }
 .admin-actions { display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end; }
 .btn-guardar { background: var(--rojo); color: #fff; padding: 8px 20px; border: none; border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .btn-guardar:hover { opacity: .88; }
-.btn-cerrar-admin { background: #fff; color: var(--gris-sub); padding: 8px 16px; border: 1.5px solid var(--borde); border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; }
-.admin-msg { font-size: 11px; color: #2e7d32; margin-top: 8px; min-height: 16px; }
+.btn-cerrar-admin { background: #fff; color: var(--tinta-2); padding: 8px 16px; border: 1.5px solid var(--linea); border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; }
+.admin-msg { font-size: 11px; color: var(--ok); margin-top: 8px; min-height: 16px; }
 
 /* ── Formulario Equipo ── */
 .eq-section { margin-bottom: 16px; }
-.eq-section h4 { font-size: 12px; font-weight: 700; color: var(--gris-txt); margin-bottom: 8px; }
+.eq-section h4 { font-size: 12px; font-weight: 700; color: var(--tinta); margin-bottom: 8px; }
 .eq-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.eq-table th { background: var(--gris-fondo); padding: 5px 6px; text-align: left; border-bottom: 2px solid var(--borde); font-size: 10px; color: var(--gris-sub); font-weight: 600; }
-.eq-table td { padding: 4px 4px; border-bottom: 1px solid var(--borde); }
-.eq-input { width: 100%; padding: 5px 7px; border: 1.5px solid var(--borde); border-radius: 4px; font-family: inherit; font-size: 11px; box-sizing: border-box; }
+.eq-table th { background: var(--fondo); padding: 5px 6px; text-align: left; border-bottom: 2px solid var(--linea); font-size: 10px; color: var(--tinta-2); font-weight: 600; }
+.eq-table td { padding: 4px 4px; border-bottom: 1px solid var(--linea); }
+.eq-input { width: 100%; padding: 5px 7px; border: 1.5px solid var(--linea); border-radius: 4px; font-family: inherit; font-size: 11px; box-sizing: border-box; }
 .eq-input:focus { border-color: var(--azul); outline: none; }
 .eq-short { width: 90px; }
 .eq-cargo { width: 110px; }
-.btn-quitar-as { background: none; border: none; color: #c62828; cursor: pointer; font-size: 14px; padding: 2px 6px; }
+.btn-quitar-as { background: none; border: none; color: var(--alerta); cursor: pointer; font-size: 14px; padding: 2px 6px; }
 .btn-quitar-as:hover { color: var(--rojo); }
 .btn-agregar-as { margin-top: 8px; padding: 6px 14px; background: #fff; border: 1.5px dashed var(--azul); border-radius: 4px; color: var(--azul); font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
-.btn-agregar-as:hover { background: #e3f2fd; }
+.btn-agregar-as:hover { background: var(--info-bg); }
 
 /* ── Formulario Próxima semana ── */
-.prox-header { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--gris-txt); margin-bottom: 12px; }
-.prox-header .btn-sm { padding: 2px 10px; font-size: 12px; border: 1.5px solid var(--borde); background: #fff; border-radius: 4px; cursor: pointer; }
+.prox-header { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--tinta); margin-bottom: 12px; }
+.prox-header .btn-sm { padding: 2px 10px; font-size: 12px; border: 1.5px solid var(--linea); background: #fff; border-radius: 4px; cursor: pointer; }
 .prox-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.prox-table th { background: var(--gris-fondo); padding: 6px 8px; text-align: left; border-bottom: 2px solid var(--borde); font-size: 10px; color: var(--gris-sub); font-weight: 600; }
-.prox-table td { padding: 6px 6px; border-bottom: 1px solid var(--borde); vertical-align: middle; }
+.prox-table th { background: var(--fondo); padding: 6px 8px; text-align: left; border-bottom: 2px solid var(--linea); font-size: 10px; color: var(--tinta-2); font-weight: 600; }
+.prox-table td { padding: 6px 6px; border-bottom: 1px solid var(--linea); vertical-align: middle; }
 .prox-nombre { font-weight: 600; font-size: 11px; min-width: 130px; }
 .prox-esp { min-width: 200px; }
-.dia-check { display: inline-flex; flex-direction: column; align-items: center; margin-right: 4px; font-size: 9px; color: var(--gris-sub); cursor: pointer; gap: 2px; }
+.dia-check { display: inline-flex; flex-direction: column; align-items: center; margin-right: 4px; font-size: 9px; color: var(--tinta-2); cursor: pointer; gap: 2px; }
 .dia-check input { cursor: pointer; }
 .esp-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; min-width:340px; }
-.esp-day-wrap { display:flex; flex-direction:column; align-items:stretch; font-size:10px; color:var(--gris-sub); gap:2px; }
+.esp-day-wrap { display:flex; flex-direction:column; align-items:stretch; font-size:10px; color:var(--tinta-2); gap:2px; }
 .esp-day-wrap .esp-lbl { text-align:center; font-size:9px; font-weight:600; }
-.esp-day-wrap select { font-size:10px; padding:3px 4px; border:1px solid var(--borde); border-radius:4px; background:#fff; cursor:pointer; width:100%; }
-.esp-day-wrap select.sel-ap { background:#E8F5E9; }
-.esp-day-wrap select.sel-ci { background:#FBE9E7; }
-.esp-day-wrap select.sel-pm { background:#EDE7F6; color:#4A148C; }
-.esp-day-wrap select.sel-cap { background:#FFF8E1; }
+.esp-day-wrap select { font-size:10px; padding:3px 4px; border:1px solid var(--linea); border-radius:4px; background:#fff; cursor:pointer; width:100%; }
+.esp-day-wrap select.sel-ap { background:var(--ok-bg); }
+.esp-day-wrap select.sel-ci { background:var(--alerta-bg); }
+.esp-day-wrap select.sel-pm { background:var(--turno-aus-bg); color:var(--turno-aus); }
+.esp-day-wrap select.sel-cap { background:var(--atencion-bg); }
 .cap-times { display:flex; flex-direction:column; gap:2px; margin-top:2px; }
-.cap-times input[type=time] { font-size:9px; width:100%; border:1px solid var(--borde); border-radius:3px; padding:2px 4px; }
+.cap-times input[type=time] { font-size:9px; width:100%; border:1px solid var(--linea); border-radius:3px; padding:2px 4px; }
 
 /* ── Volver al menú (solo dentro del tablero) ──
-   Este mismo archivo se publica en dos lados: como planeador suelto en
-   planeador-odemas (multi-tienda) y como horarios.html dentro del tablero de la
-   tienda. El botón se pinta solo en el segundo caso — ver mostrarVolverAlMenu().
-   Va por encima del overlay de login (z-index 999) para que el asesor que entró
-   por equivocación pueda regresar sin cerrar la app. */
-#volver-menu {
-  display: none;
-  position: fixed; top: 10px; left: 10px; z-index: 1000;
-  background: #fff; color: var(--gris-txt);
-  border: 1.5px solid var(--borde); border-radius: 999px;
-  padding: 7px 15px; font-family: inherit; font-size: 12px; font-weight: 700;
-  cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-}
-#volver-menu:hover { background: var(--rojo); color: #fff; border-color: var(--rojo); }
-
-/* En el celular, flotando se encimaba con el logo. Va en su propia línea, antes
-   del encabezado. Esta regla tiene que ir DESPUÉS del position:fixed de arriba:
-   misma especificidad, gana la última. */
-@media (max-width: 700px) {
-  #volver-menu { position: static; margin: 0 0 10px; }
-}
+   Este mismo archivo se publica como planeador suelto en planeador-odemas y
+   como horarios.html dentro del tablero; solo en el segundo hay menú. Desde el
+   22-sep-2026 es el «‹» de la barra, y en el login un enlace dentro de la caja
+   (ver mostrarVolverAlMenu). */
+.login-volver { display: none; margin-top: 14px; font-size: var(--t-sm); font-weight: 700;
+  color: var(--tinta-2); text-decoration: none; }
 
 /* ── Pantalla de carga ──
    El overlay de login venía marcado como activo desde el HTML, así que se veía
@@ -369,10 +344,10 @@ body.solo-mi-horario .leyenda { display: none; }
   flex-direction: column; align-items: center; justify-content: center; gap: 14px;
 }
 #cargando.activo { display: flex; }
-#cargando p { font-size: 12px; color: var(--gris-sub); font-weight: 600; }
+#cargando p { font-size: 12px; color: var(--tinta-2); font-weight: 600; }
 .spinner {
   width: 30px; height: 30px; border-radius: 50%;
-  border: 3px solid var(--gris-fondo); border-top-color: var(--rojo);
+  border: 3px solid var(--fondo); border-top-color: var(--rojo);
   animation: girar 0.8s linear infinite;
 }
 @keyframes girar { to { transform: rotate(360deg); } }
@@ -397,6 +372,25 @@ body.solo-mi-horario .leyenda { display: none; }
   /* Botones a lo ancho: en un teléfono se tocan con el pulgar, no con puntería */
   #acciones-ger .btn-sm { width: 100%; padding: 11px; font-size: 13px; }
 }
+
+/* ── Piezas que antes se repetían como style="…" (22-sep-2026) ──────────
+   Al final a propósito: le tienen que ganar a `.btn-sm` (que trae su propio
+   borde) y a las reglas de arriba con la misma especificidad. Lo que sigue
+   inline es estado (`display:none` que el JS prende) o un valor calculado. */
+.nota { font-size: 11px; color: var(--tinta-2); }
+.suave { font-weight: 400; color: var(--tinta-2); }
+.enlace-rojo { color: var(--rojo); font-weight: 600; }
+.t-12b { font-size: 12px; font-weight: 600; }
+.mb8 { margin-bottom: 8px; } .mb12 { margin-bottom: 12px; } .mt12 { margin-top: 12px; }
+.ml6 { margin-left: 6px; } .ml12 { margin-left: 12px; } .centro { text-align: center; }
+.aviso-vacio { text-align: center; padding: 60px 20px; color: var(--tinta-2); }
+.aviso-ico { font-size: 40px; margin-bottom: 12px; }
+.aviso-tit { font-size: 16px; font-weight: 700; color: var(--tinta); margin-bottom: 8px; }
+.aviso-caja { padding: 12px 14px; font-size: 13px; line-height: 1.5; color: var(--tinta-2); }
+.btn-sm.btn-lleno { border: none; color: #fff; }
+.btn-lleno.azul { background: var(--azul); } .btn-lleno.ok { background: var(--ok); }
+.btn-lleno.gris { background: var(--tinta-2); }
+.btn-sm.btn-peligro { background: var(--superficie); color: var(--alerta); border: 1.5px solid var(--alerta); }
 </style>
 </head>
 <body>
@@ -408,8 +402,6 @@ body.solo-mi-horario .leyenda { display: none; }
      al regresar se ve el horario otra vez y no hay trabajo a medias. -->
 
 
-<!-- Volver al menú del tablero (se muestra solo si se abrió desde ahí) -->
-<button id="volver-menu" onclick="location.href='index.html'">← Menú</button>
 
 <!-- Lo primero que se ve, hasta que arrancar() sabe quién entró -->
 <div id="cargando" class="activo">
@@ -420,7 +412,7 @@ body.solo-mi-horario .leyenda { display: none; }
 <!-- Login Overlay: sin "activo". Lo enciende arrancar() solo si hace falta -->
 <div id="overlay-login">
   <div class="login-box">
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAk8AAAFiCAYAAADvHTwbAAAACXBIWXMAAC4jAAAuIwF4pT92" alt="Odemás" onerror="this.style.display='none'" style="height:44px;margin-bottom:16px;">
+    <img src="logo_odemas.png" alt="Odemás" onerror="this.style.display='none'">
     <h2>Planeador de Horarios</h2>
     <div class="login-tabs">
       <button class="ltab activo" data-tab="ger" onclick="switchLoginTab('ger')">Soy gerente</button>
@@ -428,48 +420,33 @@ body.solo-mi-horario .leyenda { display: none; }
     </div>
     <div id="login-ger">
       <div id="login-ger-form">
-        <p style="font-size:11px;color:#888;margin-bottom:12px">Ingresa con tu correo y contraseña</p>
+        <p class="nota mb12">Ingresa con tu correo y contraseña</p>
         <input type="email" id="inp-email" placeholder="usuario@odemas.com.mx" autocomplete="username">
         <input type="password" id="inp-pass" placeholder="Contraseña" autocomplete="current-password">
         <button class="btn-login" onclick="doLogin()">Entrar</button>
-        <p style="font-size:11px;color:#888;margin-top:12px;text-align:center">¿Primera vez? <a href="#" onclick="mostrarRegistro();return false;" style="color:var(--rojo);font-weight:600;">Crear cuenta</a></p>
+        <p class="nota mt12 centro">¿Primera vez? <a class="enlace-rojo" href="#" onclick="mostrarRegistro();return false;">Crear cuenta</a></p>
       </div>
       <div id="login-reg-form" style="display:none">
-        <p style="font-size:11px;color:#888;margin-bottom:12px">Solo correos <strong>@odemas.com.mx</strong></p>
+        <p class="nota mb12">Solo correos <strong>@odemas.com.mx</strong></p>
         <input type="email" id="inp-reg-email" placeholder="usuario@odemas.com.mx" autocomplete="username">
         <input type="password" id="inp-reg-pass" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="new-password">
         <input type="password" id="inp-reg-pass2" placeholder="Confirmar contraseña" autocomplete="new-password">
         <button class="btn-login" onclick="doRegistro()">Crear cuenta</button>
-        <p style="font-size:11px;color:#888;margin-top:12px;text-align:center"><a href="#" onclick="ocultarRegistro();return false;" style="color:var(--rojo);font-weight:600;">← Volver</a></p>
+        <p class="nota mt12 centro"><a class="enlace-rojo" href="#" onclick="ocultarRegistro();return false;">← Volver</a></p>
       </div>
     </div>
     <div id="login-eq" style="display:none">
-      <p style="font-size:11px;color:#888;margin-bottom:12px">Ingresa tu número de empleado — el mismo del tablero</p>
+      <p class="nota mb12">Ingresa tu número de empleado — el mismo del tablero</p>
       <input type="text" id="inp-empno" inputmode="numeric" placeholder="Número de empleado" maxlength="10" style="text-align:center;font-size:20px;letter-spacing:4px;font-weight:700;">
       <button class="btn-login" onclick="doLoginEmpleado()">Ver horario</button>
     </div>
     <div class="login-error" id="login-error"></div>
+    <!-- Solo dentro del tablero (mostrarVolverAlMenu): quien entró aquí por
+         equivocación regresa sin cerrar la app. Antes era un botón flotante. -->
+    <a href="index.html" class="login-volver" id="login-volver">← Volver al menú</a>
   </div>
 </div>
 
-<!-- Barra de usuario (gerente).
-     En el celular no caben siete botones en una línea: con flex-end los de la
-     izquierda —Editar datos y Guardar semana— quedaban cortados FUERA de la
-     pantalla, imposibles de tocar. Ahí se pliegan tras "⚙ Acciones". -->
-<div id="barra-usuario">
-  <span id="sesion-txt">Sesión: <span id="usuario-email"></span></span>
-  <button class="btn-sm" id="btn-acciones" onclick="toggleAcciones()" aria-expanded="false">⚙ Acciones</button>
-  <div id="acciones-ger">
-    <button class="btn-sm btn-admin" onclick="abrirAdmin()">✎ Editar datos</button>
-    <button class="btn-sm" id="btn-guardar-sem" onclick="guardarSemana()" style="background:var(--azul);color:#fff;border:none;display:none;">💾 Guardar semana</button>
-    <button class="btn-sm" id="btn-desbloquear-sem" onclick="desbloquearSemana()" style="background:#888;color:#fff;border:none;display:none;">🔓 Desbloquear</button>
-    <button class="btn-sm" id="btn-exportar" onclick="exportarExcel()" style="background:#1B5E20;color:#fff;border:none;display:none;">⬇ Excel</button>
-    <button class="btn-sm" onclick="respaldoBajar()" title="Descarga equipo, historial, excepciones y semanas guardadas en un archivo">🗄️ Respaldo</button>
-    <button class="btn-sm" onclick="document.getElementById('inp-respaldo').click()" title="Restaura un respaldo descargado antes">↥ Restaurar</button>
-    <input type="file" id="inp-respaldo" accept="application/json,.json" style="display:none" onchange="respaldoSubir(this)">
-    <button class="btn-sm btn-logout" onclick="doLogout()">Cerrar sesión</button>
-  </div>
-</div>
 
 <!-- Modal Admin -->
 <div id="modal-admin">
@@ -495,30 +472,65 @@ body.solo-mi-horario .leyenda { display: none; }
   </div>
 </div>
 
-<header>
-  <img class="logo-odemas" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAk8AAAFiCAYAAADvHTwbAAAACXBIWXMAAC4jAAAuIwF4pT92AAAGPGlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDMgNzkuOTY5MGE4N2ZjLCAyMDI1LzAzLzA2LTIwOjUwOjE2ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1sbnM6cGhvdG9zaG9wPSJodHRwOi8vbnMuYWRvYmUuY29tL3Bob3Rvc2hvcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjYuMTAgKE1hY2ludG9zaCkiIHhtcDpDcmVhdGVEYXRlPSIyMDI1LTA4LTI3VDE1OjA3OjU2LTA2OjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyNS0wOC0yN1QxNTowODozOS0wNjowMCIgeG1wOk1ldGFkYXRhRGF0ZT0iMjAyNS0wOC0yN1QxNTowODozOS0wNjowMCIgZGM6Zm9ybWF0PSJpbWFnZS9wbmciIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6ZGEwYmRjYWYtNmY3OS00MTVkLWI2OGEtMDMzOGM5M2U4MzM5IiB4bXBNTTpEb2N1bWVudElEPSJhZG9iZTpkb2NpZDpwaG90b3Nob3A6YjAzYzFmNzEtYWYxZi0wNDQ0LWIzMmMtNjgzYmIxMjMzZTYxIiB4bXBNTTpPcmlnaW5hbERvY3VtZW50SUQ9InhtcC5kaWQ6MDQyNzQyYjktYWViMi00Y2QzLTk4Y2QtYWMxMzljYzlhYjdiIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDowNDI3NDJiOS1hZWIyLTRjZDMtOThjZC1hYzEzOWNjOWFiN2IiIHN0RXZ0OndoZW49IjIwMjUtMDgtMjdUMTU6MDc6NTYtMDY6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCAyNi4xMCAoTWFjaW50b3NoKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY29udmVydGVkIiBzdEV2dDpwYXJhbWV0ZXJzPSJmcm9tIGFwcGxpY2F0aW9uL3ZuZC5hZG9iZS5waG90b3Nob3AgdG8gaW1hZ2UvcG5nIi8+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJzYXZlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpkYTBiZGNhZi02Zjc5LTQxNWQtYjY4YS0wMzM4YzkzZTgzMzkiIHN0RXZ0OndoZW49IjIwMjUtMDgtMjdUMTU6MDg6MzktMDY6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCAyNi4xMCAoTWFjaW50b3NoKSIgc3RFdnQ6Y2hhbmdlZD0iLyIvPiA8L3JkZjpTZXE+IDwveG1wTU06SGlzdG9yeT4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz5TM9xKAABSg0lEQVR4nO3dB5hU5fU/8O8sIFXpuICCgmJbUVGxN2KMfY0aE2uMGj2uSkxMlMTE5BdTMPaNIccYe+wVe4s9lrUjFrAClqVI72Xm/5zlXf8rLsvMzn3vfe/M9/M8Iwsud15mZ+49933Pe04ml8uBiIiIiPJTkef3ERERERGDJyIiIqLCMHgi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mxUEcEURh2HgRBQIBk9E6QygFricmv0ztfgc8bsdAbLocf6yvFq13KOqlvMUm0wtFmZqcQaA77Sibx4DJ6KAMHgiSl8A9brbRfevuGabmnFfqEt385bmFTzdgYRkahvKVVjZirvy/CsMnIgCw+CJKF0B1D8A7JypjSR/ptXGjx09J9ilu2VrzHuyZccnkKBMLeZkanE40DAT1VIQysCJKEAMnojSEUDZ7rkfZGpxeqYWSxCGB5DOmafHVNVKOiQuU9uQA7UzgEnN/G8GTkSBYvBEFH4A9SmAnTK1uBNhsWT14CzNVmDJihZPbQ8iIJnahrpZ263SbJiBE1HAGDwRhR1APW0X1kxtLBWrCzJ+7GibLXkfAZq3+qTxXIhBX6a24Wf9XQDKwIkofAyeiMINoLYHsE+mFl8hXA8jQAtXHzy9rqrTEKBMLZZlanEqgM0ZOBGFraCKckQUn0xtw3Jd6Gxm7OcIzMLlbVoab9AytZiQ9BiIqGWceSKiYvwPAVqw+uDpuXhHQkSliMETEbXa+LGjbUkxjpYwBVm8vAK5b1fAsj9h8ERERWPwRETFCi4gyTW/dPeeqs5MZkREVEoYPBFRsV5BgJoJnuqSGQkRlRoGT0RUrDcQoMXfrvUU5DiJKH0YPBFRsd4BEETF7qaaKZRpxSiJiIrG4ImIijJ+7OglISaNrxI8WRrUuORGQ0SlhMETEUVhfODLdpNUdV5yoyGiUsLgiYiiMBFhzzx9mNxIiKjUMHgioigEF5xkcyubBDtB9uAjonRi8EREJTnzZJZnM8EGd0SUXgyeiCgKnyBAyxg8EZEHDJ6IqGjjx46eAWApwg2evkx2JERUShg8EVFUggtQlv//nKcvkh0JEZUSBk9EVLLBk5t5sgKeU5MeCxGVjrZJD4CISsb9a1Vkl3dom90IgcisDOjeUlUrkklERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERlJ5P0AIiIiMqBiHQDsKfHp5ijqk95PD45bRu/ICIiIj9EpDOARwEM9/QU7wE4xNOxaRUMnigWInIvgGoPh75eVY/3cFwiokiIyFoA7vcYONn59ThVnefp+LSKilX/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" alt="Odemás" onerror="this.style.display='none'">
-  <div class="logo-bars">
-    <span class="bar-rojo"></span>
-    <span class="bar-naranja"></span>
-    <span class="bar-azul"></span>
-  </div>
-  <!-- Los rellena fijarSesion() con la tienda de quien entró: este archivo lo
-       usan varias tiendas y antes decía "Angelópolis 1217" para todas. -->
-  <div class="header-info">
-    <h1 id="hdr-tienda">Planeador de Horarios</h1>
-    <p>Odemás · Grupo Gigante</p>
-  </div>
-  <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;">
-    <button onclick="navSemana(-1)" style="border:1.5px solid var(--borde);background:#fff;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;font-weight:700;color:var(--gris-txt);">‹</button>
-    <div class="semana-badge" id="badge-semana">—</div>
-    <button onclick="navSemana(1)"  style="border:1.5px solid var(--borde);background:#fff;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;font-weight:700;color:var(--gris-txt);">›</button>
+<!-- Encabezado común (estilo.css, 22-sep-2026). El «‹» sale solo dentro del
+     tablero (ver mostrarVolverAlMenu). Título y subtítulo los rellena
+     fijarSesion() con la tienda de quien entró: este archivo lo usan varias
+     tiendas y antes decía "Angelópolis 1217" para todas. -->
+<header class="barra">
+  <a href="index.html" class="barra-volver" id="barra-volver" title="Menú" aria-label="Volver al menú">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </a>
+  <img class="barra-logo" src="logo_odemas.png" alt="Odemás">
+  <div class="barra-txt">
+    <h1 class="barra-titulo" id="hdr-tienda">Planeador de Horarios</h1>
+    <p class="barra-sub">Horarios · Odemás</p>
   </div>
 </header>
 
-<div id="sin-asignar" style="display:none;text-align:center;padding:60px 20px;color:var(--gris-sub);">
-  <div style="font-size:40px;margin-bottom:12px;">📋</div>
-  <div style="font-size:16px;font-weight:700;color:var(--gris-txt);margin-bottom:8px;">Horario aún sin asignar</div>
+<nav class="semana-nav" aria-label="Semana">
+  <button onclick="navSemana(-1)" aria-label="Semana anterior">‹</button>
+  <div class="semana-badge" id="badge-semana">—</div>
+  <button onclick="navSemana(1)" aria-label="Semana siguiente">›</button>
+</nav>
+
+<!-- Barra de usuario (gerente).
+     En el celular no caben siete botones en una línea: con flex-end los de la
+     izquierda —Editar datos y Guardar semana— quedaban cortados FUERA de la
+     pantalla, imposibles de tocar. Ahí se pliegan tras "⚙ Acciones". -->
+<div id="barra-usuario">
+  <span id="sesion-txt">Sesión: <span id="usuario-email"></span></span>
+  <button class="btn-sm" id="btn-acciones" onclick="toggleAcciones()" aria-expanded="false">⚙ Acciones</button>
+  <div id="acciones-ger">
+    <button class="btn-sm btn-admin" onclick="abrirAdmin()">✎ Editar datos</button>
+    <button class="btn-sm btn-lleno azul" id="btn-guardar-sem" onclick="guardarSemana()" style="display:none">💾 Guardar semana</button>
+    <button class="btn-sm btn-lleno gris" id="btn-desbloquear-sem" onclick="desbloquearSemana()" style="display:none">🔓 Desbloquear</button>
+    <button class="btn-sm btn-lleno ok" id="btn-exportar" onclick="exportarExcel()" style="display:none">⬇ Excel</button>
+    <button class="btn-sm" onclick="respaldoBajar()" title="Descarga equipo, historial, excepciones y semanas guardadas en un archivo">🗄️ Respaldo</button>
+    <button class="btn-sm" onclick="document.getElementById('inp-respaldo').click()" title="Restaura un respaldo descargado antes">↥ Restaurar</button>
+    <input type="file" id="inp-respaldo" accept="application/json,.json" style="display:none" onchange="respaldoSubir(this)">
+    <button class="btn-sm btn-logout" onclick="doLogout()">Cerrar sesión</button>
+  </div>
+</div>
+
+<div class="aviso-vacio" id="sin-asignar" style="display:none">
+  <div class="aviso-ico">📋</div>
+  <div class="aviso-tit">Horario aún sin asignar</div>
   <div style="font-size:12px;">Configura las excepciones en <strong>📅 Próx. semana</strong> para generar este horario.</div>
+</div>
+
+<!-- Leer y NO poder no es lo mismo que no haber horario (14-sep-2026).
+     Cuando la RLS no autoriza, Supabase no devuelve error: devuelve cero filas.
+     Antes eso llegaba a `init()` como cuatro `null`, `aplicarEquipo(null)` caía
+     en EQUIPO_DEFAULT y la app PINTABA un horario salido del motor de rotación,
+     con nombres de plantilla y rotulado «● Semana actual». Un horario inventado
+     que se lee como el de verdad es peor que una pantalla que se explica. -->
+<div class="aviso-vacio" id="sin-permiso" style="display:none">
+  <div class="aviso-ico">🔒</div>
+  <div class="aviso-tit">No pude leer el horario de esta tienda</div>
+  <div style="font-size:12px;line-height:1.6;">La sesión abierta en este navegador no administra la tienda
+    <strong id="sp-tienda"></strong>.<br>Entra con tu número de empleado para ver el tuyo.</div>
+  <button onclick="doLogout()" style="margin-top:18px;padding:10px 18px;border:0;border-radius:8px;
+    background:var(--rojo);color:#fff;font-family:inherit;font-weight:600;cursor:pointer;">Cerrar sesión y entrar de nuevo</button>
 </div>
 
 <!-- Vista de celular: la llena renderMovil() con los MISMOS datos de la tabla -->
@@ -545,14 +557,14 @@ body.solo-mi-horario .leyenda { display: none; }
 <div class="nota-pie" id="nota-pie"></div>
 
 <div class="leyenda">
-  <div class="ley-item"><div class="ley-color" style="background:#D32F2F;"></div>Descanso</div>
-  <div class="ley-item"><div class="ley-color" style="background:#C8E6C9;"></div>Apertura</div>
-  <div class="ley-item"><div class="ley-color" style="background:#FFF9C4;"></div>Cierre</div>
-  <div class="ley-item"><div class="ley-color" style="background:#FFCCBC;"></div>Turno Doble</div>
-  <div class="ley-item"><div class="ley-color" style="background:#E3F2FD;"></div>Compensación</div>
-  <div class="ley-item"><div class="ley-color" style="background:#FCE4EC;"></div>Comida</div>
-  <div class="ley-item"><div class="ley-color" style="background:#FFFDE7;"></div>Ley Silla</div>
-  <div class="ley-item"><div class="ley-color" style="background:#E1BEE7;"></div>Vacaciones / Ausente</div>
+  <div class="ley-item"><div class="ley-color descanso"></div>Descanso</div>
+  <div class="ley-item"><div class="ley-color apertura"></div>Apertura</div>
+  <div class="ley-item"><div class="ley-color cierre"></div>Cierre</div>
+  <div class="ley-item"><div class="ley-color doble"></div>Turno Doble</div>
+  <div class="ley-item"><div class="ley-color comp"></div>Compensación</div>
+  <div class="ley-item"><div class="ley-color comida"></div>Comida</div>
+  <div class="ley-item"><div class="ley-color ley-silla"></div>Ley Silla</div>
+  <div class="ley-item"><div class="ley-color ausente"></div>Vacaciones / Ausente</div>
 </div>
 
 <div class="footer" id="pie"></div>
@@ -578,6 +590,11 @@ let _puedeEditar = false;
 /* ¿Ve el horario del equipo, o solo el suyo? Arranca en `false` —el lado
    seguro— y lo fija `fijarSesion` cuando ya se sabe quién entró. */
 let _verTodo = false;
+/* Con qué se leyó el horario del equipo y a qué hora. Solo la vista de solo
+   lectura se refresca sola: al gerente no se le puede repintar encima, porque
+   puede tener la semana a medio editar sin guardar. */
+let _leido = null;
+let _refrescando = false;
 
 let _tabAdmin = 'equipo';
 let _semProxOffset = 1;
@@ -785,7 +802,7 @@ async function doRegistro() {
   if (pass !== pass2)  { err.textContent = 'Las contraseñas no coinciden.'; return; }
   const { error } = await _sb.auth.signUp({ email, password: pass });
   if (error) { err.textContent = error.message; return; }
-  err.style.color = '#2e7d32';
+  err.style.color = 'var(--ok)';
   err.textContent = 'Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.';
   setTimeout(() => { err.style.color = ''; ocultarRegistro(); }, 4000);
 }
@@ -807,6 +824,14 @@ function switchLoginTab(tab) {
 function mostrarHorarioEquipo(data) {
   document.getElementById('overlay-login').classList.remove('activo');
   document.getElementById('cargando').classList.remove('activo');
+  document.getElementById('sin-permiso').style.display = 'none';
+  /* Con qué se pidió, para poder volver a pedirlo. El horario se leía UNA sola
+     vez, al arrancar, y nada lo volvía a pedir nunca: en el celular, volver a la
+     app restaura la pantalla sin recargarla, así que una semana ya publicada
+     seguía viéndose vieja hasta que alguien recargara a mano. El gerente, que
+     entra fresco desde la computadora, veía lo nuevo — y de ahí el «yo lo veo
+     bien y ellos no» del 14-sep-2026. */
+  _leido = { store_id: _tienda?.store_id, empno: _empno, hora: new Date() };
   aplicarEquipo(data.equipo);
   _cache.excepciones = data.excepciones;
   const guardada = data.semanas_guardadas?.[`semana_${_semana}`]
@@ -932,7 +957,7 @@ function vaciarForm() {
     document.getElementById('admin-textarea').value = '{}';
   }
   msg.textContent = '🧹 Formulario vaciado. Da "Guardar" para aplicar o "Cancelar" para descartar.';
-  msg.style.color = '#E65100';
+  msg.style.color = 'var(--atencion)';
 }
 function cambiarTab(tab) {
   _tabAdmin = tab;
@@ -993,19 +1018,19 @@ function renderFormEquipo() {
   document.getElementById('admin-equipo-area').innerHTML = `
     <div class="eq-section">
       <h4>Horario de la tienda</h4>
-      <p style="font-size:11px;color:#888;margin-bottom:8px">Los turnos de apertura y cierre se calculan automáticamente</p>
+      <p class="nota mb8">Los turnos de apertura y cierre se calculan automáticamente</p>
       <div style="display:flex;gap:16px;align-items:center;">
-        <label style="font-size:12px;font-weight:600;">Apertura
-          <select class="eq-input eq-short" id="inp-hora-apertura" style="margin-left:6px;" onchange="actualizarPreviewTurnos()">${hOpts(hAp,6,14)}</select>
+        <label class="t-12b">Apertura
+          <select class="eq-input eq-short ml6" id="inp-hora-apertura" onchange="actualizarPreviewTurnos()">${hOpts(hAp,6,14)}</select>
         </label>
-        <label style="font-size:12px;font-weight:600;">Cierre
-          <select class="eq-input eq-short" id="inp-hora-cierre" style="margin-left:6px;" onchange="actualizarPreviewTurnos()">${hOpts(hCi,18,24)}</select>
+        <label class="t-12b">Cierre
+          <select class="eq-input eq-short ml6" id="inp-hora-cierre" onchange="actualizarPreviewTurnos()">${hOpts(hCi,18,24)}</select>
         </label>
-        <span id="preview-turnos" style="font-size:11px;color:#555;"></span>
+        <span class="nota" id="preview-turnos"></span>
       </div>
       <div style="margin-top:10px;">
-        <label style="font-size:12px;font-weight:600;">Rotación de turnos&nbsp;
-          <select class="eq-input eq-short" id="inp-rotacion" style="margin-left:6px;">
+        <label class="t-12b">Rotación de turnos&nbsp;
+          <select class="eq-input eq-short ml6" id="inp-rotacion">
             <option value="diaria"${(eq.rotacion??'diaria')==='diaria'?' selected':''}>Diaria (alterna cada día)</option>
             <option value="semanal"${eq.rotacion==='semanal'?' selected':''}>Semanal (bloque toda la semana)</option>
           </select>
@@ -1014,14 +1039,14 @@ function renderFormEquipo() {
     </div>
     <div class="eq-section">
       <h4>¿Cómo entra tu equipo?</h4>
-      <p style="font-size:11px;color:#888;margin-bottom:8px">
+      <p class="nota mb8">
         Con <strong>su número de empleado</strong>, el mismo del tablero. Ya no hay
         un PIN compartido: para quitarle el acceso a alguien, dale de baja en
         <strong>Admin → Equipo</strong> y deja de ver el horario, sin cambiárselo
         a los demás.
       </p>
     </div>
-    <div class="eq-section"><h4>Gerentes <span style="font-weight:400;color:#888">(siempre 2)</span></h4>
+    <div class="eq-section"><h4>Gerentes <span class="suave">(siempre 2)</span></h4>
       <table class="eq-table"><thead><tr><th>Nombre completo</th><th>Cargo</th><th>#Emp</th><th>Descanso fijo</th><th>ID</th></tr></thead>
       <tbody id="tbody-ger">${eq.gerentes.map(rowG).join('')}</tbody></table></div>
     <div class="eq-section"><h4>Asesores</h4>
@@ -1133,7 +1158,7 @@ function renderFormProxima() {
       <td style="text-align:center">
         <input type="checkbox" class="chk-vac" data-persona="${p.key}" ${enVac?'checked':''} onchange="toggleVacDias('${p.key}')">
         <div id="vac-dias-${p.key}" class="vac-dias-grid" style="${enVac?'':'display:none'}">
-          <div style="font-size:9px;color:var(--gris-sub);width:100%;margin-bottom:2px">Marca los días fuera:</div>
+          <div style="font-size:9px;color:var(--tinta-2);width:100%;margin-bottom:2px">Marca los días fuera:</div>
           ${[0,1,2,3,4,5,6].map(i=>`<label class="vac-dia-pill${vacDias.includes(i)?' activo':''}"><input type="checkbox" class="chk-vac-dia" data-persona="${p.key}" data-dia="${i}" ${vacDias.includes(i)?'checked':''} onchange="this.closest('label').classList.toggle('activo',this.checked)">${DIAS_NOMBRES[i].charAt(0)}</label>`).join('')}
         </div>
       </td>
@@ -1143,7 +1168,7 @@ function renderFormProxima() {
   const esFuturaProx  = semTarget > _base.semana;
   const tieneConfig   = !!_datosAdmin.excepciones?.[`semana_${semTarget}`] || !!_cache.semanas_guardadas?.[`semana_${semTarget}`];
   const btnReset = (esFuturaProx && tieneConfig)
-    ? `<button class="btn-sm" onclick="quitarSemanaProx()" style="background:#fff;color:#c62828;border:1.5px solid #c62828;margin-left:12px;" title="Borra la configuración de esta semana y la deja en 'sin asignar'">↩ Dejar sin asignar</button>`
+    ? `<button class="btn-sm btn-peligro ml12" onclick="quitarSemanaProx()" title="Borra la configuración de esta semana y la deja en 'sin asignar'">↩ Dejar sin asignar</button>`
     : '';
   document.getElementById('admin-proxima-area').innerHTML = `
     <div class="prox-header">Semana
@@ -1230,40 +1255,40 @@ async function guardarAdmin() {
   try {
     if (_tabAdmin === 'equipo') {
       const eq = leerEquipoForm();
-      if (eq.gerentes.length !== 2) { msg.textContent='⚠ Se requieren exactamente 2 gerentes.'; msg.style.color='#c62828'; return; }
-      if (eq.asesores.length === 0) { msg.textContent='⚠ Agrega al menos 1 asesor.'; msg.style.color='#c62828'; return; }
-      if (eq.horaCierre <= eq.horaApertura + 8) { msg.textContent='⚠ El cierre debe ser al menos 8 horas después de la apertura.'; msg.style.color='#c62828'; return; }
+      if (eq.gerentes.length !== 2) { msg.textContent='⚠ Se requieren exactamente 2 gerentes.'; msg.style.color='var(--alerta)'; return; }
+      if (eq.asesores.length === 0) { msg.textContent='⚠ Agrega al menos 1 asesor.'; msg.style.color='var(--alerta)'; return; }
+      if (eq.horaCierre <= eq.horaApertura + 8) { msg.textContent='⚠ El cierre debe ser al menos 8 horas después de la apertura.'; msg.style.color='var(--alerta)'; return; }
       await guardarConfig('equipo', eq); aplicarEquipo(eq);
-      msg.textContent='✓ Equipo guardado.'; msg.style.color='#2e7d32';
+      msg.textContent='✓ Equipo guardado.'; msg.style.color='var(--ok)';
     } else if (_tabAdmin === 'proxima') {
       // Vacaciones marcadas sin días elegidos → error (evita mandar a alguien toda o ninguna semana por accidente)
       const vacSinDias = [...document.querySelectorAll('.chk-vac:checked')].filter(c =>
         document.querySelectorAll(`.chk-vac-dia[data-persona="${c.dataset.persona}"]:checked`).length === 0);
       if (vacSinDias.length) {
         msg.textContent = '⚠ Marcaste Vacaciones sin elegir los días. Selecciona los días fuera o desmarca Vacaciones.';
-        msg.style.color = '#c62828'; return;
+        msg.style.color = 'var(--alerta)'; return;
       }
       const { semana: sem, data } = leerFormProxima();
       const exc = { ..._datosAdmin.excepciones, [`semana_${sem}`]: data };
       const { graves, avisos } = validarSemana(sem, exc);
       if (graves.length) {
         const ok = confirm(`⚠ Atención antes de guardar la Semana ${sem}:\n\n${[...graves, ...avisos].join('\n')}\n\n¿Guardar de todas formas?`);
-        if (!ok) { msg.textContent='Guardado cancelado. Ajusta vacaciones o descansos.'; msg.style.color='#c62828'; return; }
+        if (!ok) { msg.textContent='Guardado cancelado. Ajusta vacaciones o descansos.'; msg.style.color='var(--alerta)'; return; }
       }
       _datosAdmin.excepciones = exc;
       await guardarConfig('excepciones', exc);
       msg.innerHTML = `✓ Semana ${sem} guardada.` + (avisos.length ? '<br>' + avisos.join('<br>') : '');
-      msg.style.color = avisos.length ? '#E65100' : '#2e7d32';
+      msg.style.color = avisos.length ? 'var(--atencion)' : 'var(--ok)';
     } else {
       let parsed;
       try { parsed = JSON.parse(document.getElementById('admin-textarea').value); }
-      catch { msg.textContent='⚠ JSON inválido.'; msg.style.color='#c62828'; return; }
+      catch { msg.textContent='⚠ JSON inválido.'; msg.style.color='var(--alerta)'; return; }
       _datosAdmin[_tabAdmin] = parsed;
       await guardarConfig(_tabAdmin, parsed);
-      msg.textContent='✓ Guardado.'; msg.style.color='#2e7d32';
+      msg.textContent='✓ Guardado.'; msg.style.color='var(--ok)';
     }
     setTimeout(() => { cerrarAdmin(); init(); }, 1000);
-  } catch(e) { msg.textContent='⚠ Error: '+e.message; msg.style.color='#c62828'; }
+  } catch(e) { msg.textContent='⚠ Error: '+e.message; msg.style.color='var(--alerta)'; }
 }
 
 // ── Mostrar app (vista del gerente: puede editar) ──────────
@@ -1337,7 +1362,10 @@ function semanaDeMostrar() {
 const SEMANA_OVERRIDE        = null;
 const FECHA_DOMINGO_OVERRIDE = null;
 
-const _base    = semanaDeMostrar();
+/* `let` y no `const`: una pantalla de solo lectura puede llevar días abierta y
+   entonces no solo el dato está viejo, la SEMANA también. Lo recalcula
+   `refrescarHorarioEquipo()`. */
+let _base    = semanaDeMostrar();
 let _domingo = FECHA_DOMINGO_OVERRIDE ?? _base.domingo;
 let _semana  = SEMANA_OVERRIDE        ?? _base.semana;
 let _cache        = {};
@@ -1619,13 +1647,21 @@ function quienSoy() {
   return PERSONAS.find(p => String(EQUIPO[p].emp || '').trim() === String(_empno).trim()) || null;
 }
 
+/* «Hoy» en la fecha DEL TELÉFONO, no en UTC (22-sep-2026). Con
+   toISOString, desde las 6 de la tarde en México ya era mañana en UTC y la
+   tarjeta marcaba como «hoy» el día siguiente — justo cuando el de cierre mira
+   qué le toca mañana. Pasó desapercibido en crema; con el rediseño se vio. */
+function fechaLocal_(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
 function mvDias(persona, dias, comidas, domingo, hoyISO) {
   let out = '';
   for (let d = 0; d < 7; d++) {
     const f = new Date(domingo); f.setDate(f.getDate() + d);
     const inf = infoTurno(persona, dias[d][persona], d);
     const com = comidas[d][persona] || '';
-    const esHoy = f.toISOString().slice(0,10) === hoyISO;
+    const esHoy = fechaLocal_(f) === hoyISO;
     const extras = [];
     if (com)     extras.push(`<span>🍽 ${com}</span>`);
     if (inf.ls1) extras.push(`<span>🪑 ${inf.ls1}</span>`);
@@ -1644,7 +1680,7 @@ function mvDias(persona, dias, comidas, domingo, hoyISO) {
 function renderMovil(dias, comidas, domingo) {
   const cont = document.getElementById('vista-movil');
   if (!cont) return;
-  const hoyISO = new Date().toISOString().slice(0,10);
+  const hoyISO = fechaLocal_(new Date());
   const yo = quienSoy();
   let html = '';
 
@@ -1689,7 +1725,7 @@ function renderMovil(dias, comidas, domingo) {
   if (!yo && !resto.length) {
     html += `<div class="mv-card">
       <div class="mv-head">No encontramos tu horario</div>
-      <div style="padding:12px 14px;font-size:13px;line-height:1.5;color:#555">
+      <div class="aviso-caja">
         Tu número de empleado <b>${_empno ? String(_empno) : ''}</b> no coincide
         con ninguna ficha del planeador. Pídele al gerente que lo revise en
         <b>Equipo</b>; en cuanto lo corrija, tu semana aparece aquí sola.
@@ -1823,7 +1859,12 @@ function renderTabla(semana, domingo, dias, comidas) {
     }).join('<br>');
   }
   document.getElementById('nota-pie').innerHTML = `Descansos fijos — ${notaPie}${avisoMov}`;
-  document.getElementById('pie').textContent = 'Generado: ' + new Date().toLocaleString('es-MX');
+  /* Decía «Generado: <hora de pintado>», que es siempre ahora mismo y por eso
+     no delataba nada. Lo que importa es cuándo se LEYÓ el dato: es el único
+     sitio donde se nota que la pantalla lleva horas abierta. */
+  document.getElementById('pie').textContent = _leido
+    ? 'Horario leído: ' + _leido.hora.toLocaleString('es-MX')
+    : 'Generado: ' + new Date().toLocaleString('es-MX');
 }
 
 // ============================================================
@@ -1943,7 +1984,7 @@ async function quitarSemanaProx() {
   renderFormProxima();
   const msg = document.getElementById('admin-msg');
   msg.innerHTML = `↩ La Semana ${semTarget} quedó sin asignar y <strong>ya se guardó automáticamente</strong>.<br>No vuelvas a pulsar "📅 Generar planeador" o la crearías de nuevo. Puedes cerrar con "Cancelar".`;
-  msg.style.color = '#E65100';
+  msg.style.color = 'var(--atencion)';
 }
 
 async function exportarExcel() {
@@ -2081,7 +2122,9 @@ function navSemana(delta) {
    redirect a este mismo archivo y el botón dejaría al usuario en un círculo. */
 function mostrarVolverAlMenu() {
   const dentroDelTablero = /\/horarios\.html$/.test(location.pathname);
-  if (dentroDelTablero) document.getElementById('volver-menu').style.display = 'block';
+  if (!dentroDelTablero) return;
+  document.getElementById('barra-volver').style.display = 'grid';
+  document.getElementById('login-volver').style.display = 'block';
 }
 
 /* ── Arranque ──
@@ -2144,9 +2187,38 @@ async function arrancar() {
   if (session) {
     let tienda = heredada ? heredada.cfg
       : (await _sb.from('tiendas').select(COLS_TIENDA).eq('user_id', session.user.id).maybeSingle()).data;
+    /* ⚠️ `heredada.cfg` sale de `localStorage`, y `localStorage` es POR ORIGEN:
+       todas las apps publicadas en el mismo usuario de GitHub Pages comparten
+       el mismo, y las tres claves de sesión (`hes_store`, `hes_empleado`,
+       `hes_role`) no llevan prefijo de app. O sea que «hay sesión» y «esta es
+       mi tienda» son dos cosas distintas, y creerle a la segunda porque se
+       cumple la primera es lo que hacía que una sesión ajena entrara aquí como
+       gerente. Se pregunta al servidor: `admin_de` responde que sí por los dos
+       caminos —dueña de la tienda, o ficha activa con admin— así que el
+       subgerente sigue editando, que es lo que se ganó el 4-ago-2026.
+
+       El camino sin `heredada` no lo necesita: ese `tienda` ya salió de
+       consultar `tiendas` con la propia sesión. */
+    if (tienda && tienda.store_id && heredada) {
+      const { data: manda } = await _sb.rpc('admin_de', { p_store_id: tienda.store_id });
+      if (manda !== true) tienda = null;
+    }
     if (tienda && tienda.store_id) {
       fijarSesion(tienda, { puedeEditar: true });
       return mostrarApp(session.user.email);
+    }
+    /* No manda en esta tienda. Si además se identificó con su número, lo suyo
+       es enseñarle SU horario —cae al paso 2— en vez de un horario inventado.
+       Antes seguía por aquí, `cargarConfig` devolvía cuatro `null` sin error y
+       la app pintaba la plantilla como si fuera la semana en curso. */
+    if (heredada && heredada.cfg && heredada.cfg.store_id
+        && !(heredada.emp && heredada.emp.empno)) {
+      /* Ni manda ni sabemos quién es. El login pelado no sirve aquí: su sesión
+         sigue abierta, así que volvería a entrar por este mismo camino. */
+      document.getElementById('cargando').classList.remove('activo');
+      document.getElementById('sp-tienda').textContent = heredada.cfg.store_id;
+      document.getElementById('sin-permiso').style.display = '';
+      return;
     }
   }
 
@@ -2167,6 +2239,41 @@ async function arrancar() {
   // 3 · URL suelta: el login de siempre.
   pedirLogin();
 }
+
+/* ── Volver a pedir el horario ──
+   Solo la vista del equipo, que es de solo lectura: al gerente no se le puede
+   repintar encima porque puede tener la semana a medio editar sin guardar.
+
+   Se dispara al volver a la app, al recuperar la red y al volver atrás desde el
+   caché del navegador, que son los tres modos en que una pantalla vieja vuelve
+   a la vista sin recargarse. */
+async function refrescarHorarioEquipo() {
+  if (_refrescando || !_leido || !_leido.store_id || !_leido.empno) return;
+  if (Date.now() - _leido.hora.getTime() < 30000) return;   // no machacar al alternar
+  _refrescando = true;
+  try {
+    const datos = (await _sb.rpc('horario_equipo', {
+      p_store_id: _leido.store_id, p_empno: _leido.empno })).data;
+    if (!datos) return;
+    /* Si seguía en la semana en curso, se le pone al día también la semana; si
+       había navegado con las flechas a propósito, se le respeta dónde estaba. */
+    const seguia = _semana === _base.semana;
+    _base = semanaDeMostrar();
+    if (seguia) { _semana = _base.semana; _domingo = _base.domingo; }
+    mostrarHorarioEquipo(datos);
+  } catch (e) {
+    // Sin red se queda lo que ya había, con su hora en el pie: es mejor que vaciar la pantalla.
+    console.warn('No se pudo refrescar el horario:', e);
+  } finally {
+    _refrescando = false;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refrescarHorarioEquipo();
+});
+window.addEventListener('online', refrescarHorarioEquipo);
+window.addEventListener('pageshow', e => { if (e.persisted) refrescarHorarioEquipo(); });
 
 document.addEventListener('DOMContentLoaded', () => {
   mostrarVolverAlMenu();
