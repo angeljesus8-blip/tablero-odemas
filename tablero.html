@@ -1356,6 +1356,10 @@ function cotVaciar(){
   document.getElementById('cotPanel').classList.remove('show');
 }
 
+/* ¿Hay trabajo a medias? (26-sep-2026). Lo pregunta continuidad.js antes de
+   recargar por una versión nueva: con el apartado o la cotización abiertos se
+   espera a que se cierren. */
+window.HES_ocupado = function(){ return !!document.querySelector('.ap-modal.show'); };
 function cotAbrir(){ cotPintar(); document.getElementById('cotPanel').classList.add('show'); }
 function cotCerrar(){ document.getElementById('cotPanel').classList.remove('show'); }
 

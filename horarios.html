@@ -1879,6 +1879,14 @@ async function init() {
   ]);
   aplicarEquipo(equipoData);
   _cache = { historial, excepciones, semanas_guardadas: semanas_guardadas || {} };
+  /* La semana que estaba viendo quien edita sobrevive a una recarga (26-sep-2026):
+     la app ahora recarga sola al llegar una versión nueva, y volver a la semana
+     en curso es sacarlo de donde estaba. `sessionStorage` dura lo que la
+     pestaña: al abrir la app de nuevo se empieza, como siempre, en la actual. */
+  try {
+    const g = JSON.parse(sessionStorage.getItem('hor_semana_vista') || 'null');
+    if (_puedeEditar && g && g.s && g.d) { _semana = g.s; _domingo = new Date(g.d); }
+  } catch (e) {}   // ilegible o sin almacenamiento: se empieza en la semana en curso
   renderSemana();
 }
 
@@ -2112,6 +2120,10 @@ function navSemana(delta) {
   const d   = new Date(_domingo);
   d.setDate(d.getDate() + delta * 7);
   _domingo  = d;
+  if (_puedeEditar) {
+    try { sessionStorage.setItem('hor_semana_vista', JSON.stringify({ s: _semana, d: _domingo.getTime() })); }
+    catch (e) {}   // sin almacenamiento solo se pierde volver a esta semana tras recargar
+  }
   renderSemana();
 }
 
@@ -2274,6 +2286,43 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('online', refrescarHorarioEquipo);
 window.addEventListener('pageshow', e => { if (e.persisted) refrescarHorarioEquipo(); });
+
+/* ── Versión nueva de la app, sin salir y volver (26-sep-2026) ──
+   Esta página no carga continuidad.js, así que nada le pedía al service worker
+   que buscara versión nueva ni recargaba cuando llegaba: quien se quedaba en
+   Horarios seguía con el código viejo. Es lo mismo que hace continuidad.js, en
+   chico: preguntar al abrir, al volver y cada 5 minutos, y recargar UNA vez
+   cuando el nuevo toma el control —nunca con «✎ Editar datos» abierto ni
+   escribiendo—. Sin service worker no hace nada. */
+(function () {
+  const sw = navigator.serviceWorker;
+  if (!sw || !sw.controller) return;
+  const pedir = () => sw.getRegistration().then(r => { if (r) r.update(); }).catch(() => {});
+  let nueva = false;
+  const ocupado = () => {
+    if (document.getElementById('modal-admin')?.classList.contains('activo')) return true;
+    const a = document.activeElement;
+    return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || ''));
+  };
+  const recargar = () => {
+    if (!nueva || ocupado()) return;
+    try {
+      // La misma bandera que continuidad.js: frena solo un bucle, no la siguiente versión.
+      if (Date.now() - +(sessionStorage.getItem('hes_recargando') || 0) < 15000) return;
+      sessionStorage.setItem('hes_recargando', String(Date.now()));
+    } catch (e) { return; }   // sin bandera no se recarga: peor un bucle que una versión vieja
+    nueva = false;
+    location.reload();
+  };
+  pedir();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pedir();
+    recargar();
+  });
+  setInterval(() => { if (document.visibilityState === 'visible') pedir(); }, 5 * 60 * 1000);
+  setInterval(recargar, 15000);
+  sw.addEventListener('controllerchange', () => { nueva = true; recargar(); });
+})();
 
 document.addEventListener('DOMContentLoaded', () => {
   mostrarVolverAlMenu();

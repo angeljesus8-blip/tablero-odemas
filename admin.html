@@ -648,6 +648,8 @@ function abrirAdmin(){
   // loadBundles() se quitó con la pestaña (4-ago-2026): era un viaje al Apps
   // Script en cada apertura de Admin para pintar un panel al que ya no se llega.
   loadEol();
+  // Si venía de otra pestaña (recarga por versión nueva), se vuelve a ella.
+  tabDeLaUrl_();
 }
 
 /* `revisarCuadre` se retiró en la fase 6 (17-ago-2026, v170).
@@ -996,6 +998,21 @@ function tab(id,btn){
   document.querySelectorAll('.tab-bar button').forEach(e=>e.classList.remove('on'));
   document.getElementById('pane-'+id).classList.add('on');
   btn.classList.add('on');
+  /* La pestaña va en la dirección (26-sep-2026): al recargar —por una versión
+     nueva de la app, que ahora llega sola— se volvía a 📦 Catálogo, y eso es
+     sacar a alguien de donde estaba. replaceState: sin ensuciar el «atrás». */
+  try{ history.replaceState(null, '', '#' + id); }catch(e){}   // sin History API solo se pierde recordar la pestaña
+}
+/* Abre la pestaña que diga la dirección, pulsando SU botón: así corre también
+   lo que carga esa pestaña (avisos, equipo…), igual que si se tocara. */
+function tabDeLaUrl_(){
+  const id = (location.hash || '').replace(/^#/, '');
+  if(!id || id === 'cat' || !document.getElementById('pane-' + id)) return false;
+  const btn = [...document.querySelectorAll('.tab-bar button')]
+    .find(b => (b.getAttribute('onclick') || '').indexOf("tab('" + id + "'") >= 0);
+  if(!btn) return false;
+  btn.click();
+  return true;
 }
 
 /* ===== HELPERS ===== */
@@ -1074,6 +1091,16 @@ function showResult(id,ok,html){
    TAB CATÁLOGO — Piezas de exhibición
    ================================================================ */
 let parsedExhib = null;
+/* ¿Hay trabajo a medias? (26-sep-2026). Lo pregunta continuidad.js antes de
+   recargar por una versión nueva: no se recarga con una subida en curso (el
+   spinner) ni leyendo un PDF o una imagen. Un archivo ya leído NO cuenta:
+   `parsedCat` y compañía se quedan llenos después de subir, así que no dicen si
+   falta algo, y volver a elegir el archivo cuesta un segundo. */
+window.HES_ocupado = function(){
+  const vis = id => { const e = document.getElementById(id); return !!(e && e.style.display !== 'none'); };
+  return !!(document.querySelector('.spin')
+            || vis('ceaLoading') || vis('comisOcrStatus') || vis('garOcrStatus'));
+};
 
 async function parseExhibicion(file){
   const buf = await file.arrayBuffer();

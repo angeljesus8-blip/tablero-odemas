@@ -2490,6 +2490,19 @@ document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'hidden') guardarBorrador();
 });
 
+/* ---------- ¿Hay trabajo a medias? (26-sep-2026) ----------
+   Lo pregunta continuidad.js antes de recargar por una versión nueva de la app.
+   Lo que se PERDERÍA al recargar: la foto recién tomada, la venta esperando
+   confirmación y lo que se está corrigiendo. Revisando una captura (paso 2 o
+   el seguro) tampoco: los campos volverían, pero en el paso 1, y eso es sacarlo
+   de la pantalla que estaba viendo. Los cuatro campos y la venta abierta NO
+   cuentan: ya sobreviven a una recarga (borrador y venta abierta en
+   localStorage). Solo variables que EXISTEN en esta copia: una que no exista
+   lanza, continuidad.js lo toma por «ocupado» y la app no recargaría nunca. */
+window.HES_ocupado = function(){
+  return !!(lastPhoto || _pendingVenta || _edIdx !== null || _paso > 1);
+};
+
 /* ---------- Vendedor / pantalla de inicio ---------- */
 // El equipo se edita en Admin → Equipo; de ahí baja en la config de tienda.
 // Sin sesión va vacío: este archivo es público y no debe traer nombres.

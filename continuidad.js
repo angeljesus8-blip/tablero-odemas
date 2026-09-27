@@ -88,6 +88,49 @@
      Cuando el nuevo toma el control se recarga UNA vez —la marca de dónde
      estabas ya está guardada, así que se vuelve al mismo sitio— y la bandera
      evita que dos recargas se persigan. */
+  /* 26-sep-2026 · Tres cosas más, pedidas por Ángel: «que si se hace una
+     modificación en la app se fuerce la actualización aunque ellos no salgan y
+     vuelvan a entrar».
+
+     1. Se pregunta también CADA 5 MINUTOS mientras la app está a la vista. Una
+        pantalla que se queda abierta en el mostrador no vuelve nunca a primer
+        plano, y era lo único que disparaba la pregunta.
+     2. La bandera contra el bucle era un «1» que se quedaba puesto toda la
+        sesión: la primera versión nueva del día recargaba y las siguientes ya
+        no, justo en la app que pasa el día abierta. Ahora guarda la HORA y solo
+        frena otra recarga en los 15 s siguientes, que es lo que dura un bucle.
+     3. No se recarga encima de trabajo a medias. Cada pantalla puede declarar
+        `window.HES_ocupado = function(){ return true si hay algo sin guardar }`
+        —una foto tomada, una subida en curso—, y además se espera mientras
+        alguien esté escribiendo en un campo. La recarga queda pendiente y se
+        hace en cuanto se libera (se mira cada 15 s y al cambiar de app). */
+  var CADA_MS = 5 * 60 * 1000, BUCLE_MS = 15 * 1000, TOPE_MS = 30 * 60 * 1000;
+  var hayVersionNueva = false, pendienteDesde = 0;
+
+  function ocupado(){
+    try {
+      if(typeof window.HES_ocupado === 'function' && window.HES_ocupado()) return true;
+    } catch(e){ return true; }   // si la pantalla no sabe decirlo, no se arriesga su trabajo
+    var a = document.activeElement;
+    return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || '') && a.type !== 'button');
+  }
+  function recargarSiSePuede(){
+    if(!hayVersionNueva) return;
+    /* Tope: algo "a medias" durante media hora es algo abandonado —una foto que
+       nadie guardó—. Entonces se recarga igual, pero solo con la app en segundo
+       plano, que es cuando nadie la está usando. */
+    var abandonado = Date.now() - pendienteDesde > TOPE_MS && document.visibilityState === 'hidden';
+    if(!abandonado && ocupado()) return;
+    try {
+      var antes = +(sessionStorage.getItem('hes_recargando') || 0);
+      if(Date.now() - antes < BUCLE_MS) return;
+      sessionStorage.setItem('hes_recargando', String(Date.now()));
+      sessionStorage.setItem('hes_actualizada', '1');
+    } catch(e){ return; }   // sin bandera no se recarga: peor un bucle que una versión vieja
+    hayVersionNueva = false;
+    location.reload();
+  }
+
   if(typeof navigator !== 'undefined' && navigator.serviceWorker){
     var pedirActualizacion = function(){
       navigator.serviceWorker.getRegistration()
@@ -97,15 +140,37 @@
     pedirActualizacion();
     document.addEventListener('visibilitychange', function(){
       if(document.visibilityState === 'visible') pedirActualizacion();
+      recargarSiSePuede();   // al irse a otra app o volver: buen momento si está libre
     });
+    setInterval(function(){
+      if(document.visibilityState === 'visible') pedirActualizacion();
+    }, CADA_MS);
+    setInterval(recargarSiSePuede, BUCLE_MS);
     navigator.serviceWorker.addEventListener('controllerchange', function(){
-      try {
-        if(sessionStorage.getItem('hes_recargando') === '1') return;
-        sessionStorage.setItem('hes_recargando', '1');
-      } catch(e){ return; }   // sin bandera no se recarga: peor un bucle que una versión vieja
-      location.reload();
+      if(!hayVersionNueva) pendienteDesde = Date.now();
+      hayVersionNueva = true;
+      recargarSiSePuede();
     });
   }
+  window.HES_recargarSiSePuede = recargarSiSePuede;   // la pantalla lo llama al liberarse
+
+  /* Un aviso corto después de recargar por versión nueva: si la pantalla
+     parpadea sin explicación, parece un fallo. */
+  try {
+    if(sessionStorage.getItem('hes_actualizada') === '1'){
+      sessionStorage.removeItem('hes_actualizada');
+      document.addEventListener('DOMContentLoaded', function(){
+        var t = document.createElement('div');
+        t.textContent = 'Se actualizó la app';
+        t.setAttribute('role', 'status');
+        t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);'
+          + 'background:#336BB4;color:#fff;font:600 14px Montserrat,sans-serif;'
+          + 'padding:10px 18px;border-radius:999px;z-index:99999;box-shadow:0 4px 14px rgba(0,0,0,.18)';
+        document.body.appendChild(t);
+        setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 3500);
+      });
+    }
+  } catch(e){}   // sin sessionStorage no hay aviso; la app ya está al día igual
 
   // ── En una app: apuntar dónde estoy ─────────────────────────
   if(!ESTOY_EN_EL_MENU){
