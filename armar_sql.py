@@ -64,10 +64,18 @@ ORDEN = [
    'supabase_llaves_tienda.sql',
    'supabase_permiso_por_sesion.sql',
  ]),
+ ('26-sep-2026 — el precio de lista no es una promo', [
+   'supabase_precio_lista.sql',
+ ]),
 ]
 
 # (antes, despues, por que). `comprobar()` los verifica contra ORDEN.
 POR_QUE = [
+ ('supabase_preventa_series.sql', 'supabase_precio_lista.sql',
+  'carga_precio_lista se protege con escritura_ok_, que nace en preventa_series'),
+ ('supabase_migracion_esquema.sql', 'supabase_precio_lista.sql',
+  'el trigger vive en catalogo y la funcion borra de promos: las dos tablas '
+  'tienen que existir antes'),
  ('supabase_00_tiendas.sql', 'supabase_migracion_esquema.sql',
   'las diez tablas llevan store_id REFERENCES tiendas: sin la tabla, el esquema '
   'falla en su primera linea'),

@@ -318,7 +318,7 @@ body { font-family:'Montserrat',sans-serif; background:var(--fondo); color:var(-
       <div id="vigPromos" style="display:none;margin-top:14px">
         <div class="g2">
           <div class="field"><label>Vigente desde</label><input id="vigD1Promos" type="date"></div>
-          <div class="field"><label>Vigente hasta</label><input id="vigD2Promos" type="date"></div>
+          <div class="field" id="vigD2Campo"><label>Vigente hasta</label><input id="vigD2Promos" type="date"></div>
         </div>
         <p class="note" id="vigNotaPromos"></p>
       </div>
@@ -1637,7 +1637,7 @@ function _ceaFila(fila,etiqueta){
   if(!desc) return null;
 
   const p=_ceaPrecios(px,etiqueta);
-  return {sku:toks[0].t,desc:desc,pr:p.pr,pp:p.pp,estTok:iEst>=0?cuerpo[iEst].t:'',marcas:marcas};
+  return {sku:toks[0].t,desc:desc,pr:p.pr,pp:p.pp,estTok:iEst>=0?cuerpo[iEst].t:'',marcas:marcas,px:px};
 }
 
 function _ceaVigencia(flat){
@@ -1699,6 +1699,29 @@ function _ceaVigencia(flat){
   return {d1:d1,d2:d2,vig:vig,eolD1:eolD1};
 }
 
+/* Un comunicado de CAMBIO DE PRECIO DE LISTA: columnas de precio regular
+   anterior y nuevo, y NINGUNA de promoción. Si el encabezado no se pudo leer,
+   el título lo dice («BAJA DE PRECIO», «actualización de precio regular»). */
+function _ceaEsCambioLista(cols,texto){
+  const ets=cols.map(c=>c.et||'');
+  const hayPromo=ets.some(e=>/PROMO|OFERTA|PRICE\s*MATCH/i.test(e));
+  if(hayPromo) return false;
+  const viejo=ets.some(e=>/REGULAR|LISTA/i.test(e)&&/ANTERIOR|ACTUAL|PREVI/i.test(e));
+  const nuevo=ets.some(e=>/REGULAR|LISTA/i.test(e)&&/NUEV/i.test(e));
+  if(viejo&&nuevo) return true;
+  return /BAJA\s+DE\s+PRECIO|ACTUALIZACI[OÓ]N\s+DE\s+PRECIO\s+REGULAR|CAMBIO\s+DE\s+PRECIO\s+(?:REGULAR|DE\s+LISTA)|NUEVO\s+PRECIO\s+REGULAR/i.test(texto);
+}
+/* Desde cuándo rige el precio nuevo: «entrará en vigor a partir del 15 de
+   septiembre de 2026». No hay fecha de fin: el precio de lista no vence. */
+function _ceaDesdeLista(flat){
+  const ds=s=>s.replace(/\s/g,'');
+  const m=flat.match(/(?:vigor|vigen\w*|aplica\w*|efectiv\w*|precio\s+regular)[^.]{0,80}?a partir de[l]?\s+(\d\s*\d?)\s+de\s+([A-Za-záéíóúÁÉÍÓÚ]{4,})\s*(?:de[l]?\s+)?(\d\s*\d\s*\d\s*\d)?/i);
+  if(!m||!MESES_P[m[2].toLowerCase()]) return {iso:'',txt:''};
+  const y=m[3]?+ds(m[3]):new Date().getFullYear();
+  return {iso:isoP(y,MESES_P[m[2].toLowerCase()],+ds(m[1])),
+          txt:'a partir del '+ds(m[1])+' de '+m[2].toLowerCase()+(m[3]?' '+ds(m[3]):'')};
+}
+
 /* Núcleo: del PDF a filas {sku,desc,pr,pp,est,msi,d1,d2} */
 async function _ceaTablaPDF(file){
   const filas=_ceaRenglones(await _ceaItemsPDF(file));
@@ -1736,6 +1759,32 @@ async function _ceaTablaPDF(file){
        en un párrafo entraba como promoción con la oración de descripción. */
     if(r&&!seen[r.sku]&&(r.pr||r.estTok)){ seen[r.sku]=1; crudas.push(r); }
   });
+
+  /* ¿Cambio de PRECIO DE LISTA? (26-sep-2026) — el CEA 273 «BAJA DE PRECIO EN
+     MATEPAD» trae «PRECIO REGULAR ANTERIOR» y «PRECIO REGULAR NUEVO» y ninguna
+     columna de promoción. Leído como promo, `_ceaPrecios` tomaba el anterior
+     por regular y el nuevo por promo, y entraba como oferta con fecha de fin
+     inventada: el 1 de octubre la app volvía a cobrar el precio viejo. No es
+     una promo: es el precio normal que cambió, y Sonar tarda en traerlo. */
+  const esLista=_ceaEsCambioLista(cols,nom+' '+flat.slice(0,1500));
+  if(esLista){
+    const d1=_ceaDesdeLista(flat);
+    const mCea=flat.match(/CEA\s+HUAWEI\s+(\d{2,4})/i)||flat.match(/Comunicaci[oó]n en Acci[oó]n\s*-\s*(\d{2,4})/i);
+    const filasLista=crudas.map(r=>{
+      const px=r.px||[];
+      const conEt=re=>px.find(q=>re.test(etiqueta(q.c)||''));
+      /* Por la etiqueta de la columna; si el encabezado no se leyó, el primero
+         del renglón es el anterior y el último el nuevo, que es el orden en que
+         los pone todo comunicado de cambio de precio. */
+      const pa=conEt(/ANTERIOR|ACTUAL|PREVI/i)||px[0];
+      const pn=conEt(/NUEV/i)||px[px.length-1];
+      let msi='';
+      if(msiCols.length&&r.marcas.length===msiCols.length)
+        msi=msiCols.filter(function(_,i){ return _CEA_TACHE.test(r.marcas[i]); }).join(',');
+      return {sku:r.sku,desc:r.desc,pa:pa&&pa!==pn?pa.v:'',pn:pn?pn.v:'',msi:msi,d1:d1.iso};
+    }).filter(r=>r.pn);
+    return {tipo:'lista',rows:filasLista,vig:d1.txt,cea:mCea?'CEA '+mCea[1]:''};
+  }
 
   /* Si ningún renglón trajo estatus manda el documento: un CEA titulado
      "PROMOCIONES EOL" es una tabla de EOL aunque no tenga esa columna. */
@@ -1853,6 +1902,17 @@ function _vigPromosPintar(){
   const nota=document.getElementById('vigNotaPromos');
   const btn=document.getElementById('btnPromos');
   if(!parsedPromos||!parsedPromos.rows.length){ btn.disabled=true; return; }
+  /* Cambio de precio de LISTA: no vence, así que no hay fecha de fin que pedir
+     —pedirla fue justo lo que obligó a inventar una—. Solo desde cuándo. */
+  if(parsedPromos.tipo==='lista'){
+    if(!d1){
+      nota.innerHTML='⚠️ <b>No encontré desde cuándo rige el precio nuevo.</b> Escríbelo en «Vigente desde».';
+      nota.style.color='var(--rojo)'; btn.disabled=true; return;
+    }
+    nota.innerHTML='El precio nuevo es el <b>precio regular</b> desde esta fecha, sin fecha de fin. '+
+                   'Cuando el Informe de Artículos Totales ya lo traiga, manda Sonar.';
+    nota.style.color='var(--tinta-2)'; btn.disabled=false; return;
+  }
   if(!d2){
     /* Sin fecha de fin la base rechaza TODAS las filas. Se frena aquí, con el
        archivo a la vista, y no después de un "Enviado" que no envió nada. */
@@ -1891,6 +1951,27 @@ document.getElementById('filePromos').onchange=async function(e){
     const isXlsx=/\.(xlsx|xls)$/i.test(f.name);
     parsedPromos=isXlsx ? await parsePromosXLSX(f) : await parsePromosPDF(f);
     if(!parsedPromos.rows.length) throw new Error('No encontré filas de promo — revisa el archivo');
+    const esLista=parsedPromos.tipo==='lista';
+    document.getElementById('vigD2Campo').style.display=esLista?'none':'';
+    document.getElementById('btnPromos').textContent=esLista?'Subir cambio de precio de lista':'Subir promociones';
+    if(esLista){
+      document.getElementById('fboxPromos').classList.add('ok');
+      document.getElementById('fphPromos').innerHTML=
+        `✓ ${f.name}<br><b>Cambio de PRECIO DE LISTA</b> — no es promoción · ${parsedPromos.rows.length} SKU · ${parsedPromos.vig||'fecha no detectada'}`;
+      document.getElementById('prevListPromos').innerHTML=parsedPromos.rows.map(r=>`
+        <div class="prev-item">
+          <strong>SKU ${r.sku}</strong>
+          <span>${r.desc||'(sin descripción)'}</span>
+          <span>precio de lista ${r.pa?'$'+r.pa+' → ':''}<b>$${r.pn}</b>${r.msi?' · '+r.msi.split(',').join(' y ')+' MSI':''}</span>
+          <span>📅 desde ${r.d1||'— lo pone el campo de arriba'} · sin fecha de fin</span>
+        </div>`).join('');
+      document.getElementById('detPromos').style.display='block';
+      document.getElementById('vigD1Promos').value=(parsedPromos.rows.find(r=>r.d1)||{}).d1||'';
+      document.getElementById('vigD2Promos').value='';
+      document.getElementById('vigPromos').style.display='block';
+      _vigPromosPintar();
+      return;
+    }
     const eolCount=parsedPromos.rows.filter(r=>r.est==='EOL').length;
     document.getElementById('fboxPromos').classList.add('ok');
     document.getElementById('fphPromos').innerHTML=
@@ -1924,6 +2005,7 @@ document.getElementById('filePromos').onchange=async function(e){
 
 async function subirPromos(){
   if(!parsedPromos||!parsedPromos.rows.length) return;
+  if(parsedPromos.tipo==='lista') return subirCambioLista();
   const btn=document.getElementById('btnPromos');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
   document.getElementById('resPromos').className='result';
@@ -1968,6 +2050,38 @@ async function subirPromos(){
   btn.textContent='Subir promociones';
   /* No se re-habilita a ciegas: si la vigencia quedó incompleta, el botón
      tiene que seguir apagado. */
+  _vigPromosPintar();
+}
+
+/* Un cambio de PRECIO DE LISTA no es una promoción (26-sep-2026): va a
+   `carga_precio_lista`, que lo pone en el catálogo y no deja que la carga de
+   Sonar lo regrese mientras siga trayendo el precio anterior. Ver
+   supabase_precio_lista.sql. */
+async function subirCambioLista(){
+  const btn=document.getElementById('btnPromos');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Subiendo…';
+  document.getElementById('resPromos').className='result';
+  try{
+    const mD1=document.getElementById('vigD1Promos').value;
+    const filas=parsedPromos.rows.map(r=>Object.assign({},r,{ d1: mD1 || r.d1 }));
+    const rp=await sbCargaAdmin('carga_precio_lista',
+      { p_filas: filas, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?'), p_cea: parsedPromos.cea || null });
+    const n=Number(rp.guardados)||0;
+    const fuera=(rp.sin_fecha||0)+(rp.sin_precio||0);
+    if(n===0){
+      showResult('resPromos',false,
+        `❌ <b>No se guardó ningún cambio de precio.</b> Se leyeron ${filas.length} del archivo.`+
+        (rp.sin_fecha?`<br>· ${rp.sin_fecha} sin fecha`:'')+(rp.sin_precio?`<br>· ${rp.sin_precio} sin precio nuevo`:''));
+    } else {
+      showResult('resPromos',true,
+        `✅ <b>${n}</b> precios de lista cambiados${parsedPromos.cea?' ('+parsedPromos.cea+')':''} · desde ${mD1}.<br>`+
+        `· ${rp.aplicados||0} ya con el precio nuevo en el catálogo`+
+        (rp.sin_catalogo?`<br>· ${rp.sin_catalogo} todavía no están en el catálogo: toman el precio nuevo en cuanto Sonar los traiga`:'')+
+        (rp.promos_quitadas?`<br>· se quitaron ${rp.promos_quitadas} promociones que eran este mismo CEA subido como promo`:'')+
+        (fuera?`<br>⚠️ ${fuera} se quedaron fuera (sin fecha o sin precio)`:''));
+    }
+  }catch(err){ showResult('resPromos',false,'Error al subir: '+err.message); }
+  btn.textContent='Subir cambio de precio de lista';
   _vigPromosPintar();
 }
 
