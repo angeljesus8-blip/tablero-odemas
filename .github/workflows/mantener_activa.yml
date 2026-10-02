@@ -1,0 +1,38 @@
+name: Mantener activa la base
+
+# La base de odemás está en el plan gratis de Supabase, que la PAUSA a los 7 días
+# sin uso. Con tiendas que no abren el tablero cada semana, el login se caería
+# sin avisar. Una llamada al día cuenta como uso.
+#
+# Llama a `invitacion_valida` con un código que no existe: es de solo lectura,
+# no escribe nada y responde {"ok": false, "error": "no_existe"}. La clave
+# publicable ya viaja dentro de los .html del repo; aquí no se agrega ningún
+# secreto.
+#
+# Si la base ya estaba pausada o no responde, el job FALLA y GitHub avisa por
+# correo: es la señal de que hay que reactivarla desde el panel (cuenta +odemas).
+on:
+  schedule:
+    - cron: "17 14 * * *"   # 14:17 UTC = 8:17 a. m. en Puebla
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar a la base
+        run: |
+          URL="https://ecuqtqxmdehzbbsmlxrh.supabase.co"
+          KEY="sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce"
+          RESP=$(curl -sS --max-time 30 -w "\n%{http_code}" -X POST \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"p_codigo":"PING"}' "$URL/rest/v1/rpc/invitacion_valida") || {
+              echo "::error::La base no respondió (¿pausada?). Reactívala en el panel de Supabase, cuenta +odemas."; exit 1; }
+          CODE=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | head -n1)
+          echo "HTTP $CODE — $BODY"
+          if [ "$CODE" != "200" ] || ! echo "$BODY" | grep -q '"no_existe"'; then
+            echo "::error::Respuesta inesperada de la base (HTTP $CODE). Revísala en el panel de Supabase."
+            exit 1
+          fi
