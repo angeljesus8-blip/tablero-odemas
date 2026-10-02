@@ -952,7 +952,7 @@ const SB_KEY_CS = 'sb_publishable_ANNakHYo8KtRhKHcU6XiyQ_DRRXMlce';
 const SB_STORE  = (_cfgCS && _cfgCS.store_id) || '';
 
 async function sbRpcCS(fn, ms){
-  const d = await sbCallCS(fn, null, ms);
+  const d = await sbCallCS(fn, { p_token: GAS_TOKEN }, ms);
   return Array.isArray(d) ? d : null;
 }
 
@@ -1422,7 +1422,7 @@ async function apCargar(){
   // caminos abiertos con el cliente enfrente.
   $('btnAdd').style.display = 'none';
 
-  const filas = await sbCallCS('apartados_lista');
+  const filas = await sbCallCS('apartados_lista', { p_token: GAS_TOKEN });
   const a = Array.isArray(filas)
     ? filas.filter(x => String(x.id) === String(AP_MODO.id))[0] : null;
   if(!a){

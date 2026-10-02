@@ -2241,7 +2241,7 @@ function guardarApartado(){
    dueño—. Si Supabase no contesta, se marca la carga como fallida y el banner
    dice "no prometas la última pieza todavía", que es la verdad. */
 async function cargarApartadosNube(){
-  const filas = await sbCall('apartados_lista');
+  const filas = await sbCall('apartados_lista', { p_token: GAS_TOKEN });
   if(!Array.isArray(filas)){ marcarCarga('apartados', false); return; }
   APARTADOS = filas.map(_apartadoDeSupabase);
   render();
@@ -2985,7 +2985,7 @@ function aplicarVentas(data){
    como último recurso pero pidiéndoselo también a Supabase, no al Apps Script:
    la hoja ya no recibe el Excel del día. */
 async function cargarInventarioNube(){
-  const bruto = await sbRpc('tablero_todo');
+  const bruto = await sbCall('tablero_todo', { p_token: GAS_TOKEN });
   if(_esObj(bruto) && Array.isArray(bruto.inventario) && bruto.inventario.length){
     aplicarInventario(_deSupabase(bruto).inventario);
     calcDerivados(); render();
@@ -3008,7 +3008,7 @@ async function cargarInventarioNube(){
 async function _piezaNube(clave, esValida, aplicar){
   let d;
   try{
-    const bruto = await sbRpc('tablero_todo');
+    const bruto = await sbCall('tablero_todo', { p_token: GAS_TOKEN });
     if(!_esObj(bruto)) throw new Error('respuesta inválida');
     d = _deSupabase(bruto)[clave];
     if(!esValida(d)) throw new Error('respuesta inválida');
@@ -3229,7 +3229,12 @@ function _deSupabase(d){
                fecha: a.creado_en ? String(a.creado_en).slice(0,10) : '',
                d2:a.vigente_hasta, prioridad:a.prioridad||'normal',
                tipo:a.tipo||'manual' }; }),
-    apartados: (d.apartados||[]).map(_apartadoDeSupabase),
+    /* `apartados_ok: false` = el servidor no aceptó el token y mandó la lista
+       vacía. null y no []: una lista vacía diría «no hay apartados» y el asesor
+       le negaría al cliente un equipo que sí tiene apartado. Con null,
+       aplicarTodo lo marca como carga fallida y el aviso lo dice. Un servidor
+       sin el candado todavía no manda el campo, y se lee como siempre. */
+    apartados: d.apartados_ok === false ? null : (d.apartados||[]).map(_apartadoDeSupabase),
     ventas_hoy: { vend: vend },
     // Marca de origen. La lee aplicarTodo para saber si puede confiar en los
     // apartados: los del Apps Script vienen de una hoja que ya nadie escribe.
@@ -3238,7 +3243,7 @@ function _deSupabase(d){
 }
 
 async function cargarTodoSupabase(){
-  const bruto = await sbRpc('tablero_todo');
+  const bruto = await sbCall('tablero_todo', { p_token: GAS_TOKEN });
   // Se revisa la FORMA, no solo que llegue: una respuesta rara vale menos que
   // ninguna, porque pintaría un tablero vacío como si fuera bueno.
   if(!_esObj(bruto) || !Array.isArray(bruto.inventario) || !bruto.inventario.length) return false;
@@ -3274,6 +3279,7 @@ function aplicarTodo(d){
      asesor acaba de guardar, o le devolvería la serie a un equipo ya entregado.
      No da error, solo deshace trabajo — por eso se marca el origen. */
   if(d.__sb && Array.isArray(d.apartados)) { APARTADOS = d.apartados; marcarCarga('apartados', true); }
+  else if(d.__sb && d.apartados === null) marcarCarga('apartados', false);
   /* Las ventas del día, SOLO de Supabase — mismo candado que el stock y los
      apartados, y por el mismo motivo (17-ago-2026).
 

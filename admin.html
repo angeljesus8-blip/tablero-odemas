@@ -1198,7 +1198,7 @@ async function cargarSinTraducir(){
   let d = null;
   try{
     if(sb || initSB()){
-      const r = await sb.rpc("tablero_todo", { p_store: String((_cfg && _cfg.store_id) || "") });
+      const r = await sb.rpc("tablero_todo", { p_store: String((_cfg && _cfg.store_id) || ""), p_token: GAS_TOKEN });
       if(!r.error) d = r.data;
     }
   }catch(e){ d = null; }
@@ -2328,7 +2328,7 @@ async function loadBundles(){
     /* En Supabase `skus` es un array de verdad y aqui se espera "a,b,c" --igual
        que en el tablero, ver _deSupabase--. Y las fechas se llaman
        vigente_desde/hasta, no d1/d2. */
-    renderBundles((await sbLeer('bundles_vigentes')).map(function(b){
+    renderBundles((await sbLeer('bundles_vigentes', { p_token: GAS_TOKEN })).map(function(b){
       return { id:String(b.id), nombre:b.nombre,
                skus: Array.isArray(b.skus) ? b.skus.join(',') : String(b.skus||''),
                precio:b.precio, d1:b.vigente_desde, d2:b.vigente_hasta };
@@ -2596,7 +2596,7 @@ document.getElementById('fileEolXlsx').onchange=async function(e){
 async function loadEol(){
   document.getElementById('listE').innerHTML='<div class="empty">Cargando…</div>';
   // eol_lista ya devuelve {sku, precio}: renderEol lo consume tal cual.
-  try{ renderEol(await sbLeer('eol_lista')); }
+  try{ renderEol(await sbLeer('eol_lista', { p_token: GAS_TOKEN })); }
   catch{ document.getElementById('listE').innerHTML='<div class="empty">Error al cargar</div>'; }
 }
 function renderEol(list){
@@ -2750,7 +2750,7 @@ async function cargarListaAvisos(){
   const el=document.getElementById('ceaLista');
   el.innerHTML='<p class="vacio-chico">Cargando…</p>';
   try{
-    const data=(await sbLeer('avisos_vigentes')).map(function(a){
+    const data=(await sbLeer('avisos_vigentes', { p_token: GAS_TOKEN })).map(function(a){
       return { id:String(a.id), titulo:a.titulo, detalle:a.detalle||'',
                prioridad:a.prioridad||'normal',
                d2:a.vigente_hasta,

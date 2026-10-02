@@ -1137,7 +1137,7 @@ def r_pruebas():
                'venta_borrar.js', 'venta_quien.js', 'pantalla_390.js',
                'nombres_cliente.js', 'captura_nombres_seguro.js',
                'horario_hoy.js', 'horario_sesion_ajena.js', 'equipo_bajas.js', 'cea_precio_lista.js',
-               'recarga_en_su_sitio.js')
+               'recarga_en_su_sitio.js', 'candado_token.js')
 
     # La lista de arriba es explícita a propósito —así falta un archivo y se
     # nota—, pero eso deja el hueco contrario: una prueba escrita y no añadida

@@ -67,6 +67,9 @@ ORDEN = [
  ('26-sep-2026 — el precio de lista no es una promo', [
    'supabase_precio_lista.sql',
  ]),
+ ('2-oct-2026 — el candado de las lecturas', [
+   'supabase_candado.sql',
+ ]),
 ]
 
 # (antes, despues, por que). `comprobar()` los verifica contra ORDEN.
@@ -145,6 +148,16 @@ POR_QUE = [
   'queda a medias'),
  ('supabase_empleados.sql', 'supabase_llaves_tienda.sql',
   'la llave de empleados.store_id necesita la tabla empleados'),
+ ('supabase_precio_lista.sql', 'supabase_candado.sql',
+  'el candado renombra la version VIVA de ocho lecturas y redirige a quien las '
+  'llama: si algun archivo las redefine despues, vuelve a crear la puerta abierta '
+  'y el candado no sirve, sin dar un error'),
+ ('supabase_preventa_series.sql', 'supabase_candado.sql',
+  'candado_ok_ llama a escritura_ok_, que se define en preventa_series'),
+ ('supabase_venta_exhibicion.sql', 'supabase_candado.sql',
+  'renombra inventario_vivo y eol_precio_venta: tiene que ser la version buena'),
+ ('supabase_apartados_traspaso.sql', 'supabase_candado.sql',
+  'renombra apartados_lista: tiene que ser la version con cupo y dias_tarde'),
  ('supabase_token_alta.sql', 'supabase_alta_por_invitacion.sql',
   'la tienda nace SIN gas_token escrito a mano: lo pone el DEFAULT que instala '
   'token_alta. Al reves, la tienda se crea y no puede guardar ni una venta '
@@ -169,6 +182,7 @@ ESPERADO_GANA = {
   'ventas_hoy':                 'supabase_attach_apartados.sql',
   'comisiones_lista':           'supabase_comisiones_privadas.sql',
   'empleado_permiso':           'supabase_permiso_por_sesion.sql',
+  'tablero_todo':               'supabase_candado.sql',
 }
 
 SALIDA = 'supabase_TODO.sql'
