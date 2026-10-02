@@ -24,13 +24,12 @@ import io, os, re, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
-# Todo lo que lleva la URL o la clave escrita. Los dos .py no se publican, pero
-# hablan con la misma base: etiquetas_preventa.py lee los apartados para
-# imprimir las etiquetas y preventa_cupo_gen.py nombra el proyecto en el SQL
-# que genera.
+# Todo lo que lleva la URL o la clave escrita. El .py no se publica, pero habla
+# con la misma base: preventa_cupo_gen.py nombra el proyecto en el SQL que genera.
+# (etiquetas_preventa.py se quitó el 2-oct-2026: era de la 1217 y de la Pura 90S.)
 ARCHIVOS = ['index.html', 'tablero.html', 'captura_series.html', 'admin.html',
             'comisiones.html', 'horarios.html',
-            'etiquetas_preventa.py', 'preventa_cupo_gen.py']
+            'preventa_cupo_gen.py']
 
 RX_URL = re.compile(r'https://([a-z0-9]{16,32})\.supabase\.co')
 RX_KEY = re.compile(r'sb_publishable_[A-Za-z0-9_-]{16,}')

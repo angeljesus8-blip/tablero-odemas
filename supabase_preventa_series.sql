@@ -24,7 +24,7 @@
 --  resincronizacion pisa las series recien asignadas con las filas de la hoja,
 --  que no las tienen.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 

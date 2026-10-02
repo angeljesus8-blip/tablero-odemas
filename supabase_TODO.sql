@@ -4,7 +4,7 @@
 -- Se pega ENTERO en el SQL Editor de Supabase, de una vez y en este
 -- orden. Cada archivo lleva al final sus propias comprobaciones.
 --
--- 39 archivos, en 7 etapas.
+-- 40 archivos, en 7 etapas.
 
 
 --------------------------------------------------------------
@@ -418,11 +418,10 @@ drop policy if exists public_read_store_config on public.tiendas;
 
 -- ── 6. Comprobación ─────────────────────────────────────────────────
 -- Debe devolver 1 fila con los datos de la tienda, SIN admin_pin:
-select * from public.login_asesor('1217');
+-- select * from public.login_asesor('<store_id>');   -- (cerrado el 2-oct-2026: ya no devuelve filas)
 
 -- Debe devolver true con el PIN correcto de Admin y false con otro:
-select public.verificar_pin_admin('1217', '1217') as pin_correcto,
-       public.verificar_pin_admin('1217', '0000') as pin_incorrecto;
+-- select public.verificar_pin_admin('<store_id>', '<pin>');   -- (cerrada el 2-oct-2026: siempre false)
 
 -- Debe quedar UNA sola política de SELECT, la del dueño:
 select policyname, cmd, roles from pg_policies
@@ -1814,7 +1813,7 @@ GRANT EXECUTE ON FUNCTION public.tablero_todo(text)      TO anon, authenticated;
 --   · el asesor no tiene cuenta de Supabase: lee por una función
 --     SECURITY DEFINER que valida su número, igual que login_empleado.
 --
--- Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+-- Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 -- Es idempotente: se puede volver a correr sin romper nada.
 -- ============================================================
 
@@ -1910,7 +1909,7 @@ GRANT EXECUTE ON FUNCTION public.horario_equipo(text, text) TO anon, authenticat
 --
 --   e) La tabla NO se puede leer sin cuenta. Desde fuera, con la clave
 --      publicable que está en el HTML:
---        curl "https://rjdrljtujbwooejrpyqv.supabase.co/rest/v1/horarios_config?select=*" \
+--        curl "https://<ref>.supabase.co/rest/v1/horarios_config?select=*" \
 --             -H "apikey: <clave publicable>"
 --      Espera [] — si devuelve filas, la política no quedó.
 
@@ -2199,7 +2198,7 @@ COMMENT ON CONSTRAINT ventas_serie_por_dia ON public.ventas IS
 --  Al correr esto, el tope empieza a aplicarse DE VERDAD: un apartado que se
 --  pase se rechaza con "Cupo agotado: X de Y piezas ya apartadas".
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 
@@ -2328,7 +2327,7 @@ CREATE TRIGGER apartado_cabe_trg BEFORE INSERT OR UPDATE ON public.apartados
 --  Si uno excluye y el otro no, cada entrega resta una venta normal del conteo.
 --  Ver supabase_inventario_preventa.sql.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 
@@ -2848,7 +2847,7 @@ END $fn$;
 --  la app identifica cada captura con su `id` propio ('i' + timestamp) y la
 --  tabla `ventas` no lo guardaba. Por eso el paso 1 es una columna nueva.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 
@@ -3369,7 +3368,7 @@ GRANT EXECUTE ON FUNCTION public.bundle_limpiar(text,text)                      
 --  hace dentro del mes—, no un descuido: si algún día hay que revisar un mes
 --  cerrado, esto es lo primero que hay que subir.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 
@@ -3602,7 +3601,7 @@ GRANT EXECUTE ON FUNCTION public.ventas_detalle(text,date)                    TO
 --  vendedor y su fecha. Cuenta para comisiones, para el leaderboard y para el
 --  detalle del día. Lo único que no hace es mover el stock.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 --
 --  ------------------------------------------------------------
@@ -3765,7 +3764,7 @@ $fn$;
 --  resincronizacion pisa las series recien asignadas con las filas de la hoja,
 --  que no las tienen.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 
@@ -8045,3 +8044,44 @@ COMMIT;
 --       WHERE n.nspname = 'public' AND p.proname LIKE 'login_empleado%';
 --      -- Esperado: login_empleado = true, login_empleado_filas_ = false.
 -- ============================================================
+
+
+-- ========== supabase_pin_admin_cerrado.sql ==========
+
+-- ============================================================
+--  verificar_pin_admin, CERRADA
+--  2-oct-2026 · va DESPUÉS de todos los demás
+-- ============================================================
+--
+--  `verificar_pin_admin(p_store_id, p_pin)` decía true si el PIN era el `admin_pin`
+--  de la tienda o, cuando no lo tenía, SU NÚMERO (`coalesce(nullif(admin_pin,''),
+--  store_id)`), y la puede llamar cualquiera con la clave publicable. Era un
+--  oráculo: servía para comprobar PINes de Admin a ciegas, tienda por tienda, sin
+--  límite de intentos, y el número de tienda funcionaba como PIN por defecto.
+--
+--  Nadie la usa: Admin dejó de pedir PIN (ahora manda quien `admin_de` reconoce
+--  por sesión o por número de empleado), y `admin.html` ya borra el `admin_pin`
+--  que quedara en el dispositivo. Mismo trato que `login_asesor`
+--  (supabase_pin_cerrado.sql): la función SIGUE existiendo, con la misma firma,
+--  y siempre contesta false.
+-- ============================================================
+
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.verificar_pin_admin(p_store_id text, p_pin text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT false;
+$$;
+
+REVOKE ALL ON FUNCTION public.verificar_pin_admin(text, text) FROM public;
+GRANT EXECUTE ON FUNCTION public.verificar_pin_admin(text, text) TO anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
+
+-- COMPROBAR:  SELECT public.verificar_pin_admin('9999', '9999');   -- Esperado: false

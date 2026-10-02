@@ -91,11 +91,10 @@ drop policy if exists public_read_store_config on public.tiendas;
 
 -- ── 6. Comprobación ─────────────────────────────────────────────────
 -- Debe devolver 1 fila con los datos de la tienda, SIN admin_pin:
-select * from public.login_asesor('1217');
+-- select * from public.login_asesor('<store_id>');   -- (cerrado el 2-oct-2026: ya no devuelve filas)
 
 -- Debe devolver true con el PIN correcto de Admin y false con otro:
-select public.verificar_pin_admin('1217', '1217') as pin_correcto,
-       public.verificar_pin_admin('1217', '0000') as pin_incorrecto;
+-- select public.verificar_pin_admin('<store_id>', '<pin>');   -- (cerrada el 2-oct-2026: siempre false)
 
 -- Debe quedar UNA sola política de SELECT, la del dueño:
 select policyname, cmd, roles from pg_policies

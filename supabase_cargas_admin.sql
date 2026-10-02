@@ -39,7 +39,7 @@
 --  Si uno excluye y el otro no, cada entrega resta una venta normal del conteo.
 --  Ver supabase_inventario_preventa.sql.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 

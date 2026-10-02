@@ -559,7 +559,7 @@
     </div>
     <div id="apTraspaso">
       <label class="ap-lbl">¿De qué tienda viene?</label>
-      <input id="apOrigen" class="ap-inp" type="text" placeholder="Ej. Parque Puebla" autocomplete="off">
+      <input id="apOrigen" class="ap-inp" type="text" placeholder="Ej. otra tienda de la red" autocomplete="off">
       <label class="ap-lbl">¿Para cuándo se lo prometiste?</label>
       <input id="apPromesa" class="ap-inp" type="date">
     </div>
@@ -1407,7 +1407,7 @@ let VENTAS_NUBE_HORA = '';
    celular al total que viene de Supabase, que es de TODA la tienda. Con eso:
 
      · el Assurant del día salía distinto en cada teléfono, y ninguno era el
-       bueno — el mismo KPI que se le reporta a Demetrio
+       bueno — el mismo KPI que se le reporta al jefe directo
      · una venta ajustada a mano y capturada después contaba DOS veces en ese
        aparato
      · el % grande no cuadraba con las filas del equipo: las filas venían de la
@@ -3062,7 +3062,7 @@ async function cargarAvisosNube(){
    mismo —los dos lados tienen las mismas ventas—, pero el día que se apague, la
    hoja se queda congelada y esto serviría el Assurant del último día que la
    recibió. No daría un error: daría un porcentaje, con la misma pinta que uno
-   bueno, en el número que se reporta a Demetrio con meta del 25 %.
+   bueno, en el número que se reporta al jefe directo con meta del 25 %.
 
    Es el mismo motivo por el que el stock y los apartados ya solo se aceptan de
    Supabase (ver aplicarTodo). Se cambia AHORA, con los dos lados diciendo lo

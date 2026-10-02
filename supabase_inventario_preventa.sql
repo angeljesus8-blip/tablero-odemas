@@ -35,7 +35,7 @@
 --  vendedor y su fecha. Cuenta para comisiones, para el leaderboard y para el
 --  detalle del día. Lo único que no hace es mover el stock.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 --
 --  ------------------------------------------------------------

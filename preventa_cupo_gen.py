@@ -14,7 +14,8 @@ Al cambiar un cupo: edita `tablero.html`, corre esto, pega el SQL resultante.
 import io, os, re, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-STORE = '1217'
+# Sin tienda por defecto: venía fija con la 1217 y el SQL salía para ella.
+STORE = os.environ.get('STORE_ID') or sys.exit('Falta STORE_ID: STORE_ID=1234 python preventa_cupo_gen.py')
 
 
 def cupos_de_tablero():

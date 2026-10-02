@@ -1619,6 +1619,49 @@ def r_escritura_con_token():
                            'p_token)` al principio, como las demás.' % fn)
 
 
+# ── Residuo de la tienda de origen ──────────────────────────
+# 2-oct-2026: al revisar la copia antes del piloto aparecieron, ejecutándose, el
+# título «1217-HUAWEI HES ANGELÓPOLIS» y el nombre «HORARIOS 1217» del Excel de
+# horarios para TODAS las tiendas, y una `STORE = '1217'` en dos scripts. Los
+# comentarios que cuentan de dónde vino cada cosa están bien; lo que no puede
+# haber es código que se ejecute con la tienda de origen escrita.
+# Se mira lo que queda después de quitar comentarios. `hes1217_` y la ruta
+# `/tablero-hes1217/` son A PROPÓSITO: es el prefijo con que el planeador separa
+# las dos apps que comparten origen en GitHub Pages.
+def r_residuo_origen():
+    import glob
+
+    def en_blanco(m):
+        return re.sub(r'[^\n]', ' ', m.group(0))
+
+    def sin_comentarios(t, ext):
+        t = re.sub(r'/\*.*?\*/', en_blanco, t, flags=re.S)
+        if ext == '.html':
+            t = re.sub(r'<!--.*?-->', en_blanco, t, flags=re.S)
+        if ext in ('.html', '.js'):
+            t = re.sub(r'(?<![:"\'])//[^\n]*', '', t)
+        if ext == '.py':
+            t = re.sub(r'""".*?"""', en_blanco, t, flags=re.S)
+            t = re.sub(r'#[^\n]*', '', t)
+        return t
+
+    MALO = re.compile(r'1217|angel[oó]polis', re.I)
+    PERMITIDO = re.compile(r'hes1217_|/tablero-hes1217/', re.I)
+    for ext in ('.html', '.js', '.py'):
+        for p in sorted(glob.glob('*' + ext)):
+            if p in ('verificar.py', 'configurar.py'):
+                continue
+            t = leer(p)
+            if t is None:
+                continue
+            for i, linea in enumerate(sin_comentarios(t, ext).split('\n'), 1):
+                if MALO.search(PERMITIDO.sub('', linea)):
+                    falla('origen', '%s:%d trae la tienda de origen escrita en código que '
+                                    'se ejecuta (%s). En una copia multi-tienda sale para '
+                                    'TODAS las tiendas: sácala de la sesión.'
+                                    % (p, i, linea.strip()[:80]))
+
+
 def r_columna_nueva():
     """Una columna añadida a un CREATE TABLE necesita ADEMÁS su ALTER.
 
@@ -2033,7 +2076,7 @@ def main():
     # Va PRIMERA: si git no contesta, las reglas que lo consultan no corren, y
     # conviene saberlo antes de leer 24 «ok» que no cubren lo que parecen.
     r_git()
-    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token(); r_argumentos_cruzados()
+    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token(); r_argumentos_cruzados(); r_residuo_origen()
     r_sintaxis(); r_helpers(); r_version(staged); r_copias(); r_puestos_gestion()
     r_sesion_prefijada(); r_cupo()
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()

@@ -2039,7 +2039,10 @@ async function exportarExcel() {
 
   // ── Título + rango de fechas + logo ──
   ws.mergeCells('C1:C5');
-  const tt=S('C1','1217-HUAWEI HES ANGELÓPOLIS'); tt.font={name:ARIAL,size:18,bold:true}; tt.alignment=CEN;
+  /* La tienda de quien exporta, no la de origen: este título salía fijo con la
+     1217 para todas las tiendas (2-oct-2026). */
+  const _idT = (_tienda && _tienda.store_id) || '', _nomT = ((_tienda && _tienda.nombre) || '').toUpperCase();
+  const tt=S('C1', (_idT ? _idT + '-' : '') + 'HUAWEI HES' + (_nomT ? ' ' + _nomT : '')); tt.font={name:ARIAL,size:18,bold:true}; tt.alignment=CEN;
   ws.getRow(1).height=27.8;
   ws.mergeCells('H4:J4'); const d1=S('H4',fmtD(dom)); d1.font={name:ARIAL,size:16,bold:true}; d1.alignment=CEN;
   const al=S('L4','AL'); al.font={name:ARIAL,size:16,bold:true}; al.alignment=CEN;
@@ -2115,7 +2118,7 @@ async function exportarExcel() {
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href = url; a.download = `HORARIOS 1217 Semana ${_semana}.xlsx`; a.click();
+  a.href = url; a.download = `HORARIOS ${(_tienda && _tienda.store_id) || ''} Semana ${_semana}.xlsx`.replace('HORARIOS  ', 'HORARIOS '); a.click();
   URL.revokeObjectURL(url);
 
   if (btn) { btn.textContent = '⬇ Excel'; btn.disabled = false; }

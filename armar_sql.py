@@ -71,6 +71,7 @@ ORDEN = [
    'supabase_candado.sql',
    'supabase_pin_cerrado.sql',
    'supabase_login_limite.sql',
+   'supabase_pin_admin_cerrado.sql',
  ]),
 ]
 
@@ -156,6 +157,9 @@ POR_QUE = [
   'entregar la clave de escritura, y la app se ve igual de bien'),
  ('supabase_hoja_auth.sql', 'supabase_pin_cerrado.sql',
   'mismo caso: hoja_auth tambien define login_asesor, con el numero de tienda como PIN'),
+ ('supabase_acceso.sql', 'supabase_pin_admin_cerrado.sql',
+  'acceso define verificar_pin_admin con el numero de tienda como PIN: si gana esa, '
+  'queda un oraculo de PIN de Admin abierto a la clave publicable, sin dar un error'),
  ('supabase_equipo_por_numero.sql', 'supabase_login_limite.sql',
   'renombra la login_empleado VIVA y pone una puerta con limite de intentos: si '
   'otro archivo la redefine despues, la puerta se pierde y el login vuelve a '
@@ -197,6 +201,7 @@ ESPERADO_GANA = {
   'comisiones_lista':           'supabase_comisiones_privadas.sql',
   'empleado_permiso':           'supabase_permiso_por_sesion.sql',
   'tablero_todo':               'supabase_candado.sql',
+  'verificar_pin_admin':        'supabase_pin_admin_cerrado.sql',
 }
 
 SALIDA = 'supabase_TODO.sql'

@@ -29,7 +29,7 @@
 --  la app identifica cada captura con su `id` propio ('i' + timestamp) y la
 --  tabla `ventas` no lo guardaba. Por eso el paso 1 es una columna nueva.
 --
---  Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+--  Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 --  Es idempotente.
 -- ============================================================
 

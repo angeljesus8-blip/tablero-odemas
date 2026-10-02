@@ -13,7 +13,7 @@
 --   · el asesor no tiene cuenta de Supabase: lee por una función
 --     SECURITY DEFINER que valida su número, igual que login_empleado.
 --
--- Se pega completo en el SQL Editor del proyecto "HES" (rjdrljtujbwooejrpyqv).
+-- Se pega completo en el SQL Editor del proyecto de ESTA red (nunca en otro: comprueba el ref de la URL).
 -- Es idempotente: se puede volver a correr sin romper nada.
 -- ============================================================
 
@@ -109,6 +109,6 @@ GRANT EXECUTE ON FUNCTION public.horario_equipo(text, text) TO anon, authenticat
 --
 --   e) La tabla NO se puede leer sin cuenta. Desde fuera, con la clave
 --      publicable que está en el HTML:
---        curl "https://rjdrljtujbwooejrpyqv.supabase.co/rest/v1/horarios_config?select=*" \
+--        curl "https://<ref>.supabase.co/rest/v1/horarios_config?select=*" \
 --             -H "apikey: <clave publicable>"
 --      Espera [] — si devuelve filas, la política no quedó.
