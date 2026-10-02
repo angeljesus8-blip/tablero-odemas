@@ -3072,7 +3072,7 @@ async function cargarAvisosNube(){
    El tablero se queda con las ventas capturadas en este equipo (attPorVendedor):
    un dato incompleto y anunciado, en vez de uno falso y callado. */
 async function cargarVentasNube(){
-  const filas = await sbRpc('ventas_hoy');
+  const filas = await sbCall('ventas_hoy', { p_token: GAS_TOKEN });
   if(!Array.isArray(filas)){ marcarCarga('ventas', false); return; }
   if(aplicarVentas({ vend: _vendDeSupabase(filas) })){
     marcarCarga('ventas', true);

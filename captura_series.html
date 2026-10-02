@@ -1898,6 +1898,7 @@ async function cargarVentasDia(dia){
        estaba roto — pero es la lectura que ahora trae `tiene_foto`, y la foto
        solo existe en Supabase. Pedirla al GAS daría la lista sin lupas. */
     const filas = await sbCallCS('ventas_detalle', {
+      p_token: GAS_TOKEN,
       p_fecha: dia.getFullYear() + '-' +
                String(dia.getMonth()+1).padStart(2,'0') + '-' +
                String(dia.getDate()).padStart(2,'0')

@@ -72,6 +72,7 @@ ORDEN = [
    'supabase_pin_cerrado.sql',
    'supabase_login_limite.sql',
    'supabase_pin_admin_cerrado.sql',
+   'supabase_candado_ventas.sql',
  ]),
 ]
 
@@ -166,6 +167,13 @@ POR_QUE = [
   'aceptar intentos sin limite, sin dar un error'),
  ('supabase_puesto_en_sesion.sql', 'supabase_login_limite.sql',
   'misma razon: tiene que ir despues de todo lo que toque el login'),
+ ('supabase_candado.sql', 'supabase_candado_ventas.sql',
+  'usa candado_ok_ y renombra la tablero_todo de la puerta: sin eso, la llamada a '
+  'ventas_hoy de dentro no se redirige y entra sin token'),
+ ('supabase_attach_apartados.sql', 'supabase_candado_ventas.sql',
+  'renombra la ventas_hoy VIVA: tiene que ser la que suma los apartados cobrados'),
+ ('supabase_venta_capturado_por.sql', 'supabase_candado_ventas.sql',
+  'renombra la ventas_detalle VIVA: tiene que ser la que trae capturado_por'),
  ('supabase_precio_lista.sql', 'supabase_candado.sql',
   'el candado renombra la version VIVA de ocho lecturas y redirige a quien las '
   'llama: si algun archivo las redefine despues, vuelve a crear la puerta abierta '
@@ -196,7 +204,7 @@ ESPERADO_GANA = {
   'inventario_vivo':            'supabase_venta_exhibicion.sql',
   'eol_precio_venta':           'supabase_venta_exhibicion.sql',
   'venta_guardar':              'supabase_venta_capturado_por.sql',
-  'ventas_detalle':             'supabase_venta_capturado_por.sql',
+  'ventas_detalle':             'supabase_candado_ventas.sql',
   'ventas_hoy':                 'supabase_attach_apartados.sql',
   'comisiones_lista':           'supabase_comisiones_privadas.sql',
   'empleado_permiso':           'supabase_permiso_por_sesion.sql',

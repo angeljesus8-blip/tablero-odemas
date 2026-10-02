@@ -15,6 +15,7 @@
      3 · Un `{ok:false}` de `tablero_todo` no se aplica como inventario vacío.
      4 · Captura pide catálogo, promos y precio de EOL con el token.
      5 · Admin lee sus lecturas con el token.
+     6 · `ventas_hoy` y `ventas_detalle` también (supabase_candado_ventas.sql).
 
    ⚠️ ESTA PRUEBA PASA AUNQUE EL SQL NO ESTÉ APLICADO. El SQL va ANTES de
    publicar: una app que manda `p_token` a una función que aún no lo tiene
@@ -66,6 +67,10 @@ const TOKEN = 'tok-candado-9999';
     ok('apartados_lista se pide con el token', de('apartados_lista') && de('apartados_lista').body.p_token === TOKEN,
        JSON.stringify(de('apartados_lista')));
 
+    await vm.runInThisContext('cargarVentasNube()');
+    ok('ventas_hoy se pide con el token (2-oct-2026)', de('ventas_hoy') && de('ventas_hoy').body.p_token === TOKEN,
+       JSON.stringify(de('ventas_hoy')));
+
     /* El servidor no aceptó el token. Lo que NO puede pasar es que la pestaña
        diga «no hay apartados»: el asesor le negaría el equipo al cliente. Tiene
        que quedar como carga fallida, y los de antes, a la vista. */
@@ -113,6 +118,8 @@ const TOKEN = 'tok-candado-9999';
     }
     /* La llamada de verdad, la de la página: a la vista, para que nadie la
        quite sin que la prueba lo note. */
+    ok('Captura pide ventas_detalle con el token en su código (2-oct-2026)',
+       /sbCallCS\('ventas_detalle', \{\s*p_token: GAS_TOKEN/.test(html));
     ok('Captura llama apartados_lista con el token en su código',
        /sbCallCS\('apartados_lista', \{ p_token: GAS_TOKEN \}\)/.test(html));
   }
