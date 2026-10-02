@@ -563,6 +563,14 @@ async function pinCheck(auto) {
       // pista para pintar el menú; Admin lo vuelve a preguntar al servidor.
       quien = { empno:e.emp_no, nombre:e.emp_nombre, puesto:e.emp_puesto||'', admin: e.emp_admin === true };
     }
+  } else if (/demasiados_intentos/.test(porEmp.error.message || '')) {
+    /* Límite de intentos (supabase_login_limite.sql): esta conexión falló
+       demasiadas veces y está bloqueada unos minutos. NO se sigue por la ruta de
+       respaldo —seguiría probando— y se dice, incluso en el intento automático:
+       callarse aquí se vería como una app que no responde. */
+    document.getElementById('pinErr').textContent = 'Demasiados intentos. Espera unos minutos y vuelve a probar.';
+    pinLimpiar();
+    return;
   } else {
     console.warn('login_empleado no disponible todavía:', porEmp.error.message);
   }

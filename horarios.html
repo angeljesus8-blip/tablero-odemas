@@ -756,7 +756,13 @@ async function doLoginEmpleado() {
   err.textContent = '';
   if (!empno) { err.textContent = 'Escribe tu número de empleado.'; return; }
 
-  const quien = (await _sb.rpc('login_empleado', { p_pin: empno })).data;
+  const resp  = await _sb.rpc('login_empleado', { p_pin: empno });
+  /* Bloqueo por demasiados intentos (supabase_login_limite.sql): no es «ese
+     número no existe», y decirlo así mandaría a pedir un alta que ya existe. */
+  if (resp.error && /demasiados_intentos/.test(resp.error.message || '')) {
+    err.textContent = 'Demasiados intentos. Espera unos minutos y vuelve a probar.'; return;
+  }
+  const quien = resp.data;
   const fila  = Array.isArray(quien) ? quien[0] : quien;
   if (!fila) { err.textContent = 'No reconozco ese número. ¿Ya te dieron de alta?'; return; }
 

@@ -1137,7 +1137,7 @@ def r_pruebas():
                'venta_borrar.js', 'venta_quien.js', 'pantalla_390.js',
                'nombres_cliente.js', 'captura_nombres_seguro.js',
                'horario_hoy.js', 'horario_sesion_ajena.js', 'equipo_bajas.js', 'cea_precio_lista.js',
-               'recarga_en_su_sitio.js', 'candado_token.js')
+               'recarga_en_su_sitio.js', 'candado_token.js', 'login_limite.js')
 
     # La lista de arriba es explícita a propósito —así falta un archivo y se
     # nota—, pero eso deja el hueco contrario: una prueba escrita y no añadida
@@ -1604,7 +1604,10 @@ def r_escritura_con_token():
                          r'(.*?)\)\s*returns(.*?)\$(\w*)\$(.*?)\$\4\$', s, re.I | re.S):
         ultima[m.group(1).lower()] = m.group(5)
 
-    DEFENSAS = re.compile(r'escritura_ok_|auth\.uid\s*\(|puede_admin|_ok_\s*\(', re.I)
+    # `login_bloqueos`: `login_empleado` escribe (anota los fallos) y NO puede pedir
+    # token, porque es la función que lo entrega. Su defensa es el límite de
+    # intentos por IP (supabase_login_limite.sql, 2-oct-2026).
+    DEFENSAS = re.compile(r'escritura_ok_|auth\.uid\s*\(|puede_admin|_ok_\s*\(|login_bloqueos', re.I)
     for fn, cuerpo in sorted(ultima.items()):
         if fn not in con_grant: continue
         escribe = re.search(r'\b(insert\s+into|update\s+public\.|delete\s+from)\b',

@@ -70,6 +70,7 @@ ORDEN = [
  ('2-oct-2026 — el candado de las lecturas', [
    'supabase_candado.sql',
    'supabase_pin_cerrado.sql',
+   'supabase_login_limite.sql',
  ]),
 ]
 
@@ -155,6 +156,12 @@ POR_QUE = [
   'entregar la clave de escritura, y la app se ve igual de bien'),
  ('supabase_hoja_auth.sql', 'supabase_pin_cerrado.sql',
   'mismo caso: hoja_auth tambien define login_asesor, con el numero de tienda como PIN'),
+ ('supabase_equipo_por_numero.sql', 'supabase_login_limite.sql',
+  'renombra la login_empleado VIVA y pone una puerta con limite de intentos: si '
+  'otro archivo la redefine despues, la puerta se pierde y el login vuelve a '
+  'aceptar intentos sin limite, sin dar un error'),
+ ('supabase_puesto_en_sesion.sql', 'supabase_login_limite.sql',
+  'misma razon: tiene que ir despues de todo lo que toque el login'),
  ('supabase_precio_lista.sql', 'supabase_candado.sql',
   'el candado renombra la version VIVA de ocho lecturas y redirige a quien las '
   'llama: si algun archivo las redefine despues, vuelve a crear la puerta abierta '
@@ -176,7 +183,7 @@ POR_QUE = [
 # funciona de uno que corre una version vieja de la funcion que guarda ventas.
 ESPERADO_GANA = {
   'login_asesor':               'supabase_pin_cerrado.sql',
-  'login_empleado':             'supabase_equipo_por_numero.sql',
+  'login_empleado':             'supabase_login_limite.sql',
   'vincular_mi_cuenta':         'supabase_puesto_en_sesion.sql',
   'apartado_cabe':              'supabase_preventa_cupo.sql',
   'apartado_guardar':           'supabase_apartados_traspaso.sql',
