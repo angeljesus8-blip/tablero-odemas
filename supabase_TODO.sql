@@ -8138,6 +8138,7 @@ DECLARE
   n   text;
   k   int;
   sig text;
+  esperada text;
   res text;
   r   record;
   llamada text := '\m(ventas_hoy|ventas_detalle|estado_datos)(\s*\()';
@@ -8158,8 +8159,11 @@ BEGIN
     SELECT pg_get_function_identity_arguments(p.oid) INTO sig
       FROM pg_proc p JOIN pg_namespace s ON s.oid = p.pronamespace
      WHERE s.nspname = 'public' AND p.proname = n;
-    IF sig <> CASE n WHEN 'ventas_detalle' THEN 'p_store text, p_fecha date' ELSE 'p_store text' END THEN
-      RAISE EXCEPTION '% tiene la firma (%), y esperaba otra. No se tocó nada.', n, sig;
+    -- El CASE va en una asignación, no dentro del IF: plpgsql corta la condición
+    -- en el primer THEN que ve, y el del CASE lo confunde con el del IF.
+    esperada := CASE WHEN n = 'ventas_detalle' THEN 'p_store text, p_fecha date' ELSE 'p_store text' END;
+    IF sig <> esperada THEN
+      RAISE EXCEPTION '% tiene la firma (%), y esperaba (%). No se tocó nada.', n, sig, esperada;
     END IF;
 
     SELECT pg_get_function_result(p.oid) INTO res

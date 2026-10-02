@@ -1662,6 +1662,32 @@ def r_residuo_origen():
                                     % (p, i, linea.strip()[:80]))
 
 
+# ── Sintaxis de los .sql ────────────────────────────────────
+# 2-oct-2026: `supabase_candado_ventas.sql` llegó al editor de Supabase con un
+# `IF sig <> CASE n WHEN … THEN … END THEN`: plpgsql corta la condición en el
+# primer THEN que ve y falla con «syntax error at end of input». Nadie lo vio
+# antes de pegar porque aquí no hay una base donde correrlo. El parser REAL de
+# Postgres (pglast) sí lo caza: se le pasa cada archivo y el cuerpo de cada
+# bloque DO y de cada format($f$…$f$). Solo SINTAXIS; que existan las tablas y
+# columnas solo lo dice pegarlo. Los cuerpos de trigger (usan NEW) no se miran.
+def r_sql_sintaxis():
+    import glob
+    try:
+        import valida_sql
+    except Exception:
+        aviso('sql_sintaxis', 'sin `pip install pglast` no se comprobó la sintaxis de los '
+                              '.sql: un error de plpgsql solo saldría al pegarlo en Supabase.')
+        return
+    archivos = sorted(glob.glob('supabase_*.sql')) + ['quitar_mrfix.sql', 'demo_tienda.sql',
+                                                     'candado_exigir.sql']
+    for p in archivos:
+        if p == 'supabase_TODO.sql' or leer(p) is None:
+            continue
+        for x in valida_sql.validar(p):
+            if x.startswith(('SQL:', 'DO plpgsql', 'format()')):
+                falla('sql_sintaxis', '%s no es SQL válido para Postgres: %s' % (p, x[:140]))
+
+
 def r_columna_nueva():
     """Una columna añadida a un CREATE TABLE necesita ADEMÁS su ALTER.
 
@@ -2076,7 +2102,7 @@ def main():
     # Va PRIMERA: si git no contesta, las reglas que lo consultan no corren, y
     # conviene saberlo antes de leer 24 «ok» que no cubren lo que parecen.
     r_git()
-    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token(); r_argumentos_cruzados(); r_residuo_origen()
+    r_proyecto(); r_tipo_columna(); r_columna_existe(); r_repegable(); r_columna_nueva(); r_escritura_con_token(); r_argumentos_cruzados(); r_residuo_origen(); r_sql_sintaxis()
     r_sintaxis(); r_helpers(); r_version(staged); r_copias(); r_puestos_gestion()
     r_sesion_prefijada(); r_cupo()
     r_preventa_sb(); r_preventa_stock(); r_cargas_sb(); r_lectura_con_escritura()
