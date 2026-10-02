@@ -55,7 +55,9 @@
   .auth-link { text-align:center; font-size:13px; color:var(--azul); font-weight:600; cursor:pointer; }
   .auth-back { background:none; border:none; font-family:'Montserrat',sans-serif; font-size:13px; font-weight:700;
     color:var(--rojo); cursor:pointer; padding:0; align-self:flex-start; margin-bottom:4px; }
-  /* --tinta-2: en gris claro «o el PIN de la tienda» casi no se leía (22-sep-2026). */
+  /* --tinta-2: en gris claro «o el PIN de la tienda» casi no se leía (22-sep-2026). El PIN de la
+     tienda se cerró el 2-oct-2026 (supabase_pin_cerrado.sql): solo entra el
+     número de empleado. */
   .auth-hint { font-size:11px; color:var(--tinta-2); text-align:center; line-height:1.5; }
   .auth-row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .auth-sep { text-align:center; font-size:11px; color:var(--tinta-3); font-weight:700; letter-spacing:.5px; }
@@ -149,7 +151,7 @@
 <div id="scPin" class="sc">
   <img class="auth-logo" src="logo_odemas.png" alt="Odemás">
   <h1 class="auth-title">Bienvenido</h1>
-  <p class="auth-sub">Ingresa tu número de empleado<br><span class="auth-hint">o el PIN de la tienda y luego ✓</span></p>
+  <p class="auth-sub">Ingresa tu número de empleado<br><span class="auth-hint">son 6 dígitos y entra solo</span></p>
   <div class="pin-dots">
     <div class="pin-dot" id="pd0"></div>
     <div class="pin-dot" id="pd1"></div>
@@ -502,9 +504,9 @@ function showErr(id, msg) { const el=document.getElementById(id); el.textContent
 function hideErr(id) { document.getElementById(id).classList.remove('show'); }
 
 /* ── PIN (asesores) ──
-   Cada quien entra con SU número de empleado (6 dígitos). El PIN de la tienda
-   (4 dígitos) sigue aceptándose como respaldo mientras se termina de registrar
-   a todo el equipo: con 4 dígitos hay que darle al ✓, con 6 entra solo. */
+   Cada quien entra con SU número de empleado (6 dígitos) y entra solo. El PIN
+   de la tienda se cerró el 2-oct-2026: `login_asesor` ya no devuelve filas (era
+   el número de tienda, y daba la clave de escritura a cualquiera). */
 const PIN_LARGO = 6;
 let pinVal = '';
 function pinLimpiar() {

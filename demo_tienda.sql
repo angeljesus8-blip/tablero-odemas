@@ -23,12 +23,13 @@
 
 
 -- ── 1 · La tienda ───────────────────────────────────────────
--- `gas_token` NO se escribe: lo genera la base sola (32 hex). El PIN de asesor
--- se deja en el numero de tienda, que es como entra el equipo el primer dia.
+-- `gas_token` NO se escribe: lo genera la base sola (32 hex). Sin PIN de tienda:
+-- se cerro el 2-oct-2026 (supabase_pin_cerrado.sql). La Demo se entra con el
+-- numero de empleado 100001.
 INSERT INTO public.tiendas (store_id, nombre, ciudad, vendedores, admin_pin, asesor_pin)
 VALUES ('9999', 'Tienda Demo', 'Puebla',
         '["Ana Ramírez Solís","Luis Ortega Vidal","Elena Navarro Gálvez"]'::jsonb,
-        '9999', '9999')
+        '9999', NULL)
 ON CONFLICT (store_id) DO UPDATE
   SET nombre     = excluded.nombre,
       ciudad     = excluded.ciudad,
@@ -55,7 +56,7 @@ ON CONFLICT (store_id, empno) DO UPDATE
 -- ── 3 · La clave de escritura, para poder llenarla ──────────
 -- Sin este token no se puede cargar nada: las 15 funciones que escriben lo
 -- exigen. Copiala de aqui.
-SELECT store_id, nombre, asesor_pin AS pin_para_entrar, gas_token AS clave_de_escritura
+SELECT store_id, nombre, gas_token AS clave_de_escritura
   FROM public.tiendas WHERE store_id = '9999';
 
 
