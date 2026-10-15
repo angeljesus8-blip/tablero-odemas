@@ -94,6 +94,14 @@
     padding:9px; font-family:'Montserrat',sans-serif; font-size:12px; font-weight:800;
     color:var(--rojo); cursor:pointer; }
   .pop .btn-logout:active { background:var(--linea); }
+  .pop .btn-clave { width:100%; background:var(--fondo); border:1.5px solid var(--linea); border-radius:10px;
+    padding:9px; font-family:'Montserrat',sans-serif; font-size:12px; font-weight:800;
+    color:var(--azul); cursor:pointer; margin-bottom:8px; }
+  .pop .btn-clave:active { background:var(--linea); }
+  .pop .clave-inp { width:100%; box-sizing:border-box; border:1.5px solid var(--linea); border-radius:10px;
+    padding:8px 10px; font-family:'Montserrat',sans-serif; font-size:12px; margin-bottom:6px; }
+  .pop .clave-msg { font-size:11px; font-weight:700; line-height:1.35; margin:0 0 8px; display:none; }
+  .pop .clave-msg.on { display:block; }
 
   main { padding:20px 16px 40px; max-width:560px; margin:0 auto; }
   .saludo { font-size:13px; color:var(--tinta-2); font-weight:600; margin:4px 4px 16px; }
@@ -286,9 +294,20 @@
     <span class="role-badge" id="roleBadge"></span>
     <div class="pop-wrap">
       <button class="avatar" id="avatarBtn" onclick="togglePop(event)" aria-label="Tu cuenta">·</button>
-      <div class="pop" id="popCuenta">
+      <!-- Los clics de dentro no cierran el globo: si no, al tocar el campo de
+           la contraseña se esconde antes de poder escribirla. -->
+      <div class="pop" id="popCuenta" onclick="event.stopPropagation()">
         <div class="p-nom" id="popNom">—</div>
         <div class="p-rol" id="popRol">—</div>
+        <!-- Solo con sesión de correo: quien entra con su número no tiene
+             contraseña que cambiar. Ver mostrarCambioClave_(). -->
+        <button class="btn-clave" id="btnClave" style="display:none" onclick="abrirCambioClave_()">Cambiar contraseña</button>
+        <div id="formClave" style="display:none">
+          <input class="clave-inp" id="claveNueva" type="password" placeholder="Contraseña nueva" autocomplete="new-password">
+          <input class="clave-inp" id="claveOtra" type="password" placeholder="Repítela" autocomplete="new-password">
+          <p class="clave-msg" id="claveMsg"></p>
+          <button class="btn-clave" id="btnGuardarClave" onclick="guardarClave_()">Guardar contraseña</button>
+        </div>
         <button class="btn-logout" onclick="doLogout()">Cerrar sesión</button>
       </div>
     </div>
@@ -457,6 +476,71 @@ function applyStoreConfig(cfg, role) {
     (role === 'gerente' ? 'Gerente' : 'Asesor') + ' · HES ' + cfg.store_id;
 
   renderMenuCards(role);
+  mostrarCambioClave_();
+}
+
+/* ── Cambiar la contraseña desde la app (15-oct-2026) ──
+   No hay «olvidé mi contraseña»: el correo de fábrica de Supabase no llega a
+   @odemas.com.mx. Cuando se pierde, Ángel pone una provisional por SQL y aquí
+   el gerente la cambia por la suya. Pide sesión de correo ABIERTA: el `role`
+   no sirve para decidirlo, porque quien entra con un número de empleado admin
+   también queda como «gerente» y no tiene cuenta a la que cambiarle nada. */
+async function mostrarCambioClave_() {
+  const btn = document.getElementById('btnClave');
+  document.getElementById('formClave').style.display = 'none';
+  btn.style.display = 'none';
+  if (!sb) return;
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) btn.style.display = '';
+  } catch (e) { /* sin sesión legible: el botón se queda escondido */ }
+}
+
+function abrirCambioClave_() {
+  document.getElementById('btnClave').style.display = 'none';
+  document.getElementById('formClave').style.display = '';
+  document.getElementById('claveNueva').value = '';
+  document.getElementById('claveOtra').value = '';
+  avisoClave_('', true);
+  document.getElementById('claveNueva').focus();
+}
+
+function avisoClave_(msg, ok) {
+  const el = document.getElementById('claveMsg');
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--ok)' : 'var(--rojo)';
+  el.classList.toggle('on', !!msg);
+}
+
+async function guardarClave_() {
+  const nueva = document.getElementById('claveNueva').value;
+  const otra  = document.getElementById('claveOtra').value;
+  if (nueva.length < 8) { avisoClave_('Mínimo 8 caracteres.', false); return; }
+  if (nueva !== otra)   { avisoClave_('Las dos no son iguales.', false); return; }
+  if (!sb) { avisoClave_('Sin conexión con el servidor. Intenta de nuevo.', false); return; }
+  const btn = document.getElementById('btnGuardarClave');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  let error = null;
+  try {
+    const { data } = await sb.auth.getSession();
+    if (!data || !data.session) error = { message: 'sin_sesion' };
+    else error = (await sb.auth.updateUser({ password: nueva })).error;
+  } catch (e) { error = { message: String(e && e.message ? e.message : e) }; }
+  btn.disabled = false; btn.textContent = 'Guardar contraseña';
+  if (error) {
+    const m = String(error.message || '');
+    avisoClave_(
+      m === 'sin_sesion'           ? 'Tu sesión se cerró. Vuelve a entrar con tu correo y cámbiala enseguida.' :
+      /different|same/i.test(m)    ? 'Es la misma que ya tienes. Escribe una distinta.' :
+      /reauth|recent/i.test(m)     ? 'Por seguridad, cierra sesión, vuelve a entrar con tu correo y cámbiala enseguida.' :
+      /weak|at least|short/i.test(m) ? 'Esa contraseña es muy débil. Usa una más larga, con letras y números.' :
+      /fetch|network/i.test(m)     ? 'Sin señal. Intenta de nuevo cuando tengas conexión.' :
+      (m || 'No se pudo cambiar.'), false);
+    return;
+  }
+  document.getElementById('claveNueva').value = '';
+  document.getElementById('claveOtra').value = '';
+  avisoClave_('Listo ✓ La próxima vez entra con la contraseña nueva.', true);
 }
 
 function sc(name) {
