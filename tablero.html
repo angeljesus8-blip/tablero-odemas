@@ -2870,7 +2870,19 @@ function aplicarInventario(data){
            $14,999. Un precio vacío o en cero no borra el que hay. */
         const pn = cl.p ? parseFloat(String(cl.p).replace(/[^0-9.]/g,''))||0 : 0;
         if(pn > 0) item.precio = pn;
+        // El nombre también (27-oct-2026): es por donde busca el asesor.
+        if(cl.d) item.producto = cl.d;
       }
+    });
+    /* Lo que la nube ya no trae sale del teléfono (27-oct-2026). Antes se
+       quedaba para siempre con su stock del día que se guardó, y el cache lo
+       volvía a guardar en cada carga: piezas prometidas que ya no existen.
+       Aquí solo llega el inventario COMPLETO de Supabase (aplicarTodo con
+       __sb, o cargarInventarioNube), así que faltar es no existir. */
+    D.inventario = (D.inventario||[]).filter(function(item){
+      if(data[item.sku]) return true;
+      delete invBySku[item.sku];
+      return false;
     });
     // Agrega al inventario local los SKUs que el GAS conoce (Catalogo o Catalogo_ref)
     // pero que no están en datos.js — esto incluye productos agotados que ya no vienen

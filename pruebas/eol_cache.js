@@ -75,6 +75,15 @@ ok('PRECIO · el D16 toma el de la nube', precioD16() === 22999, precioD16());
 correr('aplicarInventario({ "100279926": { d:"MATEBOOK D16 CI5 16GB 512GB GR", o:5, v:0, e:0, ev:0, p:null } });');
 ok('PRECIO · uno vacío no borra el bueno', precioD16() === 22999, precioD16());
 
+// 3c · El nombre de la nube manda, y lo que la nube ya no trae sale del teléfono
+correr('aplicarInventario({ "100279926": { d:"MATEBOOK D16 NOMBRE NUEVO", o:5, v:0, e:0, ev:0, p:22999 } });');
+ok('NOMBRE · el de la nube', correr('(D.inventario.find(x => x.sku === "100279926")||{}).producto') === 'MATEBOOK D16 NOMBRE NUEVO');
+ok('BORRADO · el 900004 ya no está en la nube: sale del teléfono', !correr('D.inventario.some(x => x.sku === "900004")'),
+   correr('JSON.stringify(D.inventario.map(x => x.sku))'));
+correr('guardarInvCache();');
+const g2 = JSON.parse(localStorage.getItem('odemas_inv_cache') || 'null');
+ok('BORRADO · y tampoco se vuelve a guardar', g2 && !g2.inventario.some(x => x.sku === '900004'), g2 && g2.inventario.map(x => x.sku));
+
 // 4 · Sin campo eol no es «cero EOL»
 const sinEol = correr('typeof _deSupabase === "function" ? _deSupabase({ inventario:[], promos:[] }) : null');
 if(sinEol){

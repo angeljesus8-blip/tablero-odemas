@@ -1033,7 +1033,16 @@ try{ const p = JSON.parse(localStorage.getItem(PROMOKEY) || 'null'); if(esPromos
    el precio que se cobra. */
 async function refreshPromos(){
   const filas = await sbRpcCS('promos_vigentes');
-  if(filas && filas.length){
+  /* Una lista VACÍA también es respuesta (27-oct-2026): «hoy no hay promos».
+     Antes se exigía al menos una, y con cero —Admin · Limpiar todos, o el
+     fin de todas— el teléfono seguía cobrando las promos guardadas hasta su
+     fecha de fin.
+     Pero con un token que no vale, el candado TAMBIÉN contesta vacío. Así que
+     un cero solo se cree si el catálogo —que nunca está vacío— sí llega con
+     el mismo token; si no, se queda lo guardado. */
+  const vacioCreible = async () =>
+    { const c = await sbRpcCS('catalogo_completo'); return !!(c && c.length); };
+  if(Array.isArray(filas) && (filas.length || await vacioCreible())){
     const p = {};
     filas.forEach(function(x){
       p[x.sku] = { d:x.producto||'', pr:x.precio_reg, pp:x.precio_pro,
