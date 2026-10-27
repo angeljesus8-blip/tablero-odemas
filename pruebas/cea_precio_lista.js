@@ -105,6 +105,42 @@ const ESPERADO = {
   ok('SUBIR · con el número de CEA', ll[0] && ll[0].p.p_cea === 'CEA 273', ll[0] && ll[0].p.p_cea);
   const res = ent.el('resPromos').innerHTML;
   ok('SUBIR · dice cuántos, y lo de las promos quitadas', /7<\/b> precios de lista/.test(res) && /se quitaron 7 promociones/.test(res), res);
+  ok('SUBIR · el 273 no trae estatus: no saca a nadie de EOL', !ll.some(x => x.fn === 'eol_eliminar'));
+
+  /* 4 · CEA 283 «ACTIVACIÓN DE MATEBOOK D16» (15-oct-2026): un EOL que
+     regresa con precio regular nuevo. Su encabezado es «PRECIO REGULAR» y
+     «NUEVO PRECIO REGULAR» —la columna vieja no dice «anterior»— y se leía
+     como promo de $22,999 a $14,999. Y aunque entrara bien, se quedaba en
+     EOL: el tablero lo ofrecía al 50 % del precio viejo y sin seguro. */
+  ent.caja.__items = JSON.parse(fs.readFileSync(path.join(__dirname, 'cea', 'cea283_items.json'), 'utf8'));
+  const t3 = await ent.correr('_ceaTablaPDF({ name: "CEA_HUAWEI_283_ACTIVACIÓN_DE_MATEBOOK_D16.pdf" })');
+  const d = t3 && t3.rows && t3.rows[0] || {};
+  ok('CEA 283 · se reconoce como cambio de precio de lista', t3 && t3.tipo === 'lista', t3 && (t3.tipo || t3.rows));
+  ok('CEA 283 · un solo SKU, el D16', t3 && t3.rows.length === 1 && d.sku === '100279926', t3 && t3.rows);
+  ok('CEA 283 · de $14,999 a $22,999', d.pa === '14,999.00' && d.pn === '22,999.00', [d.pa, d.pn]);
+  ok('CEA 283 · desde el 15 de octubre', d.d1 === '2026-10-15', d.d1);
+  ok('CEA 283 · con 18, 12, 9 y 6 MSI', d.msi === '18,12,9,6', d.msi);
+  ok('CEA 283 · el renglón dice ACTIVO', d.activo === true, d.activo);
+  ok('CEA 283 · el número del comunicado', t3 && t3.cea === 'CEA 283', t3 && t3.cea);
+
+  ent.correr('parsedPromos = ' + JSON.stringify(t3) + ';');
+  ent.el('vigD1Promos').value = '2026-10-15';
+  ent.correr(`window.__llamadas = [];
+    sbCargaAdmin = async function(fn, p){ __llamadas.push({ fn: fn, p: p });
+      return { ok:true, guardados:1, aplicados:1, sin_catalogo:0, promos_quitadas:0 }; };
+    sbEscribir = async function(fn, p){ __llamadas.push({ fn: fn, p: p }); return { ok:true, borradas:1 }; };`);
+  await ent.correr('subirPromos()');
+  const l3 = ent.correr('__llamadas');
+  ok('CEA 283 · va a carga_precio_lista', l3[0] && l3[0].fn === 'carga_precio_lista', l3.map(x => x.fn));
+  ok('CEA 283 · y saca al D16 de EOL', l3.some(x => x.fn === 'eol_eliminar' && x.p.p_sku === '100279926'), l3);
+  ok('CEA 283 · lo dice en pantalla', /1 salió de EOL/.test(ent.el('resPromos').innerHTML), ent.el('resPromos').innerHTML);
+
+  /* Si el precio no se guardó, el EOL no se toca: quedaría activo al precio viejo. */
+  ent.correr(`window.__llamadas = [];
+    sbCargaAdmin = async function(fn, p){ __llamadas.push({ fn: fn, p: p });
+      return { ok:true, guardados:0, sin_fecha:1 }; };`);
+  await ent.correr('subirPromos()');
+  ok('CEA 283 · sin precio guardado, no sale de EOL', !ent.correr('__llamadas').some(x => x.fn === 'eol_eliminar'));
 
   if(fallos.length){
     console.log('FALLAS en cea_precio_lista.js:\n  - ' + fallos.join('\n  - '));

@@ -2864,7 +2864,12 @@ function aplicarInventario(data){
       const cl = data[item.sku];
       if(cl && typeof cl.o === 'number'){
         Object.assign(item, rawFields(cl));
-        if(cl.p && !item.precio) item.precio = parseFloat(String(cl.p).replace(/[^0-9.]/g,''))||0;
+        /* El precio de la nube MANDA (26-oct-2026). Solo se ponía si el item no
+           traía uno, y el item del cache siempre trae: en la 1217 el MateBook
+           D16 subió a $22,999 (CEA 283) y todos los teléfonos siguieron en
+           $14,999. Un precio vacío o en cero no borra el que hay. */
+        const pn = cl.p ? parseFloat(String(cl.p).replace(/[^0-9.]/g,''))||0 : 0;
+        if(pn > 0) item.precio = pn;
       }
     });
     // Agrega al inventario local los SKUs que el GAS conoce (Catalogo o Catalogo_ref)
@@ -2902,14 +2907,15 @@ function aplicarInventario(data){
   })(data);
 }
 
+/* La lista de la nube REEMPLAZA a la del cache (26-oct-2026). Antes solo
+   agregaba: un SKU que salia de EOL se quedaba en el cache de cada telefono
+   que alguna vez lo vio, y `guardarInvCache` lo volvia a guardar en cada
+   carga (en la 1217, el MateBook D16 reactivado por el CEA 283). La nube es
+   la que sabe que es EOL hoy. */
 function aplicarEol(data){
-  const skusLocales = new Set((D.eol||[]).map(function(e){ return e.sku; }));
-  data.forEach(function(e){
-    if(skusLocales.has(e.sku)) return;
-    // SKU subido via admin (ADENDUM PDF) que no estaba en datos.js
-    (D.eol = D.eol||[]).push({ sku: e.sku, precio: parseFloat(e.precio)||0 });
-    eolSkuSet.add(e.sku);
-  });
+  D.eol = data.map(function(e){ return { sku: e.sku, precio: parseFloat(e.precio)||0 }; });
+  eolSkuSet.clear();
+  D.eol.forEach(function(e){ eolSkuSet.add(e.sku); });
 }
 
 function aplicarPromos(data){
@@ -3210,7 +3216,9 @@ function _deSupabase(d){
   return {
     inventario: inv,
     promos: pro,
-    eol: (d.eol||[]).map(function(e){
+    /* Sin campo `eol` no es «cero EOL»: `aplicarEol` reemplaza la lista, y un
+       arreglo vacio inventado borraria los remates buenos del telefono. */
+    eol: !Array.isArray(d.eol) ? undefined : d.eol.map(function(e){
       return { sku:e.sku, precio: e.precio!=null ? e.precio : e.precio_efectivo }; }),
     bundles: (d.bundles||[]).map(function(b){
       return { id:String(b.id), nombre:b.nombre,

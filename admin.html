@@ -1706,7 +1706,10 @@ function _ceaEsCambioLista(cols,texto){
   const ets=cols.map(c=>c.et||'');
   const hayPromo=ets.some(e=>/PROMO|OFERTA|PRICE\s*MATCH/i.test(e));
   if(hayPromo) return false;
-  const viejo=ets.some(e=>/REGULAR|LISTA/i.test(e)&&/ANTERIOR|ACTUAL|PREVI/i.test(e));
+  /* La columna vieja puede no decir que es la vieja: el CEA 283 (reactivación
+     del MateBook D16, 15-oct-2026) trae «PRECIO REGULAR» junto a «NUEVO PRECIO
+     REGULAR». Sin columna de promo, un regular que no es el nuevo es el anterior. */
+  const viejo=ets.some(e=>/REGULAR|LISTA/i.test(e)&&!/NUEV/i.test(e));
   const nuevo=ets.some(e=>/REGULAR|LISTA/i.test(e)&&/NUEV/i.test(e));
   if(viejo&&nuevo) return true;
   return /BAJA\s+DE\s+PRECIO|ACTUALIZACI[OÓ]N\s+DE\s+PRECIO\s+REGULAR|CAMBIO\s+DE\s+PRECIO\s+(?:REGULAR|DE\s+LISTA)|NUEVO\s+PRECIO\s+REGULAR/i.test(texto);
@@ -1781,7 +1784,11 @@ async function _ceaTablaPDF(file){
       let msi='';
       if(msiCols.length&&r.marcas.length===msiCols.length)
         msi=msiCols.filter(function(_,i){ return _CEA_TACHE.test(r.marcas[i]); }).join(',');
-      return {sku:r.sku,desc:r.desc,pa:pa&&pa!==pn?pa.v:'',pn:pn?pn.v:'',msi:msi,d1:d1.iso};
+      /* `activo` solo si el renglón LO DICE: con él la subida saca el SKU de
+         EOL (un EOL que regresa, CEA 283). Sin columna de estatus —el 273— no
+         se toca ningún EOL. */
+      return {sku:r.sku,desc:r.desc,pa:pa&&pa!==pn?pa.v:'',pn:pn?pn.v:'',msi:msi,d1:d1.iso,
+              activo:!!r.estTok&&/ACTIV/i.test(r.estTok)};
     }).filter(r=>r.pn);
     return {tipo:'lista',rows:filasLista,vig:d1.txt,cea:mCea?'CEA '+mCea[1]:''};
   }
@@ -2068,6 +2075,16 @@ async function subirCambioLista(){
       { p_filas: filas, p_by: 'Admin ' + ((_cfg && _cfg.store_id) || '?'), p_cea: parsedPromos.cea || null });
     const n=Number(rp.guardados)||0;
     const fuera=(rp.sin_fecha||0)+(rp.sin_precio||0);
+    /* El SKU que el CEA da por ACTIVO deja de ser EOL en la misma subida: si
+       no, el tablero lo sigue ofreciendo al 50 % del precio VIEJO guardado en
+       `eol` y sin seguro. Se cuenta lo que de verdad se quitó. */
+    let salieronEol=0; const eolFallo=[];
+    if(n>0){
+      for(const f of filas.filter(x=>x.activo)){
+        const re=await sbEscribir('eol_eliminar',{ p_sku:String(f.sku) });
+        if(re&&re.ok) salieronEol+=Number(re.borradas)||0; else eolFallo.push(f.sku);
+      }
+    }
     if(n===0){
       showResult('resPromos',false,
         `❌ <b>No se guardó ningún cambio de precio.</b> Se leyeron ${filas.length} del archivo.`+
@@ -2078,6 +2095,8 @@ async function subirCambioLista(){
         `· ${rp.aplicados||0} ya con el precio nuevo en el catálogo`+
         (rp.sin_catalogo?`<br>· ${rp.sin_catalogo} todavía no están en el catálogo: toman el precio nuevo en cuanto Sonar los traiga`:'')+
         (rp.promos_quitadas?`<br>· se quitaron ${rp.promos_quitadas} promociones que eran este mismo CEA subido como promo`:'')+
+        (salieronEol?`<br>· ${salieronEol} ${salieronEol===1?'salió':'salieron'} de EOL: el CEA ${salieronEol===1?'lo':'los'} da por activo${salieronEol===1?'':'s'}`:'')+
+        (eolFallo.length?`<br>⚠️ No se pudo quitar de EOL: ${eolFallo.join(', ')} — quítalo en la pestaña 🏷️ EOL`:'')+
         (fuera?`<br>⚠️ ${fuera} se quedaron fuera (sin fecha o sin precio)`:''));
     }
   }catch(err){ showResult('resPromos',false,'Error al subir: '+err.message); }
